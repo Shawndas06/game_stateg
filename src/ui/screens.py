@@ -227,7 +227,8 @@ def draw_main_screen(
     field_army = getattr(game_state, "field_army", 0)
     garrison_total = sum(game_state._get_garrison(fid) for fid in game_state.owned_fortresses)
     troops_total = garrison_total + field_army
-    title_text = f"{stage_info.name_ru}  |  {game_state.year} г.  |  Ход {game_state.turn}  |  Золото: {gold}  |  Армия: {field_army}  |  Войска: {troops_total}"
+    legitimacy = getattr(game_state, "legitimacy", 50)
+    title_text = f"{stage_info.name_ru}  |  {game_state.year} г.  |  Ход {game_state.turn}  |  Золото: {gold}  |  Армия: {field_army}  |  Войска: {troops_total}  |  Легитимность: {legitimacy}"
     title_surf = font_title.render(title_text, True, COLOR_UI_ACCENT)
     surface.blit(title_surf, (70, 20))
 
@@ -457,16 +458,29 @@ def draw_capital_dialog(
     pygame.draw.rect(surface, COLOR_UI_ACCENT, popup_rect, 3)
 
     field_army = getattr(game_state, "field_army", 0)
+    commander = getattr(game_state, "field_army_commander", None)
+    commanders = getattr(game_state, "commanders", []) or []
 
     title_surf = font_title.render(f"Столица: {fortress_name_ru}", True, COLOR_UI_ACCENT)
     surface.blit(title_surf, (popup_x + 20, popup_y + 12))
-    army_surf = font.render(f"Походная армия: {field_army} воинов", True, COLOR_TEXT)
+    army_surf = font.render(f"Походная армия: {field_army} воинов  |  Полководец: {commander or '—'}", True, COLOR_TEXT)
     surface.blit(army_surf, (popup_x + 20, popup_y + 40))
     hint_surf = font.render("Заберите войска из крепостей в армию:", True, COLOR_TEXT_DIM)
     surface.blit(hint_surf, (popup_x + 20, popup_y + 65))
 
+    buttons = []
+    if commanders:
+        surface.blit(font.render("Полководец:", True, COLOR_TEXT_DIM), (popup_x + 20, popup_y + 92))
+        for i, c in enumerate(commanders[:4]):
+            rect = pygame.Rect(popup_x + 140 + i * 95, popup_y + 88, 90, 28)
+            sel = commander == c
+            pygame.draw.rect(surface, COLOR_UI_ACCENT if sel else COLOR_UI_BG, rect)
+            pygame.draw.rect(surface, COLOR_TEXT, rect, 2)
+            surface.blit(font.render(c[:8], True, COLOR_UI_BG if sel else COLOR_TEXT), font.render(c[:8], True, COLOR_TEXT).get_rect(center=rect.center))
+            buttons.append((rect, f"set_commander:{c}"))
+
     # Область списка крепостей (фиксированная высота, не выходит за границы)
-    list_top = popup_y + 88
+    list_top = popup_y + 130
     list_bottom = popup_y + popup_h - 58  # Место для кнопок внизу
     row_height = 48  # Достаточно для название + кнопки в ряд
     max_visible_rows = max(1, (list_bottom - list_top) // row_height)
@@ -559,7 +573,7 @@ def draw_siege_dialog(
     pygame.draw.rect(surface, COLOR_UI_ACCENT, popup_rect, 3)
 
     defender = game_state.get_defender_garrison(fortress_id)
-    effective_defender = game_state.get_effective_defender(fortress_id)
+    effective_defender = game_state.get_effective_defender(fortress_id, 0)
     siege_info = game_state.sieges_in_progress.get(fortress_id)
     field_army = getattr(game_state, "field_army", 0)
     adjacent = game_state.get_adjacent_owned_fortresses(fortress_id)
@@ -580,9 +594,24 @@ def draw_siege_dialog(
         y += 50
     elif siege_info:
         supplies = getattr(siege_info, "defender_supplies", 3)
-        body = f"Осада в процессе. Атакующих: {siege_info.attacker_troops}. Снабжение защитников: {supplies}. Ходов до капитуляции: {siege_info.turns_remaining}"
+        catapults = getattr(siege_info, "catapults", 0)
+        cat_text = f", Катапульт: {catapults}" if catapults else ""
+        siege_turns = 3 - siege_info.turns_remaining
+        body = f"Осада. Атакующих: {siege_info.attacker_troops}{cat_text}. Снабжение: {supplies}. Ходов: {siege_info.turns_remaining}"
         body_surf = font.render(body, True, COLOR_TEXT)
         surface.blit(body_surf, (popup_x + 20, y))
+        y += 35
+        eff_siege = game_state._get_effective_defender(fortress_id, max(0, siege_turns))
+        assault_needed = int(eff_siege * 1.5)
+        siege_troops = siege_info.attacker_troops
+        can_assault = (field_army >= assault_needed or siege_troops >= assault_needed) and siege_turns > 0
+        if can_assault:
+            rect = pygame.Rect(popup_x + 20, y, 140, btn_h)
+            pygame.draw.rect(surface, (180, 60, 40), rect)
+            pygame.draw.rect(surface, COLOR_TEXT, rect, 1)
+            txt = font.render("Штурм (ослаблены)", True, COLOR_TEXT)
+            surface.blit(txt, txt.get_rect(center=rect.center))
+            buttons.append((rect, f"siege_field:{assault_needed}:assault"))
         y += 50
     elif not adjacent:
         body_surf = font.render("Нет своих крепостей рядом. Армия не может достичь цели.", True, COLOR_TEXT_DIM)
@@ -629,7 +658,7 @@ def draw_siege_dialog(
         y += 50
 
     # Закрыть
-    rect_cancel = pygame.Rect((SCREEN_WIDTH - 120) // 2, popup_y + popup_h - 55, 120, 45)
+    rect_cancel = pygame.Rect(popup_x + (popup_w - 120) // 2, popup_y + popup_h - 55, 120, 45)
     pygame.draw.rect(surface, COLOR_UI_BG, rect_cancel)
     pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_cancel, 2)
     surface.blit(font.render("Закрыть", True, COLOR_UI_ACCENT),
@@ -654,15 +683,13 @@ def draw_hire_dialog(
     font_title: pygame.font.Font,
     font: pygame.font.Font,
 ) -> list[tuple[pygame.Rect, str]]:
-    """
-    Окно найма войск в крепости.
-    """
+    """Окно крепости: найм войск (по типу), постройки, наместник."""
     overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
     overlay.set_alpha(200)
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
 
-    popup_w, popup_h = 420, 280
+    popup_w, popup_h = 520, 400
     popup_x = (SCREEN_WIDTH - popup_w) // 2
     popup_y = (SCREEN_HEIGHT - popup_h) // 2
     popup_rect = pygame.Rect(popup_x, popup_y, popup_w, popup_h)
@@ -671,62 +698,194 @@ def draw_hire_dialog(
 
     garrison = game_state._get_garrison(fortress_id)
     gold = game_state.gold
+    field_army = getattr(game_state, "field_army", 0)
     mods = game_state._get_law_modifiers() if hasattr(game_state, "_get_law_modifiers") else {"hire_cost": 1.0}
-    from src.game.game_state import HIRE_COST_PER_TROOP
-    cost_per = max(1, int(HIRE_COST_PER_TROOP * mods["hire_cost"]))
+    from src.data.troops_data import get_troops_for_stage, get_troop_type
+
+    troops = get_troops_for_stage(game_state.stage)
+    governor = (game_state.fortress_governors or {}).get(fortress_id, "")
+    buildings = (game_state.fortress_buildings or {}).get(fortress_id, set())
+    build_prog = (game_state.fortress_build_progress or {}).get(fortress_id)
 
     title_surf = font_title.render(f"Крепость: {fortress_name_ru}", True, COLOR_UI_ACCENT)
-    surface.blit(title_surf, (popup_x + 20, popup_y + 15))
-    g_surf = font.render(f"Гарнизон: {garrison} воинов", True, COLOR_TEXT)
-    surface.blit(g_surf, (popup_x + 20, popup_y + 50))
-    gold_surf = font.render(f"Золото: {gold} (найм: {cost_per} за воина)", True, COLOR_TEXT)
-    surface.blit(gold_surf, (popup_x + 20, popup_y + 75))
-
-    surface.blit(font.render("Нанять воинов:", True, COLOR_TEXT), (popup_x + 20, popup_y + 105))
+    surface.blit(title_surf, (popup_x + 20, popup_y + 12))
+    surface.blit(font.render(f"Гарнизон: {garrison} | Золото: {gold}", True, COLOR_TEXT), (popup_x + 20, popup_y + 42))
+    surface.blit(font.render(f"Наместник: {governor or '—'}", True, COLOR_TEXT_DIM), (popup_x + 20, popup_y + 62))
+    if buildings:
+        from src.data.buildings_data import get_building
+        names = []
+        for bid in list(buildings)[:4]:
+            b = get_building(bid)
+            names.append(b.name_ru[:10] if b else bid[:8])
+        surface.blit(font.render(f"Здания: {', '.join(names)}", True, COLOR_TEXT_DIM), (popup_x + 20, popup_y + 80))
+    if build_prog:
+        bid, left = build_prog
+        from src.data.buildings_data import get_building
+        b = get_building(bid)
+        bname = b.name_ru if b else bid
+        surface.blit(font.render(f"Строится: {bname} ({left} ход.)", True, COLOR_UI_ACCENT), (popup_x + 20, popup_y + 98))
 
     buttons = []
-    amounts = [10, 25, 50, 100]
-    btn_w, btn_h = 70, 38
-    hire_y = popup_y + 135
-    start_x = popup_x + 20
-    for i, amt in enumerate(amounts):
-        cost = amt * cost_per
-        rect = pygame.Rect(start_x + i * (btn_w + 10), hire_y, btn_w, btn_h)
-        if gold >= cost:
-            pygame.draw.rect(surface, COLOR_UI_ACCENT, rect)
-            txt = font.render(f"+{amt}", True, COLOR_UI_BG)
-        else:
-            pygame.draw.rect(surface, COLOR_UI_BG, rect)
-            pygame.draw.rect(surface, COLOR_TEXT_DIM, rect, 2)
-            txt = font.render(f"+{amt}", True, COLOR_TEXT_DIM)
-        surface.blit(txt, txt.get_rect(center=rect.center))
-        buttons.append((rect, f"hire_amount:{amt}"))
+    y = popup_y + 115
+    hire_mult = 1.0
+    from src.data.buildings_data import get_building
+    for bid in (game_state.fortress_buildings or {}).get(fortress_id, set()):
+        b = get_building(bid)
+        if b and getattr(b, "hire_bonus", 0):
+            hire_mult += b.hire_bonus
+    for t in troops[:6]:
+        tt = get_troop_type(t.id)
+        if not tt:
+            continue
+        cost_per = max(1, int(tt.cost * mods["hire_cost"] * hire_mult))
+        surface.blit(font.render(f"{tt.name_ru} ({cost_per}):", True, COLOR_TEXT), (popup_x + 20, y))
+        for j, amt in enumerate([5, 15, 30]):
+            rect = pygame.Rect(popup_x + 180 + j * 58, y - 2, 52, 28)
+            cost = amt * cost_per
+            ok = gold >= cost
+            pygame.draw.rect(surface, COLOR_UI_ACCENT if ok else COLOR_UI_BG, rect)
+            pygame.draw.rect(surface, COLOR_TEXT if ok else COLOR_TEXT_DIM, rect, 1)
+            surface.blit(font.render(f"+{amt}", True, COLOR_UI_BG if ok else COLOR_TEXT_DIM), font.render(f"+{amt}", True, COLOR_UI_BG).get_rect(center=rect.center))
+            buttons.append((rect, f"hire_amount:{amt}:{t.id}"))
+        y += 32
 
-    # Нижний ряд: [Столица] [Закрыть] [Переименовать] — без наложения
     btn_y = popup_y + popup_h - 48
     btn_h = 38
+    btn_w = 78
+    x = popup_x + 15
+    rect_build = pygame.Rect(x, btn_y, btn_w, btn_h)
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_build)
+    pygame.draw.rect(surface, COLOR_TEXT, rect_build, 2)
+    surface.blit(font.render("Строить", True, COLOR_UI_BG), font.render("Строить", True, COLOR_UI_BG).get_rect(center=rect_build.center))
+    buttons.append((rect_build, f"fort_build:{fortress_id}"))
+    x += btn_w + 8
+    rect_gov = pygame.Rect(x, btn_y, btn_w, btn_h)
+    pygame.draw.rect(surface, COLOR_UI_BG, rect_gov)
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_gov, 2)
+    surface.blit(font.render("Наместник", True, COLOR_UI_ACCENT), font.render("Наместник", True, COLOR_UI_ACCENT).get_rect(center=rect_gov.center))
+    buttons.append((rect_gov, f"fort_governor:{fortress_id}"))
+    x += btn_w + 8
     if fortress_id != game_state.capital_id:
-        rect_capital = pygame.Rect(popup_x + 15, btn_y, 125, btn_h)
+        rect_capital = pygame.Rect(x, btn_y, btn_w, btn_h)
         pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_capital)
         pygame.draw.rect(surface, COLOR_TEXT, rect_capital, 2)
-        surface.blit(font.render("Столица сюда", True, COLOR_UI_BG),
-                     font.render("Столица сюда", True, COLOR_UI_BG).get_rect(center=rect_capital.center))
+        surface.blit(font.render("Столица", True, COLOR_UI_BG), font.render("Столица", True, COLOR_UI_BG).get_rect(center=rect_capital.center))
         buttons.append((rect_capital, f"make_capital:{fortress_id}"))
-
-    rect_cancel = pygame.Rect(popup_x + (popup_w - 95) // 2, btn_y, 95, btn_h)
+        x += btn_w + 8
+    rect_cancel = pygame.Rect(x, btn_y, btn_w, btn_h)
     pygame.draw.rect(surface, COLOR_UI_BG, rect_cancel)
     pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_cancel, 2)
-    surface.blit(font.render("Закрыть", True, COLOR_UI_ACCENT),
-                 font.render("Закрыть", True, COLOR_UI_ACCENT).get_rect(center=rect_cancel.center))
+    surface.blit(font.render("Закрыть", True, COLOR_UI_ACCENT), font.render("Закрыть", True, COLOR_UI_ACCENT).get_rect(center=rect_cancel.center))
     buttons.append((rect_cancel, HIRE_CANCEL))
-
-    rect_rename = pygame.Rect(popup_x + popup_w - 130, btn_y, 115, btn_h)
+    x += btn_w + 8
+    rect_rename = pygame.Rect(x, btn_y, btn_w, btn_h)
     pygame.draw.rect(surface, COLOR_UI_BG, rect_rename)
     pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_rename, 2)
-    surface.blit(font.render("Переимен.", True, COLOR_UI_ACCENT),
-                 font.render("Переимен.", True, COLOR_UI_ACCENT).get_rect(center=rect_rename.center))
+    surface.blit(font.render("Имя", True, COLOR_UI_ACCENT), font.render("Имя", True, COLOR_UI_ACCENT).get_rect(center=rect_rename.center))
     buttons.append((rect_rename, f"hire_rename:{fortress_id}"))
 
+    commander = getattr(game_state, "field_army_commander", None)
+    commanders = getattr(game_state, "commanders", []) or []
+    if commanders and field_army > 0:
+        surface.blit(font.render("Полководец:", True, COLOR_TEXT_DIM), (popup_x + 20, btn_y - 28))
+        for i, c in enumerate(commanders[:4]):
+            rect = pygame.Rect(popup_x + 130 + i * 90, btn_y - 32, 85, 26)
+            sel = commander == c
+            pygame.draw.rect(surface, COLOR_UI_ACCENT if sel else COLOR_UI_BG, rect)
+            pygame.draw.rect(surface, COLOR_TEXT, rect, 2)
+            surface.blit(font.render(c[:6], True, COLOR_UI_BG if sel else COLOR_TEXT), font.render(c[:6], True, COLOR_TEXT).get_rect(center=rect.center))
+            buttons.append((rect, f"set_commander:{c}"))
+
+    return buttons
+
+
+def draw_build_dialog(
+    surface: pygame.Surface,
+    fortress_name_ru: str,
+    fortress_id: str,
+    game_state,
+    font_title: pygame.font.Font,
+    font: pygame.font.Font,
+) -> list[tuple[pygame.Rect, str]]:
+    """Окно постройки зданий."""
+    from src.data.buildings_data import BUILDINGS_DATA, get_building
+    overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    overlay.set_alpha(200)
+    overlay.fill((0, 0, 0))
+    surface.blit(overlay, (0, 0))
+    popup_w, popup_h = 500, 450
+    popup_x = (SCREEN_WIDTH - popup_w) // 2
+    popup_y = (SCREEN_HEIGHT - popup_h) // 2
+    pygame.draw.rect(surface, COLOR_UI_BG, (popup_x, popup_y, popup_w, popup_h))
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, (popup_x, popup_y, popup_w, popup_h), 3)
+    surface.blit(font_title.render(f"Постройка: {fortress_name_ru}", True, COLOR_UI_ACCENT), (popup_x + 20, popup_y + 12))
+    surface.blit(font.render(f"Золото: {game_state.gold}", True, COLOR_TEXT), (popup_x + 20, popup_y + 45))
+    built = (game_state.fortress_buildings or {}).get(fortress_id, set())
+    in_progress = (game_state.fortress_build_progress or {}).get(fortress_id)
+    buttons = []
+    y = popup_y + 75
+    rect_close = pygame.Rect((popup_w - 100) // 2 + popup_x, popup_y + popup_h - 50, 100, 40)
+    pygame.draw.rect(surface, COLOR_UI_BG, rect_close)
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_close, 2)
+    surface.blit(font.render("Закрыть", True, COLOR_UI_ACCENT), font.render("Закрыть", True, COLOR_UI_ACCENT).get_rect(center=rect_close.center))
+    buttons.append((rect_close, "build_close"))
+    for b in BUILDINGS_DATA[:12]:
+        if b.required_stage == "sultanate" and game_state.stage == "beylik":
+            continue
+        if b.required_stage == "empire" and game_state.stage in ("beylik", "sultanate"):
+            continue
+        name_text = f"{b.name_ru} — {b.cost} зол."
+        if b.id in built:
+            surface.blit(font.render(f"✓ {b.name_ru} (построено)", True, COLOR_TEXT_DIM), (popup_x + 20, y))
+        elif in_progress and in_progress[0] == b.id:
+            surface.blit(font.render(f"... {b.name_ru} (строится)", True, COLOR_UI_ACCENT), (popup_x + 20, y))
+        elif game_state.gold >= b.cost and fortress_id not in (game_state.fortress_build_progress or {}):
+            surface.blit(font.render(name_text, True, COLOR_TEXT), (popup_x + 20, y))
+            rect = pygame.Rect(popup_x + 360, y - 4, 95, 28)
+            pygame.draw.rect(surface, COLOR_UI_ACCENT, rect)
+            pygame.draw.rect(surface, COLOR_TEXT, rect, 2)
+            surface.blit(font.render("Строить", True, COLOR_UI_BG), font.render("Строить", True, COLOR_UI_BG).get_rect(center=rect.center))
+            buttons.append((rect, f"build_{b.id}"))
+        else:
+            surface.blit(font.render(name_text, True, COLOR_TEXT_DIM), (popup_x + 20, y))
+        y += 30
+    return buttons
+
+
+def draw_governor_dialog(
+    surface: pygame.Surface,
+    fortress_name_ru: str,
+    fortress_id: str,
+    current_text: str,
+    font_title: pygame.font.Font,
+    font: pygame.font.Font,
+) -> list[tuple[pygame.Rect, str]]:
+    """Окно назначения наместника."""
+    overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    overlay.set_alpha(200)
+    overlay.fill((0, 0, 0))
+    surface.blit(overlay, (0, 0))
+    popup_w, popup_h = 420, 200
+    popup_x = (SCREEN_WIDTH - popup_w) // 2
+    popup_y = (SCREEN_HEIGHT - popup_h) // 2
+    pygame.draw.rect(surface, COLOR_UI_BG, (popup_x, popup_y, popup_w, popup_h))
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, (popup_x, popup_y, popup_w, popup_h), 3)
+    surface.blit(font_title.render(f"Наместник: {fortress_name_ru}", True, COLOR_UI_ACCENT), (popup_x + 20, popup_y + 15))
+    input_rect = pygame.Rect(popup_x + 20, popup_y + 60, popup_w - 40, 40)
+    pygame.draw.rect(surface, (60, 65, 80), input_rect)
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, input_rect, 2)
+    surface.blit(font.render(current_text[:30] if current_text else "Имя наместника...", True, COLOR_TEXT if current_text else COLOR_TEXT_DIM), (input_rect.x + 10, input_rect.y + 10))
+    buttons = []
+    rect_ok = pygame.Rect(popup_x + popup_w // 2 - 110, popup_y + 130, 90, 40)
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_ok)
+    pygame.draw.rect(surface, COLOR_TEXT, rect_ok, 2)
+    surface.blit(font.render("OK", True, COLOR_UI_BG), font.render("OK", True, COLOR_UI_BG).get_rect(center=rect_ok.center))
+    buttons.append((rect_ok, "governor_ok"))
+    rect_cancel = pygame.Rect(popup_x + popup_w // 2 + 10, popup_y + 130, 90, 40)
+    pygame.draw.rect(surface, COLOR_UI_BG, rect_cancel)
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_cancel, 2)
+    surface.blit(font.render("Отмена", True, COLOR_UI_ACCENT), font.render("Отмена", True, COLOR_UI_ACCENT).get_rect(center=rect_cancel.center))
+    buttons.append((rect_cancel, "governor_cancel"))
     return buttons
 
 
@@ -778,6 +937,41 @@ def draw_rename_dialog(
                  font.render("Отмена", True, COLOR_UI_ACCENT).get_rect(center=rect_cancel.center))
     buttons.append((rect_cancel, "rename_cancel"))
 
+    return buttons
+
+
+# === ТОРГОВОЕ ПРЕДЛОЖЕНИЕ ОТ AI ===
+
+
+def draw_trade_proposal_dialog(
+    surface: pygame.Surface,
+    faction_name_ru: str,
+    font_title: pygame.font.Font,
+    font: pygame.font.Font,
+) -> list[tuple[pygame.Rect, str]]:
+    """AI предлагает торговать."""
+    overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    overlay.set_alpha(200)
+    overlay.fill((0, 0, 0))
+    surface.blit(overlay, (0, 0))
+    popup_w, popup_h = 400, 180
+    popup_x = (SCREEN_WIDTH - popup_w) // 2
+    popup_y = (SCREEN_HEIGHT - popup_h) // 2
+    pygame.draw.rect(surface, COLOR_UI_BG, (popup_x, popup_y, popup_w, popup_h))
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, (popup_x, popup_y, popup_w, popup_h), 3)
+    surface.blit(font_title.render(f"{faction_name_ru} предлагает торговать", True, COLOR_UI_ACCENT), (popup_x + 20, popup_y + 25))
+    surface.blit(font.render("Принять соглашение?", True, COLOR_TEXT), (popup_x + 20, popup_y + 65))
+    buttons = []
+    rect_yes = pygame.Rect(popup_x + 60, popup_y + 110, 120, 45)
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_yes)
+    pygame.draw.rect(surface, COLOR_TEXT, rect_yes, 2)
+    surface.blit(font.render("Принять", True, COLOR_UI_BG), font.render("Принять", True, COLOR_UI_BG).get_rect(center=rect_yes.center))
+    buttons.append((rect_yes, "trade_accept"))
+    rect_no = pygame.Rect(popup_x + 220, popup_y + 110, 120, 45)
+    pygame.draw.rect(surface, COLOR_UI_BG, rect_no)
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_no, 2)
+    surface.blit(font.render("Отклонить", True, COLOR_UI_ACCENT), font.render("Отклонить", True, COLOR_UI_ACCENT).get_rect(center=rect_no.center))
+    buttons.append((rect_no, "trade_decline"))
     return buttons
 
 
@@ -898,16 +1092,27 @@ def draw_economy_dialog(
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
 
-    popup_w, popup_h = 540, 480
+    popup_w, popup_h = 520, 420
     popup_x = (SCREEN_WIDTH - popup_w) // 2
     popup_y = (SCREEN_HEIGHT - popup_h) // 2
-    pygame.draw.rect(surface, COLOR_UI_BG, (popup_x, popup_y, popup_w, popup_h))
-    pygame.draw.rect(surface, COLOR_UI_ACCENT, (popup_x, popup_y, popup_w, popup_h), 3)
+    popup_rect = pygame.Rect(popup_x, popup_y, popup_w, popup_h)
+    pygame.draw.rect(surface, COLOR_UI_BG, popup_rect)
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, popup_rect, 3)
+    surface.set_clip(popup_rect)
 
     gold = getattr(game_state, "gold", 0)
     fort_count = len(game_state.owned_fortresses)
     mods = game_state._get_law_modifiers() if hasattr(game_state, "_get_law_modifiers") else {"income": 1.0, "upkeep": 1.0, "trade_income": 1.0}
-    income = int(fort_count * GOLD_PER_FORTRESS_PER_TURN * mods["income"])
+    from src.data.buildings_data import get_building
+    income = 0
+    for fid in game_state.owned_fortresses:
+        inc = GOLD_PER_FORTRESS_PER_TURN
+        for bid in (game_state.fortress_buildings or {}).get(fid, set()):
+            b = get_building(bid)
+            if b:
+                inc = int(inc * (b.income_mult or 1.0)) + (b.income_plus or 0)
+        income += max(inc, GOLD_PER_FORTRESS_PER_TURN)
+    income = int(income * mods["income"])
     tribute_count = sum(1 for fid in getattr(game_state, "ai_state", {}) if game_state.get_relation_with(fid) == "tribute")
     tribute_income = tribute_count * TRIBUTE_GOLD_PER_TURN
     trade_count = len(getattr(game_state, "trade_partners", set()))
@@ -917,15 +1122,20 @@ def draw_economy_dialog(
     troops_total = garrison_total + field_army
     upkeep = int(troops_total * UPKEEP_PER_TROOP * mods["upkeep"])
     net = income + tribute_income + trade_income - upkeep
+    is_winter = game_state.turn % 4 == 0
+    if is_winter:
+        income = int(income * 0.85)
+        net = income + tribute_income + trade_income - upkeep
 
     title_surf = font_title.render("Экономика", True, COLOR_UI_ACCENT)
     surface.blit(title_surf, (popup_x + 20, popup_y + 15))
-    surface.blit(font.render(f"Казна: {gold} золота", True, COLOR_TEXT), (popup_x + 20, popup_y + 50))
-    surface.blit(font.render(f"Крепостей: {fort_count}", True, COLOR_TEXT), (popup_x + 20, popup_y + 75))
-    y_line = 105
+    surface.blit(font.render(f"Казна: {gold} золота", True, COLOR_TEXT), (popup_x + 20, popup_y + 48))
+    surface.blit(font.render(f"Крепостей: {fort_count}", True, COLOR_TEXT), (popup_x + 20, popup_y + 72))
+    y_line = popup_y + 100
     surface.blit(font.render("─ Доходы ─", True, COLOR_UI_ACCENT), (popup_x + 20, y_line))
-    y_line += 25
-    surface.blit(font.render(f"Крепости ({fort_count}): +{income}", True, COLOR_TEXT), (popup_x + 30, y_line))
+    y_line += 24
+    inc_text = f"Крепости ({fort_count}): +{income}" + (" (зима −15%)" if is_winter else "")
+    surface.blit(font.render(inc_text, True, COLOR_TEXT), (popup_x + 30, y_line))
     y_line += 22
     if tribute_count > 0:
         surface.blit(font.render(f"Дань (вассалы {tribute_count}): +{tribute_income}", True, COLOR_TEXT), (popup_x + 30, y_line))
@@ -933,14 +1143,15 @@ def draw_economy_dialog(
     if trade_count > 0:
         surface.blit(font.render(f"Торговля ({trade_count}): +{trade_income}", True, COLOR_TEXT), (popup_x + 30, y_line))
         y_line += 22
-    y_line += 8
+    y_line += 6
     surface.blit(font.render("─ Расходы ─", True, COLOR_UI_ACCENT), (popup_x + 20, y_line))
-    y_line += 25
+    y_line += 24
     surface.blit(font.render(f"Содержание войск ({troops_total}): −{upkeep}", True, COLOR_TEXT), (popup_x + 30, y_line))
-    y_line += 30
+    y_line += 28
     surface.blit(font.render(f"Итого за ход: {'+' if net >= 0 else ''}{net} золота", True, COLOR_UI_ACCENT), (popup_x + 20, y_line))
 
-    rect_close = pygame.Rect((SCREEN_WIDTH - 100) // 2, popup_y + popup_h - 50, 100, 40)
+    surface.set_clip(None)
+    rect_close = pygame.Rect(popup_x + (popup_w - 100) // 2, popup_y + popup_h - 48, 100, 38)
     pygame.draw.rect(surface, COLOR_UI_BG, rect_close)
     pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_close, 2)
     surface.blit(font.render("Закрыть", True, COLOR_UI_ACCENT),

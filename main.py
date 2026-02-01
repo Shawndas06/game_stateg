@@ -14,6 +14,9 @@ from src.narrative.narrative_engine import get_next_narrative_event
 from src.utils.constants import SCREEN_WIDTH, SCREEN_HEIGHT
 from src.ui.screens import (
     draw_main_menu,
+    draw_build_dialog,
+    draw_governor_dialog,
+    draw_trade_proposal_dialog,
     draw_settings_screen,
     get_menu_button_at_pos,
     get_top_bar_button_rects,
@@ -44,7 +47,9 @@ from src.ui.screens import (
 from src.map.map_renderer import get_clicked_fortress, MAP_OFFSET_X, MAP_OFFSET_Y, MAP_VIEW_WIDTH, MAP_VIEW_HEIGHT
 from src.game.save_manager import save_game, load_game, has_save
 from src.game.diplomacy_engine import propose_peace, propose_nap, propose_tribute, propose_alliance, propose_trade, declare_war
+from src.audio.sound_manager import play_click, play_build, play_capture, play_diplomacy
 from src.data.fortresses import get_fortress_by_id
+from src.data.factions_data import FACTION_NAMES_RU
 
 
 def get_fortress_name_ru(game_state, fortress_id: str) -> str:
@@ -80,9 +85,14 @@ def main():
     selected_fortress = None
     fortress_dialog_buttons = []
 
-    # Диалог переименования: (fortress_id, current_text) или None
     rename_state = None
     rename_dialog_buttons = []
+    build_dialog_state = None
+    governor_dialog_state = None
+    trade_proposal_state = None  # (faction_id,)
+    build_dialog_buttons = []
+    governor_dialog_buttons = []
+    trade_proposal_buttons = []
 
     # Диалоги: Дипломатия, Экономика, Законы
     diplomacy_open = False
@@ -104,6 +114,20 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
                 break
+
+            if governor_dialog_state and event.type == pygame.KEYDOWN:
+                fortress_id, text = governor_dialog_state
+                if event.key == pygame.K_ESCAPE:
+                    governor_dialog_state = None
+                elif event.key == pygame.K_RETURN:
+                    if text.strip():
+                        game_state.appoint_governor(fortress_id, text)
+                    governor_dialog_state = None
+                elif event.key == pygame.K_BACKSPACE:
+                    governor_dialog_state = (fortress_id, text[:-1])
+                elif event.unicode and len(text) < 25 and event.unicode.isprintable():
+                    governor_dialog_state = (fortress_id, text + event.unicode)
+                continue
 
             # Ввод текста для переименования
             if rename_state and event.type == pygame.KEYDOWN:
@@ -140,6 +164,7 @@ def main():
                         )
                         active_dialog_buttons = []
                     elif action == MENU_BTN_LOAD_GAME and has_save():
+                        play_click()
                         loaded = load_game()
                         if loaded is not None:
                             screen_state = "game"
@@ -147,9 +172,11 @@ def main():
                             active_dialog_event = None
                             active_dialog_buttons = []
                     elif action == MENU_BTN_SETTINGS:
+                        play_click()
                         screen_state = "settings"
                         settings_buttons = draw_settings_screen(screen, font_title, font, fullscreen)
                     elif action == MENU_BTN_EXIT:
+                        play_click()
                         running = False
                         break
                     continue
@@ -171,6 +198,39 @@ def main():
                             break
                     continue
 
+                if trade_proposal_state and game_state:
+                    for rect, act in trade_proposal_buttons:
+                        if rect.collidepoint(mouse_pos):
+                            fid = trade_proposal_state[0]
+                            if act == "trade_accept":
+                                game_state.trade_partners.add(fid)
+                                play_diplomacy()
+                            trade_proposal_state = None
+                            break
+                    continue
+                if governor_dialog_state and game_state:
+                    for rect, act in governor_dialog_buttons:
+                        if rect.collidepoint(mouse_pos):
+                            fid, text = governor_dialog_state
+                            if act == "governor_ok" and text.strip():
+                                game_state.appoint_governor(fid, text)
+                            governor_dialog_state = None
+                            break
+                    continue
+                if build_dialog_state and game_state:
+                    for rect, act in build_dialog_buttons:
+                        if rect.collidepoint(mouse_pos):
+                            fid = build_dialog_state[0]
+                            if act == "build_close":
+                                build_dialog_state = None
+                            elif act.startswith("build_") and act != "build_close":
+                                bid = act[6:]
+                                ok, _ = game_state.build_building(fid, bid)
+                                if ok:
+                                    play_build()
+                                    build_dialog_state = None
+                            break
+                    continue
                 # Диалог переименования
                 if rename_state and game_state:
                     for rect, action in rename_dialog_buttons:
@@ -254,6 +314,7 @@ def main():
                             continue
 
                         if action == SIEGE_CANCEL or action == HIRE_CANCEL or action == CAPITAL_CANCEL:
+                            play_click()
                             selected_fortress = None
                             break
 
@@ -273,6 +334,10 @@ def main():
                                 selected_fortress = get_fortress_by_id(fid)
                             break
 
+                        if action.startswith("set_commander:"):
+                            c = action.split(":", 1)[1]
+                            game_state.set_commander(c)
+                            break
                         if action.startswith("capital_transfer:"):
                             parts = action.split(":")
                             if len(parts) >= 3:
@@ -290,6 +355,7 @@ def main():
                                     rel = game_state.get_relation_with(target_owner)
                                     if rel == "nap":
                                         game_state.nap_violations += 1
+                                        game_state.legitimacy = max(0, getattr(game_state, "legitimacy", 50) - 10)
                                     if rel != "war":
                                         game_state.ai_state.setdefault(target_owner, {})["relation"] = "war"
                                         if target_owner == "byzantine":
@@ -297,6 +363,7 @@ def main():
                                 if mode == "siege":
                                     ok, _ = game_state.start_siege_from_field_army(target_id, int(amount_str))
                                     if ok:
+                                        play_click()
                                         selected_fortress = None
                                 elif mode == "assault":
                                     ok, _ = game_state.assault_from_field_army(target_id, int(amount_str))
@@ -313,8 +380,18 @@ def main():
                             break
 
                         if action.startswith("hire_amount:"):
-                            count = int(action.split(":")[1])
-                            game_state.hire_troops(selected_fortress.id, count)
+                            parts = action.split(":")
+                            count = int(parts[1])
+                            troop_type = parts[2] if len(parts) >= 3 else "militia"
+                            game_state.hire_troops(selected_fortress.id, count, troop_type)
+                            break
+                        if action.startswith("fort_build:"):
+                            fid = action.split(":")[1]
+                            build_dialog_state = (fid,)
+                            break
+                        if action.startswith("fort_governor:"):
+                            fid = action.split(":")[1]
+                            governor_dialog_state = (fid, (game_state.fortress_governors or {}).get(fid, ""))
                             break
                     continue
 
@@ -352,6 +429,8 @@ def main():
                             break
                     if top_clicked == "top_turn":
                         game_state.next_turn()
+                        if game_state.trade_proposals_pending:
+                            trade_proposal_state = game_state.trade_proposals_pending.pop(0)
                         next_ev = get_next_narrative_event(
                             game_state.stage, game_state.turn, game_state.shown_events
                         )
@@ -361,6 +440,7 @@ def main():
                                 screen, next_ev, font_title, font
                             )
                     elif top_clicked == "top_diplomacy":
+                        play_diplomacy()
                         diplomacy_open = True
                         diplomacy_selected_faction = None
                         economy_open = laws_open = False
@@ -374,7 +454,12 @@ def main():
                         pause_popup_open = True
                         pause_popup_buttons = draw_pause_popup(screen, font_title, font)
                     elif is_end_turn_button_clicked(mouse_pos):
-                        game_state.next_turn()
+                        play_click()
+                        captured = game_state.next_turn()
+                        if captured:
+                            play_capture()
+                        if game_state.trade_proposals_pending:
+                            trade_proposal_state = game_state.trade_proposals_pending.pop(0)
                         next_ev = get_next_narrative_event(
                             game_state.stage, game_state.turn, game_state.shown_events
                         )
@@ -445,6 +530,20 @@ def main():
                 name = game_state.get_fortress_display_name(fortress_id)
                 rename_dialog_buttons = draw_rename_dialog(
                     screen, name, fortress_id, text, font_title, font
+                )
+            elif trade_proposal_state:
+                fid = trade_proposal_state[0]
+                name = FACTION_NAMES_RU.get(fid, fid)
+                trade_proposal_buttons = draw_trade_proposal_dialog(screen, name, font_title, font)
+            elif build_dialog_state:
+                fid = build_dialog_state[0]
+                build_dialog_buttons = draw_build_dialog(
+                    screen, get_fortress_name_ru(game_state, fid), fid, game_state, font_title, font
+                )
+            elif governor_dialog_state:
+                fid, text = governor_dialog_state
+                governor_dialog_buttons = draw_governor_dialog(
+                    screen, get_fortress_name_ru(game_state, fid), fid, text, font_title, font
                 )
             elif selected_fortress:
                 get_name = lambda fid: get_fortress_name_ru(game_state, fid)

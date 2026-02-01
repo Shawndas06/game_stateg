@@ -59,7 +59,7 @@ def _default_evaluator(
                 return True, f"{target_name} согласна на мир."
             if ottoman_forts <= 5 and target_forts >= 6:
                 return False, f"{target_name} отвергла мир — считает себя сильнее."
-            peace_chance = 0.45 - nap_violations * 0.1
+            peace_chance = 0.35 + legitimacy * 0.005 - nap_violations * 0.1
             if random.random() < max(0.1, peace_chance):
                 return True, f"{target_name} согласна на мир."
             return False, f"{target_name} отвергла мир."
@@ -73,7 +73,7 @@ def _default_evaluator(
                 return True, f"{target_name} подписала договор о ненападении."
             if ottoman_forts <= 4:
                 return False, f"{target_name} отвергла НПП."
-            nap_chance = 0.4 - nap_violations * 0.08
+            nap_chance = 0.3 + legitimacy * 0.004 - nap_violations * 0.08
             if random.random() < max(0.05, nap_chance):
                 return True, f"{target_name} подписала НПП."
             return False, f"{target_name} отвергла НПП."

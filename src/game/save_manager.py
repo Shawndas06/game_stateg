@@ -1,5 +1,5 @@
 """
-Менеджер сохранения/загрузки игры
+Менеджер сохранения/загрузки
 """
 
 import json
@@ -13,12 +13,17 @@ SAVE_FILE = SAVE_PATH / "savegame.json"
 
 
 def _siege_to_dict(siege: SiegeInfo) -> dict:
-    return {
+    d = {
         "target_fortress_id": siege.target_fortress_id,
         "source_fortress_id": siege.source_fortress_id,
         "attacker_troops": siege.attacker_troops,
         "turns_remaining": siege.turns_remaining,
     }
+    if hasattr(siege, "defender_supplies"):
+        d["defender_supplies"] = siege.defender_supplies
+    if hasattr(siege, "catapults"):
+        d["catapults"] = siege.catapults
+    return d
 
 
 def _dict_to_siege(d: dict) -> SiegeInfo:
@@ -27,20 +32,15 @@ def _dict_to_siege(d: dict) -> SiegeInfo:
         source_fortress_id=d["source_fortress_id"],
         attacker_troops=d["attacker_troops"],
         turns_remaining=d["turns_remaining"],
+        defender_supplies=d.get("defender_supplies", 3),
+        catapults=d.get("catapults", 0),
     )
 
 
 def save_game(game_state: GameState) -> bool:
-    """
-    Сохранить текущее состояние игры в файл.
-    Возвращает True при успехе.
-    """
     try:
         SAVE_PATH.mkdir(parents=True, exist_ok=True)
-        sieges_data = {
-            k: _siege_to_dict(v)
-            for k, v in game_state.sieges_in_progress.items()
-        }
+        sieges_data = {k: _siege_to_dict(v) for k, v in game_state.sieges_in_progress.items()}
         data = {
             "stage": game_state.stage,
             "year": game_state.year,
@@ -49,17 +49,21 @@ def save_game(game_state: GameState) -> bool:
             "capital_id": game_state.capital_id,
             "field_army": game_state.field_army,
             "fortress_renames": dict(game_state.fortress_renames),
-            "owned_fortresses": list(game_state.owned_fortresses),
+            "fortress_owners": dict(game_state.fortress_owners),
             "fortress_garrisons": dict(game_state.fortress_garrisons),
             "shown_events": list(game_state.shown_events),
-            "byzantine_relation": game_state.byzantine_relation,
             "enacted_laws": list(game_state.enacted_laws),
-            "byzantine_owned": list(game_state.byzantine_owned),
-            "byzantine_gold": game_state.byzantine_gold,
-            "byzantine_fortress_garrisons": dict(game_state.byzantine_fortress_garrisons),
-            "byzantine_field_army": game_state.byzantine_field_army,
-            "byzantine_sieges": {k: v for k, v in game_state.byzantine_sieges.items()},
+            "trade_partners": list(game_state.trade_partners),
+            "nap_violations": game_state.nap_violations,
+            "ai_state": game_state.ai_state,
             "sieges_in_progress": sieges_data,
+            "fortress_buildings": {k: list(v) for k, v in getattr(game_state, "fortress_buildings", {}).items()},
+            "fortress_build_progress": dict(getattr(game_state, "fortress_build_progress", {})),
+            "fortress_governors": dict(getattr(game_state, "fortress_governors", {})),
+            "field_army_commander": getattr(game_state, "field_army_commander", None),
+            "garrison_troops": dict(getattr(game_state, "garrison_troops", {})),
+            "field_army_troops": dict(getattr(game_state, "field_army_troops", {})),
+            "legitimacy": getattr(game_state, "legitimacy", 50),
         }
         with open(SAVE_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -69,9 +73,6 @@ def save_game(game_state: GameState) -> bool:
 
 
 def load_game() -> GameState | None:
-    """
-    Загрузить сохранение. Возвращает GameState или None при ошибке.
-    """
     try:
         if not SAVE_FILE.exists():
             return None
@@ -85,30 +86,29 @@ def load_game() -> GameState | None:
         state.capital_id = data.get("capital_id", state.capital_id)
         state.field_army = data.get("field_army", 0)
         state.fortress_renames = dict(data.get("fortress_renames", {}))
-        state.owned_fortresses = set(data.get("owned_fortresses", []))
+        state.fortress_owners = dict(data.get("fortress_owners", state.fortress_owners))
         state.fortress_garrisons = dict(data.get("fortress_garrisons", {}))
         state.shown_events = set(data.get("shown_events", []))
-        state.byzantine_relation = data.get("byzantine_relation", "war")
         state.enacted_laws = set(data.get("enacted_laws", []))
-        byz_owned = data.get("byzantine_owned")
-        if byz_owned is not None:
-            state.byzantine_owned = set(byz_owned)
-        else:
-            from src.data.fortresses import FORTESSES_DATA
-            state.byzantine_owned = {f.id for f in FORTESSES_DATA if f.faction == "byzantine"}
-        state.byzantine_gold = data.get("byzantine_gold", 200)
-        state.byzantine_fortress_garrisons = dict(data.get("byzantine_fortress_garrisons", {}))
-        state.byzantine_field_army = data.get("byzantine_field_army", 0)
-        state.byzantine_sieges = dict(data.get("byzantine_sieges", {}))
+        state.trade_partners = set(data.get("trade_partners", []))
+        state.nap_violations = data.get("nap_violations", 0)
+        state.ai_state = data.get("ai_state", state.ai_state)
         sieges_raw = data.get("sieges_in_progress", {})
-        state.sieges_in_progress = {
-            k: _dict_to_siege(v) for k, v in sieges_raw.items()
-        }
+        state.sieges_in_progress = {k: _dict_to_siege(v) for k, v in sieges_raw.items()}
+        state.fortress_buildings = {k: set(v) for k, v in data.get("fortress_buildings", {}).items()}
+        state.fortress_build_progress = dict(data.get("fortress_build_progress", {}))
+        state.fortress_governors = dict(data.get("fortress_governors", {}))
+        state.field_army_commander = data.get("field_army_commander")
+        gt = data.get("garrison_troops", {})
+        state.garrison_troops = {k: dict(v) if isinstance(v, dict) else v for k, v in gt.items()}
+        state.field_army_troops = dict(data.get("field_army_troops", {}))
+        state.legitimacy = data.get("legitimacy", 50)
+        tpp = data.get("trade_proposals_pending", [])
+        state.trade_proposals_pending = [tuple(p) if isinstance(p, list) else (p,) for p in tpp]
         return state
     except Exception:
         return None
 
 
 def has_save() -> bool:
-    """Проверить наличие сохранения"""
     return SAVE_FILE.exists()

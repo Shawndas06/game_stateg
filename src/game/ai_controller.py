@@ -1,11 +1,9 @@
 """
-Контроллер ИИ для всех государств (не только Византия).
-Найм войск, осада, штурм. AI не атакует союзников.
+AI для всех государств — умный, атакует всех врагов (игрок + другие AI).
+Предлагает торговлю. Захватывает крепости.
 """
 
 import random
-from typing import Optional
-
 from src.data.fortresses import FORTESSES_DATA, get_fortress_by_id
 from src.data.factions_data import AI_FACTION_IDS, FACTION_NAMES_RU
 
@@ -14,20 +12,17 @@ OTTOMAN_ID = "ottoman"
 
 SIEGE_ADJACENCY_DISTANCE = 720
 SIEGE_TURNS_CAPITULATION = 3
+AI_STARTING_GOLD = 120
 HIRE_COST_PER_TROOP = 5
 GOLD_PER_FORTRESS_PER_TURN = 15
 UPKEEP_PER_TROOP = 1
-ASSAULT_RATIO = 1.5
-AI_STARTING_GOLD = 120
 
 
 def _get_faction_owned(game_state, faction_id: str) -> set[str]:
-    """Крепости, принадлежащие фракции."""
     return {fid for fid, o in game_state.fortress_owners.items() if o == faction_id}
 
 
 def _get_faction_garrison(game_state, faction_id: str, fortress_id: str) -> int:
-    """Гарнизон крепости фракции."""
     ai = game_state.ai_state.get(faction_id, {})
     g = ai.get("garrisons", {})
     if fortress_id in g:
@@ -36,25 +31,19 @@ def _get_faction_garrison(game_state, faction_id: str, fortress_id: str) -> int:
     return f.base_garrison if f else 50
 
 
-def _distance(game_state, fid1: str, fid2: str) -> float:
-    f1 = get_fortress_by_id(fid1)
-    f2 = get_fortress_by_id(fid2)
+def _distance(fid1: str, fid2: str) -> float:
+    f1, f2 = get_fortress_by_id(fid1), get_fortress_by_id(fid2)
     if not f1 or not f2:
         return float("inf")
     return ((f1.x - f2.x) ** 2 + (f1.y - f2.y) ** 2) ** 0.5
 
 
 def _get_adjacent_faction_fortresses(game_state, faction_id: str, target_id: str) -> list[str]:
-    """Крепости фракции рядом с целью."""
     owned = _get_faction_owned(game_state, faction_id)
-    return [
-        fid for fid in owned
-        if _distance(game_state, fid, target_id) <= SIEGE_ADJACENCY_DISTANCE
-    ]
+    return [fid for fid in owned if _distance(fid, target_id) <= SIEGE_ADJACENCY_DISTANCE]
 
 
 def _ai_capture_fortress(game_state, attacker_faction: str, fortress_id: str, garrison: int) -> None:
-    """AI захватывает крепость у игрока или другой фракции."""
     prev_owner = game_state.fortress_owners.get(fortress_id)
     if prev_owner == attacker_faction:
         return
@@ -70,17 +59,36 @@ def _ai_capture_fortress(game_state, attacker_faction: str, fortress_id: str, ga
         prev_ai["garrisons"] = pg
 
 
-def process_faction_turn(game_state, faction_id: str) -> list[str]:
-    """
-    Ход одной AI-фракции: доход, содержание, найм, осада/штурм.
-    Не атакует османов, если relation = peace/nap/alliance.
-    Возвращает список сообщений.
-    """
-    messages = []
+def _get_enemy_fortresses(game_state, faction_id: str) -> list[tuple[str, str]]:
+    """Вражеские крепости: (fortress_id, owner). Османов не атакуем при peace/nap/alliance."""
     rel = game_state.get_relation_with(faction_id)
-    if rel in ("peace", "nap", "alliance"):
-        return messages  # Союзники и мирные не атакуют
+    attack_ottoman = rel not in ("peace", "nap", "alliance")
+    enemies = []
+    for fid, owner in game_state.fortress_owners.items():
+        if owner == faction_id:
+            continue
+        if owner == "ottoman" and attack_ottoman:
+            enemies.append((fid, owner))
+        elif owner in AI_FACTION_IDS:
+            enemies.append((fid, owner))
+    return enemies
 
+
+def _maybe_propose_trade(game_state, faction_id: str) -> bool:
+    """AI редко предлагает торг — в основном атакует и развивается."""
+    rel = game_state.get_relation_with(faction_id)
+    if rel not in ("peace", "nap", "alliance"):
+        return False
+    if faction_id in game_state.trade_partners:
+        return False
+    if random.random() < 0.03:
+        game_state.trade_proposals_pending.append((faction_id,))
+        return True
+    return False
+
+
+def process_faction_turn(game_state, faction_id: str) -> list[str]:
+    messages = []
     owned = _get_faction_owned(game_state, faction_id)
     if not owned:
         return messages
@@ -91,14 +99,9 @@ def process_faction_turn(game_state, faction_id: str) -> list[str]:
     field_army = ai.get("field_army", 0)
     sieges = dict(ai.get("sieges", {}))
 
-    # Доход
-    income = len(owned) * GOLD_PER_FORTRESS_PER_TURN
-    gold += income
-
-    # Содержание войск
+    gold += len(owned) * GOLD_PER_FORTRESS_PER_TURN
     troops = sum(garrisons.get(fid, _get_faction_garrison(game_state, faction_id, fid)) for fid in owned) + field_army
-    upkeep = troops * UPKEEP_PER_TROOP
-    gold -= upkeep
+    gold -= troops * UPKEEP_PER_TROOP
     gold = max(0, gold)
 
     ai["gold"] = gold
@@ -106,54 +109,48 @@ def process_faction_turn(game_state, faction_id: str) -> list[str]:
     ai["field_army"] = field_army
     ai["sieges"] = sieges
 
-    # Обработка завершённых осад
     for fid in list(sieges.keys()):
-        siege = sieges[fid]
-        siege["turns_remaining"] = siege.get("turns_remaining", SIEGE_TURNS_CAPITULATION) - 1
-        if siege["turns_remaining"] <= 0:
+        s = sieges[fid]
+        s["turns_remaining"] = s.get("turns_remaining", SIEGE_TURNS_CAPITULATION) - 1
+        if s["turns_remaining"] <= 0:
             del sieges[fid]
-            survivors = max(50, int(siege.get("attacker_troops", 100) * 0.9))
-            _ai_capture_fortress(game_state, faction_id, fid, survivors)
+            surv = max(50, int(s.get("attacker_troops", 100) * 0.9))
+            _ai_capture_fortress(game_state, faction_id, fid, surv)
             f = get_fortress_by_id(fid)
-            name = f.name_ru if f else fid
-            messages.append(f"{FACTION_NAMES_RU.get(faction_id, faction_id)} захватила {name} (капитуляция)")
+            messages.append(f"{FACTION_NAMES_RU.get(faction_id, faction_id)} захватила {f.name_ru if f else fid}")
 
-    # Найм войск
-    if gold >= HIRE_COST_PER_TROOP * 10:
-        hire_forts = [fid for fid in owned if _get_faction_garrison(game_state, faction_id, fid) < 180]
-        if hire_forts and random.random() < 0.35:
-            fid = random.choice(hire_forts[:4])
-            count = min(20, gold // HIRE_COST_PER_TROOP)
+    if gold >= HIRE_COST_PER_TROOP * 15 and random.random() < 0.5:
+        forts = [fid for fid in owned if _get_faction_garrison(game_state, faction_id, fid) < 200]
+        if forts:
+            fid = random.choice(forts[:5])
+            count = min(25, gold // HIRE_COST_PER_TROOP)
             cost = count * HIRE_COST_PER_TROOP
             if cost <= gold:
                 gold -= cost
-                current = garrisons.get(fid, get_fortress_by_id(fid).base_garrison if get_fortress_by_id(fid) else 50)
-                garrisons[fid] = current + count
+                cur = garrisons.get(fid, get_fortress_by_id(fid).base_garrison if get_fortress_by_id(fid) else 50)
+                garrisons[fid] = cur + count
                 ai["gold"] = gold
                 ai["garrisons"] = garrisons
-                messages.append(f"{FACTION_NAMES_RU.get(faction_id, faction_id)} наняла {count} воинов")
 
-    # Сбор полевой армии в столице
-    capital = ai.get("capital")
-    if not capital or capital not in owned:
-        forts = [f for f in FORTESSES_DATA if f.faction == faction_id and f.id in owned]
-        capital = forts[0].id if forts else list(owned)[0]
-        ai["capital"] = capital
-    garrison_at_cap = garrisons.get(capital, get_fortress_by_id(capital).base_garrison if get_fortress_by_id(capital) else 50)
-    if garrison_at_cap > 80 and field_army < 60 and random.random() < 0.25:
-        transfer = min(60, garrison_at_cap - 40)
-        garrisons[capital] = garrison_at_cap - transfer
+    capital = ai.get("capital") or (list(owned)[0] if owned else None)
+    cap_garrison = garrisons.get(capital, get_fortress_by_id(capital).base_garrison if capital and get_fortress_by_id(capital) else 50)
+    if cap_garrison > 80 and field_army < 100 and random.random() < 0.5:
+        transfer = min(70, cap_garrison - 50)
+        garrisons[capital] = cap_garrison - transfer
         field_army += transfer
         ai["field_army"] = field_army
         ai["garrisons"] = garrisons
 
-    # Найти османскую крепость для атаки
-    ottoman_forts = list(game_state.owned_fortresses)
-    if field_army > 70 and ottoman_forts and not sieges and random.random() < 0.3:
-        for target_id in random.sample(ottoman_forts, min(5, len(ottoman_forts))):
+    if _maybe_propose_trade(game_state, faction_id):
+        messages.append(f"{FACTION_NAMES_RU.get(faction_id, faction_id)} предлагает торговать")
+
+    enemy_forts = _get_enemy_fortresses(game_state, faction_id)
+    if field_army > 50 and not sieges and enemy_forts and random.random() < 0.65:
+        random.shuffle(enemy_forts)
+        for target_id, owner in enemy_forts[:8]:
             defender = game_state._get_garrison(target_id)
             if field_army > defender and _get_adjacent_faction_fortresses(game_state, faction_id, target_id):
-                troop_count = min(field_army, defender + 40)
+                troop_count = min(field_army, defender + 50)
                 field_army -= troop_count
                 sieges[target_id] = {
                     "target_fortress_id": target_id,
@@ -170,8 +167,7 @@ def process_faction_turn(game_state, faction_id: str) -> list[str]:
 
 
 def process_all_ai_turns(game_state) -> list[str]:
-    """Ход всех AI-фракций. Союзники не атакуют."""
-    messages = []
+    msgs = []
     for fid in AI_FACTION_IDS:
-        messages.extend(process_faction_turn(game_state, fid))
-    return messages
+        msgs.extend(process_faction_turn(game_state, fid))
+    return msgs
