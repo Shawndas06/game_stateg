@@ -52,6 +52,13 @@ def save_game(game_state: GameState) -> bool:
             "owned_fortresses": list(game_state.owned_fortresses),
             "fortress_garrisons": dict(game_state.fortress_garrisons),
             "shown_events": list(game_state.shown_events),
+            "byzantine_relation": game_state.byzantine_relation,
+            "enacted_laws": list(game_state.enacted_laws),
+            "byzantine_owned": list(game_state.byzantine_owned),
+            "byzantine_gold": game_state.byzantine_gold,
+            "byzantine_fortress_garrisons": dict(game_state.byzantine_fortress_garrisons),
+            "byzantine_field_army": game_state.byzantine_field_army,
+            "byzantine_sieges": {k: v for k, v in game_state.byzantine_sieges.items()},
             "sieges_in_progress": sieges_data,
         }
         with open(SAVE_FILE, "w", encoding="utf-8") as f:
@@ -81,6 +88,18 @@ def load_game() -> GameState | None:
         state.owned_fortresses = set(data.get("owned_fortresses", []))
         state.fortress_garrisons = dict(data.get("fortress_garrisons", {}))
         state.shown_events = set(data.get("shown_events", []))
+        state.byzantine_relation = data.get("byzantine_relation", "war")
+        state.enacted_laws = set(data.get("enacted_laws", []))
+        byz_owned = data.get("byzantine_owned")
+        if byz_owned is not None:
+            state.byzantine_owned = set(byz_owned)
+        else:
+            from src.data.fortresses import FORTESSES_DATA
+            state.byzantine_owned = {f.id for f in FORTESSES_DATA if f.faction == "byzantine"}
+        state.byzantine_gold = data.get("byzantine_gold", 200)
+        state.byzantine_fortress_garrisons = dict(data.get("byzantine_fortress_garrisons", {}))
+        state.byzantine_field_army = data.get("byzantine_field_army", 0)
+        state.byzantine_sieges = dict(data.get("byzantine_sieges", {}))
         sieges_raw = data.get("sieges_in_progress", {})
         state.sieges_in_progress = {
             k: _dict_to_siege(v) for k, v in sieges_raw.items()

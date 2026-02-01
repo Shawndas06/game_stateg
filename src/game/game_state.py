@@ -3,6 +3,7 @@
 Золото, гарнизоны, армии, осады
 """
 
+import random
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -13,14 +14,16 @@ from src.data.campaign_stages import (
 )
 from src.utils.constants import STAGE_BEYLIK
 
-# Максимальная дистанция (px) до своей крепости для возможности осады
-SIEGE_ADJACENCY_DISTANCE = 280
+# Максимальная дистанция (логические единицы) до своей крепости для осады
+SIEGE_ADJACENCY_DISTANCE = 450
 # Ходов на осаду до капитуляции (когда атакующие сильнее)
 SIEGE_TURNS_CAPITULATION = 3
 # Стоимость найма одного война (золото)
 HIRE_COST_PER_TROOP = 5
 # Золото за ход с каждой своей крепости
 GOLD_PER_FORTRESS_PER_TURN = 15
+# Содержание одного воина за ход (гарнизон + походная армия)
+UPKEEP_PER_TROOP = 1
 # Начальное золото
 STARTING_GOLD = 100
 # Множитель для штурма — нужна армия в 1.5x больше гарнизона
@@ -68,6 +71,19 @@ class GameState:
     sieges_in_progress: dict[str, SiegeInfo] = field(default_factory=dict)
     # Показанные нарративные события (id)
     shown_events: set[str] = field(default_factory=set)
+    # Дипломатия: byzantine_relation = war | peace | tribute | alliance | nap
+    byzantine_relation: str = "war"
+    # Принятые законы (id)
+    enacted_laws: set[str] = field(default_factory=set)
+    # Византия: крепости, золото, гарнизоны, армия, осады
+    byzantine_owned: set[str] = field(default_factory=lambda: {
+        f.id for f in FORTESSES_DATA if f.faction == "byzantine"
+    })
+    byzantine_gold: int = 200
+    byzantine_fortress_garrisons: dict[str, int] = field(default_factory=dict)
+    byzantine_field_army: int = 0
+    byzantine_capital_id: str = "constantinople"
+    byzantine_sieges: dict[str, dict] = field(default_factory=dict)
 
     def _get_garrison(self, fortress_id: str) -> int:
         """Гарнизон крепости (своей или вражеской)"""
@@ -79,7 +95,12 @@ class GameState:
                 fortress_id,
                 fortress.base_garrison
             )
-        # Вражеская — всегда base_garrison
+        # Византия
+        if fortress_id in self.byzantine_owned:
+            return self.byzantine_fortress_garrisons.get(
+                fortress_id,
+                fortress.base_garrison
+            )
         return fortress.base_garrison
 
     def _distance(self, fid1: str, fid2: str) -> float:
@@ -130,7 +151,6 @@ class GameState:
     def get_adjacent_owned_fortresses(self, target_fortress_id: str) -> list[tuple[str, int]]:
         """
         Свои крепости рядом с целью (в пределах SIEGE_ADJACENCY_DISTANCE).
-        Возвращает список (fortress_id, garrison_count).
         """
         result = []
         for fid in self.owned_fortresses:
@@ -142,6 +162,10 @@ class GameState:
     def get_defender_garrison(self, fortress_id: str) -> int:
         """Гарнизон вражеской крепости (защитники)"""
         return self._get_garrison(fortress_id)
+
+    def get_effective_defender(self, fortress_id: str) -> float:
+        """Эффективная сила защитников (гарнизон × укреплённость) — для штурма"""
+        return self._get_effective_defender(fortress_id)
 
     def transfer_to_field_army(self, source_fortress_id: str, amount: int) -> tuple[bool, str]:
         """
@@ -168,18 +192,24 @@ class GameState:
         """Можно ли начать осаду (есть походная армия и своя крепость рядом)"""
         if fortress_id in self.owned_fortresses or fortress_id in self.sieges_in_progress:
             return False
-        target = get_fortress_by_id(fortress_id)
-        if not target or target.faction != "byzantine":
+        if fortress_id not in self.byzantine_owned:
             return False
         return (
             self.field_army > self.get_defender_garrison(fortress_id)
             and len(self.get_adjacent_owned_fortresses(fortress_id)) > 0
         )
 
-    def can_assault(self, fortress_id: str, attacker_troops: int) -> bool:
-        """Можно ли штурмовать (армия >= гарнизон * ASSAULT_RATIO)"""
+    def _get_effective_defender(self, fortress_id: str) -> float:
+        """Эффективная сила защитников с учётом укреплённости"""
         defender = self.get_defender_garrison(fortress_id)
-        return attacker_troops >= int(defender * ASSAULT_RATIO)
+        fortress = get_fortress_by_id(fortress_id)
+        fortification = getattr(fortress, "fortification", 1.0) if fortress else 1.0
+        return defender * fortification
+
+    def can_assault(self, fortress_id: str, attacker_troops: int) -> bool:
+        """Можно ли штурмовать (армия >= гарнизон * укреплённость * ASSAULT_RATIO)"""
+        effective_defender = self._get_effective_defender(fortress_id)
+        return attacker_troops >= int(effective_defender * ASSAULT_RATIO)
 
     def start_siege_from_field_army(
         self,
@@ -218,12 +248,13 @@ class GameState:
         troop_count: int,
     ) -> tuple[bool, str]:
         """
-        Штурм походной армией. Мгновенный захват, если армия сильнее.
+        Штурм походной армией. Может завершиться победой (выжившие → гарнизон)
+        или поражением (войска потеряны). Зависит от соотношения сил и укреплённости.
         """
         if not self.can_assault(target_fortress_id, troop_count):
-            defender = self.get_defender_garrison(target_fortress_id)
-            needed = int(defender * ASSAULT_RATIO)
-            return False, f"Для штурма нужно минимум {needed} воинов (гарнизон: {defender})"
+            effective = self._get_effective_defender(target_fortress_id)
+            needed = int(effective * ASSAULT_RATIO)
+            return False, f"Для штурма нужно минимум {needed} воинов (гарнизон с учётом укреплений)"
 
         if troop_count <= 0 or troop_count > self.field_army:
             return False, "Недостаточно войск в армии"
@@ -232,11 +263,19 @@ class GameState:
             return False, "Нет своих крепостей рядом с целью"
 
         self.field_army -= troop_count
+        effective_defender = self._get_effective_defender(target_fortress_id)
+        ratio = troop_count / max(1, effective_defender)
 
-        # Потери при штурме — ~40%
-        survivors = max(1, int(troop_count * 0.6))
+        # Шанс поражения: при 1.5x — 40%, при 2x — 20%, при 3x — 5%
+        defeat_chance = max(0.05, 0.5 - (ratio - 1.5) * 0.15)
+        if random.random() < defeat_chance:
+            return False, f"Штурм отбит! Потери: {troop_count} воинов. Укрепления оказались крепче."
+
+        # Успех: потери 30–50% в зависимости от соотношения
+        loss_factor = 0.5 - (ratio - 1.5) * 0.05
+        survivors = max(1, int(troop_count * (1 - loss_factor)))
         self._capture_fortress(target_fortress_id, survivors)
-        return True, f"Штурм успешен! Выжило: {survivors} воинов"
+        return True, f"Штурм успешен! Выжило: {survivors} воинов — стали гарнизоном."
 
     def _capture_fortress(self, fortress_id: str, garrison: int = 50) -> bool:
         """Захватить крепость (внутренний метод)"""
@@ -244,6 +283,7 @@ class GameState:
         if not fortress or fortress_id in self.owned_fortresses:
             return False
 
+        self.byzantine_owned.discard(fortress_id)
         self.owned_fortresses.add(fortress_id)
         self.fortress_garrisons[fortress_id] = garrison
 
@@ -281,6 +321,9 @@ class GameState:
     def is_fortress_owned(self, fortress_id: str) -> bool:
         return fortress_id in self.owned_fortresses
 
+    def is_fortress_byzantine(self, fortress_id: str) -> bool:
+        return fortress_id in self.byzantine_owned
+
     def next_turn(self) -> list[str]:
         """
         Следующий ход. Обрабатывает осады и доход.
@@ -289,6 +332,11 @@ class GameState:
         self.turn += 1
         if self.turn % 3 == 0:
             self.year += 1
+
+        # Расходы на содержание войск (гарнизоны + походная армия)
+        troops_total = sum(self._get_garrison(fid) for fid in self.owned_fortresses) + self.field_army
+        upkeep = troops_total * UPKEEP_PER_TROOP
+        self.gold -= upkeep
 
         # Доход с крепостей
         self.gold += len(self.owned_fortresses) * GOLD_PER_FORTRESS_PER_TURN
@@ -299,6 +347,12 @@ class GameState:
             siege.turns_remaining -= 1
             if siege.turns_remaining <= 0:
                 del self.sieges_in_progress[fid]
-                self.capture_fortress(fid)
+                garrison_survivors = max(50, int(siege.attacker_troops * 0.9))
+                self._capture_fortress(fid, garrison_survivors)
                 captured.append(fid)
+
+        # Обработка осад Византии (осада наших крепостей)
+        from src.game.ai_controller import process_byzantine_turn
+        _ = process_byzantine_turn(self)
+
         return captured

@@ -2,9 +2,9 @@
 Константы игры — экран, цвета, размеры
 """
 
-# Размеры окна (увеличено для большой карты)
-SCREEN_WIDTH = 1600
-SCREEN_HEIGHT = 900
+# Размеры окна (увеличено для карты мира)
+SCREEN_WIDTH = 1920
+SCREEN_HEIGHT = 1080
 
 # Цвета (R, G, B)
 COLOR_MAP_BACKGROUND = (34, 45, 55)
@@ -17,9 +17,16 @@ COLOR_UI_ACCENT = (180, 140, 80)
 COLOR_TEXT = (240, 240, 230)
 COLOR_TEXT_DIM = (160, 160, 150)
 
-# Размеры крепостей на карте
-FORTRESS_ICON_SIZE = 48
-FORTRESS_SPACING = 120  # Расстояние между крепостями (большое)
+# Размеры крепостей (маленькие иконки — экономия места)
+FORTRESS_ICON_SIZE = 26
+FORTRESS_SPACING = 100
+
+# Цвета фракций
+COLOR_GERMIYAN = (100, 80, 60)
+COLOR_KARAMAN = (120, 60, 40)
+COLOR_AYDIN = (80, 100, 60)
+COLOR_BULGARIA = (80, 60, 100)
+COLOR_SERBIA = (60, 80, 100)
 
 # Этапы кампании
 STAGE_BEYLIK = "beylik"           # Османский беелик (до Бурсы)

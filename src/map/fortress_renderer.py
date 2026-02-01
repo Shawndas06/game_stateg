@@ -1,6 +1,6 @@
 """
 Отрисовка крепостей на карте
-Иконки крепостей с большим расстоянием друг от друга
+Маленькие иконки, масштабирование
 """
 
 import pygame
@@ -14,7 +14,26 @@ from src.utils.constants import (
     COLOR_BESIEGED,
     COLOR_NEUTRAL,
     COLOR_TEXT,
+    COLOR_GERMIYAN,
+    COLOR_KARAMAN,
+    COLOR_AYDIN,
+    COLOR_BULGARIA,
+    COLOR_SERBIA,
 )
+
+
+def _get_faction_color(faction: str, is_owned: bool) -> tuple:
+    if is_owned:
+        return COLOR_OWNED
+    colors = {
+        "byzantine": COLOR_ENEMY,
+        "germiyan": COLOR_GERMIYAN,
+        "karaman": COLOR_KARAMAN,
+        "aydin": COLOR_AYDIN,
+        "bulgaria": COLOR_BULGARIA,
+        "serbia": COLOR_SERBIA,
+    }
+    return colors.get(faction, COLOR_NEUTRAL)
 
 
 def draw_fortress_icon(
@@ -27,65 +46,64 @@ def draw_fortress_icon(
     font: Optional[pygame.font.Font] = None,
     offset_x: int = 0,
     offset_y: int = 0,
+    scale: float = 1.0,
 ) -> pygame.Rect:
-    """
-    Рисует иконку крепости на карте.
-    Османские — зелёные, византийские — красные, осада — оранжевые, нейтральные — серые.
-    """
-    x = fortress.x + offset_x
-    y = fortress.y + offset_y
+    """Рисует иконку крепости. offset_x/offset_y — уже с учётом zoom/pan."""
+    x, y = offset_x, offset_y
+    size = max(16, int(FORTRESS_ICON_SIZE * scale))
+    half = size // 2
 
-    # Цвет по состоянию
     if is_owned:
         color = COLOR_OWNED
     elif is_besieged:
         color = COLOR_BESIEGED
-    elif fortress.faction == "byzantine":
-        color = COLOR_ENEMY
     else:
-        color = COLOR_NEUTRAL
+        color = _get_faction_color(fortress.faction, False)
 
-    # Основание иконки — квадрат/башня
-    half = FORTRESS_ICON_SIZE // 2
-    rect = pygame.Rect(x - half, y - half, FORTRESS_ICON_SIZE, FORTRESS_ICON_SIZE)
-
-    # Заливка "башни"
+    rect = pygame.Rect(int(x - half), int(y - half), size, size)
     pygame.draw.rect(surface, color, rect)
-    pygame.draw.rect(surface, (255, 255, 255), rect, 2)
+    pygame.draw.rect(surface, (255, 255, 255), rect, 1)
 
-    # Крыша башни (треугольник)
     roof_points = [
-        (x, y - half - 10),
-        (x - half - 5, y - half),
-        (x + half + 5, y - half),
+        (x, y - half - 6),
+        (x - half - 3, y - half),
+        (x + half + 3, y - half),
     ]
     pygame.draw.polygon(surface, color, roof_points)
     pygame.draw.polygon(surface, (255, 255, 255), roof_points, 1)
 
-    # Название крепости под иконкой (★ для столицы)
     if font:
-        name = display_name if display_name is not None else fortress.name_ru
+        name = display_name if display_name else fortress.name_ru
         if is_capital:
             name = "★ " + name
-        text_surf = font.render(name, True, COLOR_TEXT)
-        text_rect = text_surf.get_rect(centerx=x, top=y + half + 4)
+        fsize = max(12, int(16 * scale))
+        try:
+            small_font = pygame.font.SysFont("dejavusans", fsize)
+        except Exception:
+            small_font = font
+        text_surf = small_font.render(name, True, COLOR_TEXT)
+        text_rect = text_surf.get_rect(centerx=int(x), top=int(y + half + 2))
         surface.blit(text_surf, text_rect)
 
     return rect
 
 
-def get_fortress_at_pos(mouse_x: int, mouse_y: int, offset_x: int = 0, offset_y: int = 0) -> Optional[Fortress]:
-    """
-    Определить, по какой крепости кликнули.
-    """
-    half = FORTRESS_ICON_SIZE // 2
-    click_radius = half + 20  # Увеличиваем область клика
+def get_fortress_at_pos(
+    mouse_x: int,
+    mouse_y: int,
+    zoom: float = 1.0,
+    offset_x: float = 0.0,
+    offset_y: float = 0.0,
+) -> Optional[Fortress]:
+    """Определить крепость по клику с учётом zoom/pan."""
+    from src.map.map_renderer import screen_to_map
+
+    map_x, map_y = screen_to_map(mouse_x, mouse_y, zoom, offset_x, offset_y)
+    click_radius = 55  # в логических единицах карты
 
     for fortress in FORTESSES_DATA:
-        fx = fortress.x + offset_x
-        fy = fortress.y + offset_y
-        dx = mouse_x - fx
-        dy = mouse_y - fy
+        dx = map_x - fortress.x
+        dy = map_y - fortress.y
         if dx * dx + dy * dy <= click_radius * click_radius:
             return fortress
     return None
