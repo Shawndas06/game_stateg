@@ -1,5 +1,10 @@
 """
-Экраны игры — главное меню, карта, диалоги
+Экраны и диалоги игры.
+
+Главное меню, настройки, карта, панели.
+Диалоги: осада, найм, столица, постройка, наместник, переименование.
+Дипломатия, экономика, законы, торговые/дипломатические предложения AI.
+Победа/поражение.
 """
 
 import pygame
@@ -13,6 +18,38 @@ from src.utils.constants import (
     COLOR_TEXT_DIM,
 )
 from src.map.map_renderer import draw_map, get_clicked_fortress, MAP_OFFSET_X, MAP_OFFSET_Y, MAP_VIEW_WIDTH, MAP_VIEW_HEIGHT
+
+
+# === ПОБЕДА / ПОРАЖЕНИЕ ===
+
+
+def draw_victory_defeat_dialog(
+    surface: pygame.Surface,
+    typ: str,
+    message: str,
+    font_title: pygame.font.Font,
+    font: pygame.font.Font,
+) -> list[tuple[pygame.Rect, str]]:
+    overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    overlay.set_alpha(220)
+    overlay.fill((0, 0, 0))
+    surface.blit(overlay, (0, 0))
+    popup_w, popup_h = 500, 220
+    popup_x = (SCREEN_WIDTH - popup_w) // 2
+    popup_y = (SCREEN_HEIGHT - popup_h) // 2
+    color = (80, 180, 80) if typ == "victory" else (180, 60, 60)
+    pygame.draw.rect(surface, COLOR_UI_BG, (popup_x, popup_y, popup_w, popup_h))
+    pygame.draw.rect(surface, color, (popup_x, popup_y, popup_w, popup_h), 4)
+    title = "ПОБЕДА!" if typ == "victory" else "ПОРАЖЕНИЕ"
+    surface.blit(font_title.render(title, True, color), (popup_x + 20, popup_y + 25))
+    surface.blit(font.render(message, True, COLOR_TEXT), (popup_x + 20, popup_y + 80))
+    buttons = []
+    rect = pygame.Rect(popup_x + (popup_w - 120) // 2, popup_y + 150, 120, 45)
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, rect)
+    pygame.draw.rect(surface, COLOR_TEXT, rect, 2)
+    surface.blit(font.render("В меню", True, COLOR_UI_BG), font.render("В меню", True, COLOR_UI_BG).get_rect(center=rect.center))
+    buttons.append((rect, "vd_menu"))
+    return buttons
 
 
 # === МЕНЮ ВХОДА ===
@@ -228,7 +265,8 @@ def draw_main_screen(
     garrison_total = sum(game_state._get_garrison(fid) for fid in game_state.owned_fortresses)
     troops_total = garrison_total + field_army
     legitimacy = getattr(game_state, "legitimacy", 50)
-    title_text = f"{stage_info.name_ru}  |  {game_state.year} г.  |  Ход {game_state.turn}  |  Золото: {gold}  |  Армия: {field_army}  |  Войска: {troops_total}  |  Легитимность: {legitimacy}"
+    sultan_h = getattr(game_state, "sultan_health", 80)
+    title_text = f"{stage_info.name_ru}  |  {game_state.year} г.  |  Ход {game_state.turn}  |  Золото: {gold}  |  Армия: {field_army}  |  Войска: {troops_total}  |  Легитимность: {legitimacy}  |  Здоровье: {sultan_h}"
     title_surf = font_title.render(title_text, True, COLOR_UI_ACCENT)
     surface.blit(title_surf, (70, 20))
 
@@ -248,10 +286,21 @@ def draw_main_screen(
     btn_text_rect = btn_text.get_rect(center=btn_rect.center)
     surface.blit(btn_text, btn_text_rect)
 
-    # Подсказка
-    hint = "Столица (★) → армия. Крепости → найм, столица, переименование. Вражеская → осада. Колёсико — зум, ЛКМ — панорама."
+    turn = getattr(game_state, "turn", 0)
+    if turn <= 2:
+        hint = "Подсказка: Соберите армию в столице (Сёгют). Кликните крепость — «Перевести в армию». Затем атакуйте вражескую крепость."
+    else:
+        hint = "Столица (★) → армия. Крепости → найм, столица. Вражеская → осада. Колёсико — зум, ЛКМ — панорама."
     hint_surf = font.render(hint, True, COLOR_TEXT_DIM)
     surface.blit(hint_surf, (20, SCREEN_HEIGHT - 55))
+
+    notifs = getattr(game_state, "notifications", [])[-3:]
+    nx = SCREEN_WIDTH - 400
+    ny = SCREEN_HEIGHT - 70
+    for _, msg in reversed(notifs):
+        ns = font.render(msg[:50] + ("…" if len(msg) > 50 else ""), True, COLOR_TEXT_DIM)
+        surface.blit(ns, (nx, ny))
+        ny -= 18
 
 
 def draw_narrative_dialog(
@@ -710,7 +759,11 @@ def draw_hire_dialog(
     title_surf = font_title.render(f"Крепость: {fortress_name_ru}", True, COLOR_UI_ACCENT)
     surface.blit(title_surf, (popup_x + 20, popup_y + 12))
     surface.blit(font.render(f"Гарнизон: {garrison} | Золото: {gold}", True, COLOR_TEXT), (popup_x + 20, popup_y + 42))
-    surface.blit(font.render(f"Наместник: {governor or '—'}", True, COLOR_TEXT_DIM), (popup_x + 20, popup_y + 62))
+    unrest = (game_state.fortress_unrest or {}).get(fortress_id, 0)
+    gov_text = f"Наместник: {governor or '—'}"
+    if unrest > 0:
+        gov_text += f"  |  Недовольство: {unrest}%"
+    surface.blit(font.render(gov_text, True, COLOR_TEXT_DIM), (popup_x + 20, popup_y + 62))
     if buildings:
         from src.data.buildings_data import get_building
         names = []
@@ -937,6 +990,42 @@ def draw_rename_dialog(
                  font.render("Отмена", True, COLOR_UI_ACCENT).get_rect(center=rect_cancel.center))
     buttons.append((rect_cancel, "rename_cancel"))
 
+    return buttons
+
+
+# === ДИПЛОМАТИЧЕСКОЕ ПРЕДЛОЖЕНИЕ ОТ AI (мир, дань, союз) ===
+
+
+def draw_diplo_proposal_dialog(
+    surface: pygame.Surface,
+    faction_name_ru: str,
+    proposal_type: str,
+    font_title: pygame.font.Font,
+    font: pygame.font.Font,
+) -> list[tuple[pygame.Rect, str]]:
+    texts = {"peace": "предлагает мир", "tribute": "согласна платить дань", "alliance": "предлагает союз"}
+    overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    overlay.set_alpha(200)
+    overlay.fill((0, 0, 0))
+    surface.blit(overlay, (0, 0))
+    popup_w, popup_h = 420, 200
+    popup_x = (SCREEN_WIDTH - popup_w) // 2
+    popup_y = (SCREEN_HEIGHT - popup_h) // 2
+    pygame.draw.rect(surface, COLOR_UI_BG, (popup_x, popup_y, popup_w, popup_h))
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, (popup_x, popup_y, popup_w, popup_h), 3)
+    surface.blit(font_title.render(f"{faction_name_ru} {texts.get(proposal_type, proposal_type)}", True, COLOR_UI_ACCENT), (popup_x + 20, popup_y + 30))
+    surface.blit(font.render("Принять? (Отклонить — закрыть)", True, COLOR_TEXT), (popup_x + 20, popup_y + 80))
+    buttons = []
+    rect_yes = pygame.Rect(popup_x + 80, popup_y + 130, 120, 45)
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_yes)
+    pygame.draw.rect(surface, COLOR_TEXT, rect_yes, 2)
+    surface.blit(font.render("Принять", True, COLOR_UI_BG), font.render("Принять", True, COLOR_UI_BG).get_rect(center=rect_yes.center))
+    buttons.append((rect_yes, "diplo_accept"))
+    rect_no = pygame.Rect(popup_x + 220, popup_y + 130, 120, 45)
+    pygame.draw.rect(surface, COLOR_UI_BG, rect_no)
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_no, 2)
+    surface.blit(font.render("Отклонить", True, COLOR_UI_ACCENT), font.render("Отклонить", True, COLOR_UI_ACCENT).get_rect(center=rect_no.center))
+    buttons.append((rect_no, "diplo_decline"))
     return buttons
 
 

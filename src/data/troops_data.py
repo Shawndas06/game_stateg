@@ -1,8 +1,9 @@
 """
-Типы войск по этапу государства (исторически)
-Бейлик: ополчение, конница, лучники
-Султанат: янычары, сипахи, азапы
-Империя: элитные подразделения
+Типы войск по этапу государства (исторически).
+
+Бейлик: ополченцы, конница, лучники, гази.
+Султанат: азапы, сипахи, янычары, акынджи.
+Империя: тимариоты, капыкулу, топчу.
 """
 
 from dataclasses import dataclass
@@ -23,11 +24,14 @@ TROOPS_DATA = [
     TroopType("militia", "Ополченцы", 3, 0.8, 0.8, STAGE_BEYLIK),
     TroopType("cavalry", "Конница", 7, 1.2, 1.2, STAGE_BEYLIK),
     TroopType("archers", "Лучники", 5, 1.0, 1.0, STAGE_BEYLIK),
+    TroopType("ghazi", "Гази", 4, 0.9, 0.95, STAGE_BEYLIK),
     TroopType("azaps", "Азапы", 6, 1.0, 1.1, STAGE_SULTANATE),
     TroopType("sipahi", "Сипахи", 9, 1.3, 1.3, STAGE_SULTANATE),
     TroopType("janissaries", "Янычары", 12, 1.5, 1.5, STAGE_SULTANATE),
+    TroopType("akinci", "Акынджи", 8, 1.1, 1.2, STAGE_SULTANATE),
     TroopType("timariot", "Тимариоты", 10, 1.2, 1.25, STAGE_EMPIRE),
     TroopType("kapikulu", "Капыкулу", 14, 1.6, 1.6, STAGE_EMPIRE),
+    TroopType("topcu", "Топчу", 11, 1.4, 1.35, STAGE_EMPIRE),
 ]
 
 

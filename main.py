@@ -3,6 +3,9 @@
 Османская кампания — Desktop Strategy Game
 Беелик → Султанат → Империя
 
+Стратегическая игра о восхождении Османского государства (1299–1453).
+Карта Анатолии и Балкан, осады, дипломатия, законы, строительство.
+
 Запуск: python main.py
 """
 
@@ -12,11 +15,21 @@ import sys
 from src.game.game_state import GameState
 from src.narrative.narrative_engine import get_next_narrative_event
 from src.utils.constants import SCREEN_WIDTH, SCREEN_HEIGHT
+
+
+def get_screen_size() -> tuple[int, int]:
+    """Текущий размер окна (для resize)."""
+    try:
+        return pygame.display.get_surface().get_size()
+    except Exception:
+        return SCREEN_WIDTH, SCREEN_HEIGHT
 from src.ui.screens import (
+    draw_victory_defeat_dialog,
     draw_main_menu,
     draw_build_dialog,
     draw_governor_dialog,
     draw_trade_proposal_dialog,
+    draw_diplo_proposal_dialog,
     draw_settings_screen,
     get_menu_button_at_pos,
     get_top_bar_button_rects,
@@ -77,6 +90,7 @@ def main():
     settings_buttons = []
 
     game_state = None
+    victory_defeat_state = None
     active_dialog_event = None
     active_dialog_buttons = []
     pause_popup_open = False
@@ -114,6 +128,8 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
                 break
+            if event.type == pygame.VIDEORESIZE and not fullscreen:
+                screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
 
             if governor_dialog_state and event.type == pygame.KEYDOWN:
                 fortress_id, text = governor_dialog_state
@@ -157,6 +173,7 @@ def main():
                 if screen_state == "menu":
                     action = get_menu_button_at_pos(mouse_pos, menu_buttons)
                     if action == MENU_BTN_NEW_GAME:
+                        play_click()
                         screen_state = "game"
                         game_state = GameState()
                         active_dialog_event = get_next_narrative_event(
@@ -184,6 +201,7 @@ def main():
                 if screen_state == "settings":
                     for rect, act in settings_buttons:
                         if rect.collidepoint(mouse_pos):
+                            play_click()
                             if act == "settings_windowed":
                                 fullscreen = False
                                 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.RESIZABLE)
@@ -198,13 +216,36 @@ def main():
                             break
                     continue
 
+                if victory_defeat_state:
+                    popup_w, popup_h = 500, 220
+                    popup_x = (SCREEN_WIDTH - popup_w) // 2
+                    popup_y = (SCREEN_HEIGHT - popup_h) // 2
+                    vd_btn_rect = pygame.Rect(popup_x + (popup_w - 120) // 2, popup_y + 150, 120, 45)
+                    if vd_btn_rect.collidepoint(mouse_pos):
+                        play_click()
+                        screen_state = "menu"
+                        game_state = None
+                        victory_defeat_state = None
+                        active_dialog_event = None
+                        selected_fortress = None
+                    continue
                 if trade_proposal_state and game_state:
                     for rect, act in trade_proposal_buttons:
                         if rect.collidepoint(mouse_pos):
-                            fid = trade_proposal_state[0]
-                            if act == "trade_accept":
-                                game_state.trade_partners.add(fid)
-                                play_diplomacy()
+                            play_click()
+                            typ = trade_proposal_state[0]
+                            if typ == "trade":
+                                fid = trade_proposal_state[1]
+                                if act == "trade_accept":
+                                    game_state.trade_partners.add(fid)
+                                    play_diplomacy()
+                            elif typ == "diplo":
+                                fid, prop = trade_proposal_state[1]
+                                if act == "diplo_accept":
+                                    game_state.ai_state.setdefault(fid, {})["relation"] = prop
+                                    if fid == "byzantine":
+                                        game_state.byzantine_relation = prop
+                                    play_diplomacy()
                             trade_proposal_state = None
                             break
                     continue
@@ -368,7 +409,12 @@ def main():
                                 elif mode == "assault":
                                     ok, _ = game_state.assault_from_field_army(target_id, int(amount_str))
                                     if ok:
+                                        play_capture()
                                         selected_fortress = None
+                                        won, msg = game_state.check_victory()
+                                        if won:
+                                            victory_defeat_state = ("victory", msg)
+                                            break
                                         next_ev = get_next_narrative_event(
                                             game_state.stage, game_state.turn, game_state.shown_events
                                         )
@@ -428,9 +474,22 @@ def main():
                             top_clicked = action
                             break
                     if top_clicked == "top_turn":
-                        game_state.next_turn()
-                        if game_state.trade_proposals_pending:
-                            trade_proposal_state = game_state.trade_proposals_pending.pop(0)
+                        play_click()
+                        captured = game_state.next_turn()
+                        if captured:
+                            play_capture()
+                        won, msg = game_state.check_victory()
+                        if won:
+                            victory_defeat_state = ("victory", msg)
+                            continue
+                        lost, msg = game_state.check_defeat()
+                        if lost:
+                            victory_defeat_state = ("defeat", msg)
+                            continue
+                        if game_state.ai_diplomacy_proposals and not trade_proposal_state:
+                            trade_proposal_state = ("diplo", game_state.ai_diplomacy_proposals.pop(0))
+                        elif game_state.trade_proposals_pending:
+                            trade_proposal_state = ("trade", game_state.trade_proposals_pending.pop(0))
                         next_ev = get_next_narrative_event(
                             game_state.stage, game_state.turn, game_state.shown_events
                         )
@@ -458,8 +517,18 @@ def main():
                         captured = game_state.next_turn()
                         if captured:
                             play_capture()
-                        if game_state.trade_proposals_pending:
-                            trade_proposal_state = game_state.trade_proposals_pending.pop(0)
+                        won, msg = game_state.check_victory()
+                        if won:
+                            victory_defeat_state = ("victory", msg)
+                            continue
+                        lost, msg = game_state.check_defeat()
+                        if lost:
+                            victory_defeat_state = ("defeat", msg)
+                            continue
+                        if game_state.ai_diplomacy_proposals and not trade_proposal_state:
+                            trade_proposal_state = ("diplo", game_state.ai_diplomacy_proposals.pop(0))
+                        elif game_state.trade_proposals_pending:
+                            trade_proposal_state = ("trade", game_state.trade_proposals_pending.pop(0))
                         next_ev = get_next_narrative_event(
                             game_state.stage, game_state.turn, game_state.shown_events
                         )
@@ -500,7 +569,7 @@ def main():
                 map_offset_x = max(0, min(1400, map_offset_x))
                 map_offset_y = max(0, min(700, map_offset_y))
 
-        # === ОТРИСОВКА ===
+        # --- Отрисовка ---
         screen.fill((30, 35, 45))
 
         if screen_state == "menu":
@@ -518,6 +587,10 @@ def main():
             if pause_popup_open:
                 pause_popup_buttons = draw_pause_popup(screen, font_title, font)
 
+            if victory_defeat_state:
+                vd_typ, vd_msg = victory_defeat_state
+                draw_victory_defeat_dialog(screen, vd_typ, vd_msg, font_title, font)
+
             if diplomacy_open:
                 top_dialog_buttons = draw_diplomacy_dialog(screen, game_state, font_title, font, diplomacy_selected_faction)
             elif economy_open:
@@ -532,9 +605,15 @@ def main():
                     screen, name, fortress_id, text, font_title, font
                 )
             elif trade_proposal_state:
-                fid = trade_proposal_state[0]
-                name = FACTION_NAMES_RU.get(fid, fid)
-                trade_proposal_buttons = draw_trade_proposal_dialog(screen, name, font_title, font)
+                typ = trade_proposal_state[0]
+                if typ == "trade":
+                    fid = trade_proposal_state[1]
+                    name = FACTION_NAMES_RU.get(fid, fid)
+                    trade_proposal_buttons = draw_trade_proposal_dialog(screen, name, font_title, font)
+                else:
+                    fid, prop = trade_proposal_state[1]
+                    name = FACTION_NAMES_RU.get(fid, fid)
+                    trade_proposal_buttons = draw_diplo_proposal_dialog(screen, name, prop, font_title, font)
             elif build_dialog_state:
                 fid = build_dialog_state[0]
                 build_dialog_buttons = draw_build_dialog(

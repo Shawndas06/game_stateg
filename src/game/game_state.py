@@ -1,6 +1,8 @@
 """
-Состояние игры — центральный хранилище данных кампании
-Золото, гарнизоны, армии, осады, владение крепостями
+Состояние игры — центральное хранилище данных кампании.
+
+Управляет: золото, гарнизоны, полевая армия, осады, владение крепостями,
+здания, наместники, полководцы, легитимность, мятежи, династия.
 """
 
 import random
@@ -39,11 +41,12 @@ class SiegeInfo:
 
 
 def _init_fortress_owners() -> dict[str, str]:
+    """Начальное владение: каждая крепость — своей фракции."""
     return {f.id: f.faction for f in FORTESSES_DATA}
 
 
 def _init_ai_state() -> dict:
-    """Начальное состояние AI-фракций."""
+    """Состояние всех AI-фракций: золото, гарнизоны, осады, столица, отношение к игроку."""
     state = {}
     for fid in AI_FACTION_IDS:
         forts = [f for f in FORTESSES_DATA if f.faction == fid]
@@ -55,6 +58,8 @@ def _init_ai_state() -> dict:
             "field_army": 0,
             "capital": capital,
             "relation": "war" if fid == "byzantine" else "peace",
+            "fortress_buildings": {},
+            "fortress_build_progress": {},
         }
     return state
 
@@ -86,6 +91,11 @@ class GameState:
     garrison_troops: dict = field(default_factory=dict)
     field_army_troops: dict = field(default_factory=dict)
     legitimacy: int = 50  # 0–100: +при захвате, −при нарушении НПП, влияет на дипломатию
+    fortress_unrest: dict = field(default_factory=dict)  # fortress_id -> уровень недовольства
+    notifications: list = field(default_factory=list)  # [(turn, msg), ...]
+    sultan_health: int = 80  # 0–100: поражение при 0
+    heir_name: str = "Орхан"
+    ai_diplomacy_proposals: list = field(default_factory=list)  # [(faction_id, relation), ...]
 
     byzantine_relation: str = "war"
 
@@ -235,9 +245,22 @@ class GameState:
         fortress = get_fortress_by_id(fortress_id)
         fortification = getattr(fortress, "fortification", 1.0) if fortress else 1.0
         owner = self.get_fortress_owner(fortress_id)
+        from src.data.buildings_data import get_building
         if owner == "ottoman":
-            from src.data.buildings_data import get_building
             for bid in self.fortress_buildings.get(fortress_id, set()):
+                b = get_building(bid)
+                if b:
+                    if getattr(b, "fortification", 0):
+                        fortification += b.fortification
+                    if getattr(b, "garrison_bonus", 0):
+                        defender += b.garrison_bonus
+        elif owner in AI_FACTION_IDS:
+            ai = self.ai_state.get(owner, {})
+            ai_buildings = ai.get("fortress_buildings", {})
+            bset = ai_buildings.get(fortress_id, set())
+            if isinstance(bset, list):
+                bset = set(bset)
+            for bid in bset:
                 b = get_building(bid)
                 if b:
                     if getattr(b, "fortification", 0):
@@ -325,7 +348,8 @@ class GameState:
                 self.field_army += actual_troops
             return False, f"Штурм отбит! Потери: {actual_troops} воинов. Укрепления оказались крепче."
         loss_factor = 0.5 - (ratio - 1.5) * 0.05
-        survivors = max(1, int(actual_troops * (1 - loss_factor)))
+        loss_factor = max(0.0, min(0.95, loss_factor))  # Ограничить потери 0–95%
+        survivors = max(1, min(actual_troops, int(actual_troops * (1 - loss_factor))))
         self._capture_fortress(target_fortress_id, survivors)
         self.sieges_in_progress.pop(target_fortress_id, None)
         return True, f"Штурм успешен! Выжило: {survivors} воинов — стали гарнизоном."
@@ -348,6 +372,7 @@ class GameState:
         if next_stage and next_stage != self.stage:
             self.stage = next_stage
         self.legitimacy = min(100, getattr(self, "legitimacy", 50) + 5)
+        self.fortress_unrest[fortress_id] = 30
         return True
 
     def capture_fortress(self, fortress_id: str) -> bool:
@@ -428,8 +453,19 @@ class GameState:
         return fortress_id in self.byzantine_owned
 
     def is_fortress_enemy(self, fortress_id: str) -> bool:
-        """Любая крепость, не принадлежащая игроку."""
         return self.get_fortress_owner(fortress_id) != "ottoman"
+
+    def check_victory(self) -> tuple[bool, str]:
+        if "constantinople" in self.owned_fortresses and len(self.owned_fortresses) >= 15:
+            return True, "Победа! Константинополь взят, Османская империя создана."
+        return False, ""
+
+    def check_defeat(self) -> tuple[bool, str]:
+        if len(self.owned_fortresses) == 0:
+            return True, "Поражение! Все крепости потеряны."
+        if getattr(self, "sultan_health", 80) <= 0:
+            return True, "Поражение! Султан скончался."
+        return False, ""
 
     def next_turn(self) -> list[str]:
         self.turn += 1
@@ -491,6 +527,18 @@ class GameState:
                 self._capture_fortress(fid, garrison_survivors)
                 captured.append(fid)
 
+        for fid in self.owned_fortresses:
+            u = self.fortress_unrest.get(fid, 0)
+            if u > 0:
+                self.fortress_unrest[fid] = max(0, u - 5)
+
+        if self.turn > 0 and self.turn % 50 == 0:
+            self.sultan_health = max(0, getattr(self, "sultan_health", 80) - 1)
+
         from src.game.ai_controller import process_all_ai_turns
-        process_all_ai_turns(self)
+        msgs = process_all_ai_turns(self)
+        for m in msgs:
+            self.notifications.append((self.turn, m))
+        while len(self.notifications) > 50:
+            self.notifications.pop(0)
         return captured

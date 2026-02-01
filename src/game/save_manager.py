@@ -1,5 +1,8 @@
 """
-Менеджер сохранения/загрузки
+Менеджер сохранения и загрузки игры.
+
+Сохранение в JSON (saves/savegame.json).
+Поддержка всех полей GameState, включая AI, здания, дипломатию.
 """
 
 import json
@@ -64,6 +67,12 @@ def save_game(game_state: GameState) -> bool:
             "garrison_troops": dict(getattr(game_state, "garrison_troops", {})),
             "field_army_troops": dict(getattr(game_state, "field_army_troops", {})),
             "legitimacy": getattr(game_state, "legitimacy", 50),
+            "trade_proposals_pending": list(getattr(game_state, "trade_proposals_pending", [])),
+            "notifications": list(getattr(game_state, "notifications", [])),
+            "fortress_unrest": dict(getattr(game_state, "fortress_unrest", {})),
+            "sultan_health": getattr(game_state, "sultan_health", 80),
+            "heir_name": getattr(game_state, "heir_name", "Орхан"),
+            "ai_diplomacy_proposals": list(getattr(game_state, "ai_diplomacy_proposals", [])),
         }
         with open(SAVE_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -105,6 +114,17 @@ def load_game() -> GameState | None:
         state.legitimacy = data.get("legitimacy", 50)
         tpp = data.get("trade_proposals_pending", [])
         state.trade_proposals_pending = [tuple(p) if isinstance(p, list) else (p,) for p in tpp]
+        state.notifications = list(data.get("notifications", []))
+        state.fortress_unrest = dict(data.get("fortress_unrest", {}))
+        state.sultan_health = data.get("sultan_health", 80)
+        state.heir_name = data.get("heir_name", "Орхан")
+        adp = data.get("ai_diplomacy_proposals", [])
+        state.ai_diplomacy_proposals = [tuple(p) if isinstance(p, list) else (p,) for p in adp]
+        for fid, ai in state.ai_state.items():
+            if "fortress_buildings" not in ai:
+                ai["fortress_buildings"] = {}
+            if "fortress_build_progress" not in ai:
+                ai["fortress_build_progress"] = {}
         return state
     except Exception:
         return None
