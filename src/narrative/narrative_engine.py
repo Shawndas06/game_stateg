@@ -1,7 +1,9 @@
 """
-Движок нарратива.
+narrative_engine.py — выбор и показ нарративных событий по этапу и ходу.
 
-События по этапу и ходу. Стиль Suzerain: текст, выбор, последствия.
+Реализует:
+- get_next_narrative_event(stage, turn, shown_events): из NARRATIVE_EVENTS выбирает события с подходящим trigger_stage и trigger_after_turn <= turn, ещё не показанные (id не в shown_events); возвращает одно с минимальным trigger_after_turn или None.
+- process_choice(choice): возвращает словарь с effect и consequence выбора (для возможной будущей обработки последствий).
 """
 
 from typing import Optional
@@ -20,8 +22,8 @@ def get_next_narrative_event(
     shown_events: set[str],
 ) -> Optional[NarrativeEvent]:
     """
-    Получить следующее нарративное событие для показа.
-    События показываются по одному, в порядке trigger_after_turn.
+    Вернуть следующее нарративное событие для показа: подходит по этапу и ходу, ещё не показывалось.
+    Среди подходящих выбирается с минимальным trigger_after_turn.
     """
     candidates = []
     for ev in NARRATIVE_EVENTS:

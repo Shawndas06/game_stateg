@@ -1,9 +1,11 @@
 """
-Дипломатический движок.
+diplomacy_engine.py — оценка и выполнение дипломатических предложений игрока.
 
-Обработка предложений: мир, война, дань, союз, НПП, торговля.
-Целевое государство оценивает предложение (сила, легитимность, нарушения НПП).
-Можно заменить встроенный оценщик на внешнюю AI-модель.
+Реализует:
+- Константы отношений (war, peace, tribute, alliance, nap) и типов предложений.
+- _default_evaluator: встроенная логика оценки (сила по крепостям, легитимность, нарушения НПП, случай).
+- Функции-обёртки для игрока: propose_peace, propose_nap, propose_tribute, propose_alliance, propose_trade, declare_war.
+- Возможность подменить оценщик через set_diplomacy_evaluator (например, внешней AI-моделью).
 """
 
 from typing import Callable, Optional
@@ -11,12 +13,14 @@ from typing import Callable, Optional
 BYZANTINE_ID = "byzantine"
 OTTOMAN_ID = "ottoman"
 
+# --- Типы отношений с фракцией ---
 RELATION_WAR = "war"
 RELATION_PEACE = "peace"
 RELATION_TRIBUTE = "tribute"
 RELATION_ALLIANCE = "alliance"
 RELATION_NAP = "nap"
 
+# --- Типы дипломатических предложений ---
 PROPOSAL_PEACE = "peace"
 PROPOSAL_WAR = "war"
 PROPOSAL_TRIBUTE = "tribute"
@@ -24,8 +28,7 @@ PROPOSAL_ALLIANCE = "alliance"
 PROPOSAL_NAP = "nap"
 PROPOSAL_TRADE = "trade"
 
-
-# Оценщик предложений — можно заменить на AI-модель
+# Тип функции-оценщика: (proposer_id, target_id, proposal_type, game_state) -> (успех, сообщение)
 EvaluatorFn = Callable[[str, str, str, object], tuple[bool, str]]
 
 

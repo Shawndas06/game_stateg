@@ -1,15 +1,36 @@
 """
-Отрисовка карты кампании.
+map_renderer.py — отрисовка карты кампании и ландшафта.
 
-Ландшафт: земля, моря (в углах, не перекрывают крепости), реки, горы.
-Иконки крепостей с цветами по фракциям.
+Реализует:
+- Окраска территорий по владельцу (_draw_territory): сетка клеток, для каждой клетки определяется ближайшая крепость и владелец из game_state; цвет из TERRITORY_COLORS (Османы — зелёный, Византия — красный и т.д.).
+- Ландшафт (_draw_landscape): при отсутствии game_state — базовая земля (текстура или цвет); поверх — моря (полигоны в углах), реки, горы (эллипсы), рамка карты.
+- draw_map: установка clip, вызов _draw_territory и _draw_landscape, отрисовка иконок крепостей через fortress_renderer; экспорт MAP_OFFSET_*, MAP_VIEW_*.
+- screen_to_map, get_clicked_fortress: преобразование экранных координат и определение крепости под курсором.
 """
 
 import os
+import math
 import pygame
 
 from src.map.fortress_renderer import draw_fortress_icon
 from src.data.fortresses import FORTESSES_DATA, MAP_LOGICAL_WIDTH, MAP_LOGICAL_HEIGHT
+from src.utils.constants import (
+    COLOR_OWNED,
+    COLOR_ENEMY,
+    COLOR_GERMIYAN,
+    COLOR_KARAMAN,
+    COLOR_AYDIN,
+    COLOR_BULGARIA,
+    COLOR_SERBIA,
+    COLOR_HUNGARY,
+    COLOR_MENTESE,
+    COLOR_SARUHAN,
+    COLOR_CANDAR,
+    COLOR_HAMID,
+    COLOR_TEKE,
+    COLOR_KARASI,
+    COLOR_NEUTRAL,
+)
 
 
 MAP_OFFSET_X = 60
@@ -17,13 +38,65 @@ MAP_OFFSET_Y = 90
 MAP_VIEW_WIDTH = 1800
 MAP_VIEW_HEIGHT = 880
 
-# Цвета — спокойные, читаемые
+# Цвета ландшафта
 COLOR_LAND = (72, 110, 72)
 COLOR_SEA = (40, 75, 120)
 COLOR_SEA_EDGE = (55, 95, 150)
 COLOR_RIVER = (50, 90, 140)
 COLOR_MOUNTAIN = (88, 80, 68)
 COLOR_MOUNTAIN_EDGE = (70, 64, 55)
+
+# Цвета территорий по фракциям (земля вокруг крепостей)
+TERRITORY_COLORS = {
+    "ottoman": COLOR_OWNED,   # зелёный
+    "byzantine": COLOR_ENEMY, # красный
+    "germiyan": COLOR_GERMIYAN,
+    "karaman": COLOR_KARAMAN,
+    "aydin": COLOR_AYDIN,
+    "mentese": COLOR_MENTESE,
+    "saruhan": COLOR_SARUHAN,
+    "candar": COLOR_CANDAR,
+    "hamid": COLOR_HAMID,
+    "teke": COLOR_TEKE,
+    "karasi": COLOR_KARASI,
+    "bulgaria": COLOR_BULGARIA,
+    "serbia": COLOR_SERBIA,
+    "hungary": COLOR_HUNGARY,
+}
+
+
+def _get_territory_color(faction_id: str):
+    """Цвет территории государства."""
+    return TERRITORY_COLORS.get(faction_id, COLOR_NEUTRAL)
+
+
+def _draw_territory(surface: pygame.Surface, game_state, ox: float, oy: float, scale: float) -> None:
+    """Окраска территории по владельцу: ближайшая крепость определяет цвет клетки (Вороной)."""
+    cell = 50  # логических единиц на клетку
+    nx = int(math.ceil(MAP_LOGICAL_WIDTH / cell))
+    ny = int(math.ceil(MAP_LOGICAL_HEIGHT / cell))
+    get_owner = getattr(game_state, "get_fortress_owner", lambda fid: "")
+
+    for i in range(nx):
+        for j in range(ny):
+            cx = i * cell + cell // 2
+            cy = j * cell + cell // 2
+            best_fid = None
+            best_d2 = float("inf")
+            for f in FORTESSES_DATA:
+                d2 = (f.x - cx) ** 2 + (f.y - cy) ** 2
+                if d2 < best_d2:
+                    best_d2 = d2
+                    best_fid = f.id
+            owner = get_owner(best_fid) if best_fid else ""
+            if not owner:
+                owner = next((f.faction for f in FORTESSES_DATA if f.id == best_fid), "")
+            color = _get_territory_color(owner)
+            sx = int(ox + i * cell * scale)
+            sy = int(oy + j * cell * scale)
+            cw = int(cell * scale) + 1
+            ch = int(cell * scale) + 1
+            surface.fill(color, (sx, sy, cw, ch))
 
 # Путь к единственной текстуре травы (если есть)
 TEXTURES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "textures")
@@ -55,16 +128,17 @@ def _draw_tiled(surf: pygame.Surface, tex: pygame.Surface, ox: int, oy: int, sca
             surf.blit(tex, (ox + tx, oy + ty))
 
 
-def _draw_landscape(surface: pygame.Surface, ox: int, oy: int, scale: float) -> None:
+def _draw_landscape(surface: pygame.Surface, ox: int, oy: int, scale: float, game_state=None) -> None:
     w, h = MAP_LOGICAL_WIDTH, MAP_LOGICAL_HEIGHT
     map_rect = pygame.Rect(int(ox), int(oy), int(w * scale), int(h * scale))
 
-    # 1. Основа — земля (текстура или цвет)
-    tex = _load_texture("floor_ground_grass.png")
-    if tex:
-        _draw_tiled(surface, tex, int(ox), int(oy), scale)
-    else:
-        surface.fill(COLOR_LAND, map_rect)
+    # 1. Основа — земля (только если нет окраски территорий)
+    if not game_state:
+        tex = _load_texture("floor_ground_grass.png")
+        if tex:
+            _draw_tiled(surface, tex, int(ox), int(oy), scale)
+        else:
+            surface.fill(COLOR_LAND, map_rect)
 
     # 2. Моря — только в углах, далеко от крепостей (мин. расстояние ~200)
     # Крепости: север y<700 (Константинополь 544, Варна 224, Синоп 480...), запад x<900, восток x>1700, юг y>1600
@@ -134,7 +208,8 @@ def draw_map(
     clip_save = surface.get_clip()
     surface.set_clip(map_rect)
 
-    _draw_landscape(surface, ox, oy, scale)
+    _draw_territory(surface, game_state, ox, oy, scale)
+    _draw_landscape(surface, ox, oy, scale, game_state)
 
     is_capital_fn = getattr(game_state, "is_capital", lambda fid: False)
     get_owner = getattr(game_state, "get_fortress_owner", lambda fid: "")

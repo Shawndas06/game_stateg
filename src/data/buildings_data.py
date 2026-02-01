@@ -1,8 +1,10 @@
 """
-Здания и улучшения крепостей.
+buildings_data.py — справочник зданий, доступных в крепостях.
 
-Мечеть, рынок, казармы, катапульты, медресе, стены, алтарь.
-Эффекты: доход, укрепления, найм, гарнизон, торговля, осада.
+Реализует:
+- Класс Building: id, название, описание, стоимость, ходы строительства, требуемый этап; эффекты (доход, укрепления, найм, гарнизон, осада, торговля).
+- BUILDINGS_DATA: стены I–III, мечеть, рынок, казармы, катапульты, медресе, алтарь газа и их улучшения.
+- get_building(building_id): поиск здания по id.
 """
 
 from dataclasses import dataclass
@@ -13,19 +15,21 @@ from src.utils.constants import STAGE_BEYLIK, STAGE_SULTANATE, STAGE_EMPIRE
 
 @dataclass
 class Building:
-    """Здание в крепости"""
+    """
+    Один тип здания. cost — золото на постройку; turns_to_build — ходов до завершения;
+    required_stage — этап кампании (beylik/sultanate/empire). Остальные поля — численные эффекты для дохода, обороны, найма и т.д.
+    """
     id: str
     name_ru: str
     description: str
     cost: int
     turns_to_build: int
     required_stage: str
-    # Эффекты: income_plus, income_mult, fortification, siege_bonus, hire_bonus
     income_plus: int = 0
     income_mult: float = 1.0
     fortification: float = 0.0
-    siege_bonus: float = 0.0  # Бонус к осаде (катапульты)
-    hire_bonus: float = 0.0
+    siege_bonus: float = 0.0   # ускорение осады (катапульты)
+    hire_bonus: float = 0.0    # скидка к стоимости найма (отрицательное = дешевле)
     garrison_bonus: int = 0
     trade_bonus: float = 0.0
 
@@ -49,6 +53,7 @@ BUILDINGS_DATA = [
 
 
 def get_building(building_id: str) -> Optional[Building]:
+    """Вернуть здание по id или None."""
     for b in BUILDINGS_DATA:
         if b.id == building_id:
             return b

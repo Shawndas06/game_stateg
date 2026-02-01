@@ -1,8 +1,12 @@
 """
-Менеджер сохранения и загрузки игры.
+save_manager.py — сохранение и загрузка игры в JSON.
 
-Сохранение в JSON (saves/savegame.json).
-Поддержка всех полей GameState, включая AI, здания, дипломатию.
+Реализует:
+- Путь к файлу: saves/savegame.json (от корня проекта).
+- Сериализация SiegeInfo в словарь и обратно (_siege_to_dict, _dict_to_siege).
+- save_game(game_state): запись всех полей GameState в JSON (включая ai_state, постройки, дипломатию, уведомления и т.д.).
+- load_game(): чтение JSON и восстановление GameState; приведение списков/множеств (fortress_buildings, trade_proposals_pending, ai_diplomacy_proposals).
+- has_save(): проверка наличия файла сохранения.
 """
 
 import json
@@ -16,6 +20,7 @@ SAVE_FILE = SAVE_PATH / "savegame.json"
 
 
 def _siege_to_dict(siege: SiegeInfo) -> dict:
+    """Преобразование SiegeInfo в словарь для JSON (включая defender_supplies и catapults при наличии)."""
     d = {
         "target_fortress_id": siege.target_fortress_id,
         "source_fortress_id": siege.source_fortress_id,
@@ -30,6 +35,7 @@ def _siege_to_dict(siege: SiegeInfo) -> dict:
 
 
 def _dict_to_siege(d: dict) -> SiegeInfo:
+    """Восстановление SiegeInfo из словаря (с дефолтами для defender_supplies и catapults)."""
     return SiegeInfo(
         target_fortress_id=d["target_fortress_id"],
         source_fortress_id=d["source_fortress_id"],
@@ -41,6 +47,7 @@ def _dict_to_siege(d: dict) -> SiegeInfo:
 
 
 def save_game(game_state: GameState) -> bool:
+    """Сохранить состояние игры в saves/savegame.json. Возвращает True при успехе."""
     try:
         SAVE_PATH.mkdir(parents=True, exist_ok=True)
         sieges_data = {k: _siege_to_dict(v) for k, v in game_state.sieges_in_progress.items()}
@@ -82,6 +89,7 @@ def save_game(game_state: GameState) -> bool:
 
 
 def load_game() -> GameState | None:
+    """Загрузить состояние из saves/savegame.json. Возвращает GameState или None при ошибке/отсутствии файла."""
     try:
         if not SAVE_FILE.exists():
             return None
@@ -131,4 +139,5 @@ def load_game() -> GameState | None:
 
 
 def has_save() -> bool:
+    """Проверить, существует ли файл сохранения."""
     return SAVE_FILE.exists()

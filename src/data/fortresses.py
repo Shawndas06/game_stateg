@@ -1,8 +1,11 @@
 """
-Данные крепостей эпохи Османской экспансии (1299–1453).
+fortresses.py — справочник крепостей кампании (1299–1453).
 
-Историческое размещение: Анатолия, Балканы.
-Координаты: x запад→восток, y север→юг (0..4800 x 0..2880).
+Реализует:
+- Класс Fortress: id, имя (лат/рус), координаты (x, y), фракция-владелец по умолчанию, базовый гарнизон, столица, коэффициент укреплённости.
+- Константы логического размера карты MAP_LOGICAL_WIDTH, MAP_LOGICAL_HEIGHT (для масштабирования и границ).
+- FORTESSES_DATA: список всех крепостей Анатолии и Балкан с историческим размещением.
+- get_fortress_by_id, get_ottoman_starting_fortresses, get_byzantine_fortresses.
 """
 
 from dataclasses import dataclass
@@ -11,7 +14,11 @@ from typing import Optional
 
 @dataclass
 class Fortress:
-    """Крепость на карте кампании"""
+    """
+    Одна крепость на карте.
+    id — уникальный идентификатор; name/name_ru — названия; x, y — логические координаты (запад→восток, север→юг);
+    faction — начальный владелец; base_garrison — начальный гарнизон; fortification — множитель обороны (1.0 = базовый).
+    """
     id: str
     name: str
     name_ru: str
@@ -24,11 +31,11 @@ class Fortress:
     fortification: float = 1.0
 
 
-# Логический размер карты (масштаб 1.6×)
+# Логический размер карты в единицах координат (масштаб при отрисовке задаётся отдельно)
 MAP_LOGICAL_WIDTH = 4800
 MAP_LOGICAL_HEIGHT = 2880
 
-# Историческая география.
+# Список всех крепостей с историческим размещением по фракциям
 FORTESSES_DATA = [
     # === ОСМАНЫ (северо-запад Анатолии) ===
     Fortress("sogut", "Söğüt", "Сёгют", 1184, 1440, "ottoman", 80, is_capital=True),
@@ -127,6 +134,7 @@ FORTESSES_DATA = [
 
 
 def get_fortress_by_id(fortress_id: str) -> Optional[Fortress]:
+    """Вернуть крепость по id или None."""
     for f in FORTESSES_DATA:
         if f.id == fortress_id:
             return f
@@ -134,8 +142,10 @@ def get_fortress_by_id(fortress_id: str) -> Optional[Fortress]:
 
 
 def get_ottoman_starting_fortresses() -> list[Fortress]:
+    """Список крепостей, принадлежащих Османам в начале кампании."""
     return [f for f in FORTESSES_DATA if f.faction == "ottoman"]
 
 
 def get_byzantine_fortresses() -> list[Fortress]:
+    """Список крепостей Византии в начале кампании."""
     return [f for f in FORTESSES_DATA if f.faction == "byzantine"]

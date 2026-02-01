@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-Османская кампания — Desktop Strategy Game
-Беелик → Султанат → Империя
+main.py — точка входа и главный игровой цикл.
 
-Стратегическая игра о восхождении Османского государства (1299–1453).
-Карта Анатолии и Балкан, осады, дипломатия, законы, строительство.
+Реализует:
+- Инициализацию Pygame, окна, шрифтов.
+- Управление экранами: меню, настройки, игра.
+- Обработку событий: клики по кнопкам, карте, крепостям; ввод текста (переименование, наместник); зум и панорама карты.
+- Открытие/закрытие диалогов: осада, найм, столица, постройки, дипломатия, экономика, законы, предложения AI, победа/поражение.
+- Вызов отрисовки текущего экрана и обновление кадра.
 
 Запуск: python main.py
 """
@@ -74,56 +77,60 @@ def get_fortress_name_ru(game_state, fortress_id: str) -> str:
 
 
 def main():
+    # --- Инициализация Pygame и окна ---
     pygame.init()
     pygame.display.set_caption("Османская кампания — Беелик → Султанат → Империя")
-
     fullscreen = False
     flags = pygame.RESIZABLE
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), flags)
     clock = pygame.time.Clock()
-
     font_title = pygame.font.SysFont("dejavusans", 24)
     font = pygame.font.SysFont("dejavusans", 18)
 
-    screen_state = "menu"
+    # --- Состояние экрана и меню ---
+    screen_state = "menu"  # "menu" | "settings" | "game"
     menu_buttons = []
     settings_buttons = []
 
+    # --- Состояние игры и диалогов ---
     game_state = None
-    victory_defeat_state = None
-    active_dialog_event = None
+    victory_defeat_state = None   # ("victory"|"defeat", message) или None
+    active_dialog_event = None   # текущее нарративное событие
     active_dialog_buttons = []
     pause_popup_open = False
     pause_popup_buttons = []
 
+    # --- Выбранная крепость и кнопки её диалога ---
     selected_fortress = None
     fortress_dialog_buttons = []
 
-    rename_state = None
+    # --- Состояние модальных диалогов (постройка, наместник, переименование, предложения AI) ---
+    rename_state = None          # (fortress_id, current_text) или None
     rename_dialog_buttons = []
-    build_dialog_state = None
+    build_dialog_state = None    # (fortress_id,) или None
     governor_dialog_state = None
-    trade_proposal_state = None  # (faction_id,)
+    trade_proposal_state = None  # ("trade", faction_id) или ("diplo", (faction_id, relation)) или None
     build_dialog_buttons = []
     governor_dialog_buttons = []
     trade_proposal_buttons = []
 
-    # Диалоги: Дипломатия, Экономика, Законы
+    # --- Верхняя панель: Дипломатия, Экономика, Законы ---
     diplomacy_open = False
-    diplomacy_selected_faction = None  # Сначала выбор государства, потом действие
+    diplomacy_selected_faction = None  # сначала выбор государства, затем действие
     economy_open = False
     laws_open = False
     top_dialog_buttons = []
 
-    # Карта: zoom и pan
+    # --- Карта: масштаб и смещение при перетаскивании ---
     map_zoom = 0.6
     map_offset_x = 0.0
     map_offset_y = 0.0
     map_panning = False
-    pan_start = (0, 0, 0.0, 0.0)
+    pan_start = (0, 0, 0.0, 0.0)  # (mouse_x, mouse_y, offset_x, offset_y) в начале перетаскивания
 
     running = True
     while running:
+        # ========== Обработка событий ==========
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -131,6 +138,7 @@ def main():
             if event.type == pygame.VIDEORESIZE and not fullscreen:
                 screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
 
+            # --- Ввод текста в диалоге наместника (до общей обработки кликов) ---
             if governor_dialog_state and event.type == pygame.KEYDOWN:
                 fortress_id, text = governor_dialog_state
                 if event.key == pygame.K_ESCAPE:
@@ -145,7 +153,7 @@ def main():
                     governor_dialog_state = (fortress_id, text + event.unicode)
                 continue
 
-            # Ввод текста для переименования
+            # --- Ввод текста для переименования крепости ---
             if rename_state and event.type == pygame.KEYDOWN:
                 fortress_id, text = rename_state
                 if event.key == pygame.K_ESCAPE:
@@ -161,12 +169,14 @@ def main():
                     rename_state = (fortress_id, text + event.unicode)
                 continue
 
+            # --- Зум карты колёсиком мыши (только на экране игры, без открытых диалогов) ---
             if event.type == pygame.MOUSEWHEEL and screen_state == "game" and game_state:
                 if not (pause_popup_open or active_dialog_event or rename_state or diplomacy_open or economy_open or laws_open):
                     zoom_delta = 1.1 if event.y > 0 else 0.9
                     map_zoom = max(0.35, min(1.5, map_zoom * zoom_delta))
                 continue
 
+            # --- Клик левой кнопкой мыши: определение цели и выполнение действия ---
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_pos = pygame.mouse.get_pos()
 
@@ -198,6 +208,7 @@ def main():
                         break
                     continue
 
+                # --- Настройки: оконный/полноэкранный режим, назад ---
                 if screen_state == "settings":
                     for rect, act in settings_buttons:
                         if rect.collidepoint(mouse_pos):
@@ -216,11 +227,12 @@ def main():
                             break
                     continue
 
+                # --- Диалог победы/поражения: кнопка «В меню» ---
                 if victory_defeat_state:
-                    popup_w, popup_h = 500, 220
+                    popup_w, popup_h = 560, 260
                     popup_x = (SCREEN_WIDTH - popup_w) // 2
                     popup_y = (SCREEN_HEIGHT - popup_h) // 2
-                    vd_btn_rect = pygame.Rect(popup_x + (popup_w - 120) // 2, popup_y + 150, 120, 45)
+                    vd_btn_rect = pygame.Rect(popup_x + (popup_w - 120) // 2, popup_y + 185, 120, 48)
                     if vd_btn_rect.collidepoint(mouse_pos):
                         play_click()
                         screen_state = "menu"
@@ -229,6 +241,7 @@ def main():
                         active_dialog_event = None
                         selected_fortress = None
                     continue
+                # --- Предложение AI (торговля или дипломатия): принять/отклонить ---
                 if trade_proposal_state and game_state:
                     for rect, act in trade_proposal_buttons:
                         if rect.collidepoint(mouse_pos):
@@ -284,7 +297,7 @@ def main():
                             break
                     continue
 
-                # Диалоги Дипломатия / Экономика / Законы
+                # --- Диалоги верхней панели: Дипломатия, Экономика, Законы ---
                 if (diplomacy_open or economy_open or laws_open) and game_state:
                     for rect, action in top_dialog_buttons:
                         if rect.collidepoint(mouse_pos):
@@ -348,7 +361,7 @@ def main():
                             break
                     continue
 
-                # Диалог осады, найма или столицы
+                # --- Диалог выбранной крепости: осада (вражеская), найм (своя), столица ---
                 if selected_fortress and game_state and not pause_popup_open and not active_dialog_event and not rename_state and not (diplomacy_open or economy_open or laws_open):
                     for rect, action in fortress_dialog_buttons:
                         if not rect.collidepoint(mouse_pos):
@@ -441,6 +454,7 @@ def main():
                             break
                     continue
 
+                # --- Меню паузы: сохранить, выйти в меню, закрыть ---
                 if pause_popup_open and game_state:
                     action = get_pause_button_at_pos(mouse_pos, pause_popup_buttons)
                     if action == PAUSE_SAVE:
@@ -457,6 +471,7 @@ def main():
                         pause_popup_open = False
                     continue
 
+                # --- Нарративное событие: клик по варианту выбора ---
                 if active_dialog_event and game_state:
                     for btn_rect, choice in active_dialog_buttons:
                         if btn_rect.collidepoint(mouse_pos):
@@ -466,8 +481,8 @@ def main():
                             break
                     continue
 
+                # --- Игровой экран: кнопки верхней панели, меню паузы, «Следующий ход», клик по карте/крепости ---
                 if game_state and not pause_popup_open and not active_dialog_event and not rename_state and not (diplomacy_open or economy_open or laws_open):
-                    # Кнопки сверху: Дипломатия, Экономика, Законы
                     top_clicked = None
                     for rect, action in get_top_bar_button_rects():
                         if rect.collidepoint(mouse_pos):
@@ -547,6 +562,7 @@ def main():
                             if fortress:
                                 selected_fortress = fortress
 
+            # --- Конец перетаскивания карты: если движение было маленьким — считаем кликом по крепости ---
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 if map_panning:
                     mx, my = pygame.mouse.get_pos()
@@ -560,6 +576,7 @@ def main():
                                 selected_fortress = fortress
                     map_panning = False
 
+            # --- Перетаскивание карты: обновление смещения в пределах границ ---
             if event.type == pygame.MOUSEMOTION and map_panning:
                 mx, my = pygame.mouse.get_pos()
                 dx = (mx - pan_start[0]) / map_zoom
@@ -569,7 +586,7 @@ def main():
                 map_offset_x = max(0, min(1400, map_offset_x))
                 map_offset_y = max(0, min(700, map_offset_y))
 
-        # --- Отрисовка ---
+        # ========== Отрисовка текущего экрана ==========
         screen.fill((30, 35, 45))
 
         if screen_state == "menu":

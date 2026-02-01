@@ -1,8 +1,10 @@
 """
-Звуковые эффекты.
+sound_manager.py — воспроизведение звуковых эффектов.
 
-Клик, захват, строительство, дипломатия.
-Файлы в assets/sounds/ (click.wav, capture.wav и т.д.).
+Реализует:
+- Ленивую инициализацию pygame.mixer и кэш загруженных звуков.
+- Функции воспроизведения: play_click, play_build, play_capture, play_diplomacy, play_battle, play_error.
+- Звуки ищутся в assets/sounds/ (click.wav, capture.wav, build.wav и т.д.); при отсутствии файла воспроизведение просто не выполняется.
 """
 
 import os
@@ -14,6 +16,7 @@ _mixer_initialized = False
 
 
 def _init_mixer():
+    """Однократная инициализация микшера Pygame (частота, каналы, буфер)."""
     global _mixer_initialized
     if not _mixer_initialized:
         try:
@@ -24,6 +27,7 @@ def _init_mixer():
 
 
 def _load(name: str):
+    """Загрузить звуковой файл по имени (с кэшем). Возвращает pygame.mixer.Sound или None."""
     if name in _sounds:
         return _sounds[name]
     path = os.path.join(SOUNDS_DIR, name)
@@ -38,6 +42,7 @@ def _load(name: str):
 
 
 def play_click():
+    """Звук клика по кнопке."""
     _init_mixer()
     s = _load("click.wav")
     if s:
@@ -45,6 +50,7 @@ def play_click():
 
 
 def play_battle():
+    """Звук боя (battle.wav или combat.wav)."""
     _init_mixer()
     s = _load("battle.wav") or _load("combat.wav")
     if s:
@@ -52,6 +58,7 @@ def play_battle():
 
 
 def play_build():
+    """Звук начала строительства (build.wav или construction.wav)."""
     _init_mixer()
     s = _load("build.wav") or _load("construction.wav")
     if s:
@@ -59,6 +66,7 @@ def play_build():
 
 
 def play_capture():
+    """Звук захвата крепости (capture.wav или victory.wav)."""
     _init_mixer()
     s = _load("capture.wav") or _load("victory.wav")
     if s:
@@ -66,6 +74,7 @@ def play_capture():
 
 
 def play_diplomacy():
+    """Звук дипломатического действия (diplomacy.wav или click.wav)."""
     _init_mixer()
     s = _load("diplomacy.wav") or _load("click.wav")
     if s:
@@ -73,6 +82,7 @@ def play_diplomacy():
 
 
 def play_error():
+    """Звук ошибки (error.wav)."""
     _init_mixer()
     s = _load("error.wav")
     if s:

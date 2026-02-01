@@ -1,7 +1,11 @@
 """
-Законы Османского государства.
+laws_data.py — справочник законов кампании и их игровых эффектов.
 
-Открываются по этапу кампании. Эффекты: доход, найм, upkeep, осада, торговля.
+Реализует:
+- Класс Law: id, название, описание, требуемый этап, плюсы/минусы (текст), множители дохода/гарнизона/найма.
+- LAWS_DATA: исторически обоснованные законы (цеха, идеология газа, тимар, девширме, кануннаме, миллеты, диван, капитуляции и т.д.).
+- LAW_EFFECTS: словарь id закона -> численные эффекты (income, hire_cost, upkeep, assault_morale, trade_income и т.д.) для применения в game_state.
+- get_laws_for_stage(stage): список законов, доступных на данном этапе.
 """
 
 from dataclasses import dataclass
@@ -10,23 +14,19 @@ from src.utils.constants import STAGE_BEYLIK, STAGE_SULTANATE, STAGE_EMPIRE
 
 @dataclass
 class Law:
-    """Закон с описанием и эффектами"""
+    """Один закон: идентификатор, название, описание, этап принятия; текстовые плюсы/минусы; множители (используются в LAW_EFFECTS)."""
     id: str
     name_ru: str
     description: str
-    # Минимальный этап для принятия
     required_stage: str
-    # Плюсы (список строк)
     pros: list[str]
-    # Минусы (список строк)
     cons: list[str]
-    # Эффекты (опционально — для будущего)
-    income_modifier: float = 1.0      # Множитель дохода
-    garrison_modifier: float = 1.0    # Множитель гарнизона
-    hire_cost_modifier: float = 1.0   # Множитель стоимости найма
+    income_modifier: float = 1.0
+    garrison_modifier: float = 1.0
+    hire_cost_modifier: float = 1.0
 
 
-# Исторически обоснованные законы Османов
+# Исторически обоснованные законы Османов (отображение в UI)
 LAWS_DATA = [
     # === БЕЕЛИК (1299+) ===
     Law(

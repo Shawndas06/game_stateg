@@ -1,9 +1,13 @@
 """
-AI для всех государств.
+ai_controller.py — логика хода AI для всех фракций (кроме игрока).
 
-Логика: строительство зданий, набор войск, осады, дипломатические предложения.
-Учитывает личность фракции (агрессивный, мирный, торговый, оборонительный).
-Выбирает слабые и близкие цели, не атакует при мирных отношениях.
+Реализует:
+- Вспомогательные функции: владение крепостями фракции, гарнизоны, постройки, расстояние между крепостями.
+- Выбор целей: вражеские крепости, сортировка по слабости/близости; учёт отношений (не атакует при peace/nap/alliance).
+- Набор войск, сбор полевой армии в столице, начало осад и штурмы (с учётом личности фракции).
+- Строительство зданий по очереди AI_BUILD_ORDER и прогресс строительства за ход.
+- Дипломатические предложения AI игроку: торговля (_maybe_propose_trade), мир (_maybe_propose_peace), дань (_maybe_propose_tribute).
+- process_faction_turn: один ход одной фракции; process_all_ai_turns: ходы всех AI фракций, возвращает список сообщений для уведомлений.
 """
 
 import random
@@ -15,6 +19,7 @@ from src.data.buildings_data import BUILDINGS_DATA, get_building
 
 OTTOMAN_ID = "ottoman"
 
+# Параметры осады и экономики AI (должны совпадать с game_state при необходимости)
 SIEGE_ADJACENCY_DISTANCE = 720
 SIEGE_TURNS_CAPITULATION = 3
 AI_STARTING_GOLD = 120
@@ -22,14 +27,17 @@ HIRE_COST_PER_TROOP = 5
 GOLD_PER_FORTRESS_PER_TURN = 15
 UPKEEP_PER_TROOP = 1
 
+# Очередь построек AI (стены, рынок, казармы, мечеть, алтарь, катапульты, стены II)
 AI_BUILD_ORDER = ["walls_1", "market", "barracks", "mosque", "altar", "catapult_workshop", "walls_2"]
 
 
 def _get_faction_owned(game_state, faction_id: str) -> set[str]:
+    """Множество id крепостей, принадлежащих данной фракции."""
     return {fid for fid, o in game_state.fortress_owners.items() if o == faction_id}
 
 
 def _get_faction_garrison(game_state, faction_id: str, fortress_id: str) -> int:
+    """Число войск в гарнизоне крепости у данной фракции (из ai_state или базовый гарнизон)."""
     ai = game_state.ai_state.get(faction_id, {})
     g = ai.get("garrisons", {})
     if fortress_id in g:
@@ -77,7 +85,11 @@ def _ai_capture_fortress(game_state, attacker_faction: str, fortress_id: str, ga
 
 
 def _get_enemy_fortresses_smart(game_state, faction_id: str) -> list[tuple[str, str, float, int]]:
-    """Вражеские крепости: (fortress_id, owner, distance_to_capital, defender_count) — сортированы по слабости."""
+    """
+    Список вражеских крепостей для данной фракции: (fortress_id, owner, distance_to_capital, defender_count).
+    Учитывает отношения: при peace/nap/alliance не включает крепости игрока.
+    Сортировка: сначала слабые и близкие цели.
+    """
     rel = game_state.get_relation_with(faction_id)
     attack_ottoman = rel not in ("peace", "nap", "alliance")
     owned = _get_faction_owned(game_state, faction_id)

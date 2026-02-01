@@ -1,6 +1,10 @@
 """
-Нарративные события в стиле Suzerain
-Сюжетная линия: решения, последствия, атмосфера
+narrative_data.py — сюжетные события в стиле Suzerain (текст + выборы).
+
+Реализует:
+- Класс NarrativeChoice: текст кнопки, effect, consequence (для отображения и будущих последствий).
+- Класс NarrativeEvent: id, заголовок, тело текста, список выборов; trigger_stage и trigger_after_turn — условия показа (этап и минимальный ход).
+- Константы событий: EVENT_START, EVENT_BURSA_APPROACH, EVENT_BURSA_FALLEN, EVENT_GALLIPOLI, EVENT_CONSTANTINOPLE_FALLEN и список NARRATIVE_EVENTS для narrative_engine.
 """
 
 from dataclasses import dataclass, field
@@ -9,20 +13,19 @@ from typing import Callable
 
 @dataclass
 class NarrativeChoice:
-    """Вариант выбора в нарративном событии"""
+    """Один вариант выбора в событии: текст кнопки (text), эффект (effect), последствие (consequence) для отображения."""
     text: str
-    effect: str  # Описание эффекта
-    consequence: str = ""  # Что произойдёт
+    effect: str
+    consequence: str = ""
 
 
 @dataclass
 class NarrativeEvent:
-    """Нарративное событие — текст + выборы"""
+    """Одно нарративное событие: id, заголовок, тело текста, список выборов; trigger_stage и trigger_after_turn задают, когда событие показывается."""
     id: str
     title: str
     body: str
     choices: list[NarrativeChoice] = field(default_factory=list)
-    # Когда показывать: stage, turn_range
     trigger_stage: str | None = None
     trigger_after_turn: int = 0
 

@@ -1,10 +1,19 @@
 """
-Экраны и диалоги игры.
+screens.py — отрисовка всех экранов и диалогов игры.
 
-Главное меню, настройки, карта, панели.
-Диалоги: осада, найм, столица, постройка, наместник, переименование.
-Дипломатия, экономика, законы, торговые/дипломатические предложения AI.
-Победа/поражение.
+Реализует:
+- Победа/поражение: draw_victory_defeat_dialog.
+- Главное меню: draw_main_menu (Новая игра, Загрузить, Настройки, Выход); get_menu_button_at_pos.
+- Настройки: draw_settings_screen (оконный/полноэкранный, Назад).
+- Верхняя панель: get_top_bar_button_rects (Ход, Дипломатия, Экономика, Законы).
+- Главный экран игры: draw_main_screen (шапка с инфо, карта через map_renderer, нижняя панель с подсказкой и кнопкой «Следующий ход», блок лога действий AI).
+- Нарратив: draw_narrative_dialog (событие с текстом и кнопками выбора).
+- Меню паузы: get_pause_menu_button_rect, draw_pause_popup, get_pause_button_at_pos.
+- Диалоги крепостей: draw_capital_dialog (столица, перевод в армию, полководец), draw_siege_dialog (осада/штурм), draw_hire_dialog (наём, постройки, наместник, столица, переименование).
+- Постройки, наместник, переименование: draw_build_dialog, draw_governor_dialog, draw_rename_dialog.
+- Предложения AI: draw_trade_proposal_dialog, draw_diplo_proposal_dialog.
+- Дипломатия, экономика, законы: draw_diplomacy_dialog, draw_economy_dialog, draw_laws_dialog.
+- Вспомогательные: is_end_turn_button_clicked, константы кнопок (MENU_BTN_*, PAUSE_*, SIEGE_CANCEL и т.д.).
 """
 
 import pygame
@@ -34,17 +43,17 @@ def draw_victory_defeat_dialog(
     overlay.set_alpha(220)
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
-    popup_w, popup_h = 500, 220
+    popup_w, popup_h = 560, 260
     popup_x = (SCREEN_WIDTH - popup_w) // 2
     popup_y = (SCREEN_HEIGHT - popup_h) // 2
     color = (80, 180, 80) if typ == "victory" else (180, 60, 60)
     pygame.draw.rect(surface, COLOR_UI_BG, (popup_x, popup_y, popup_w, popup_h))
     pygame.draw.rect(surface, color, (popup_x, popup_y, popup_w, popup_h), 4)
     title = "ПОБЕДА!" if typ == "victory" else "ПОРАЖЕНИЕ"
-    surface.blit(font_title.render(title, True, color), (popup_x + 20, popup_y + 25))
-    surface.blit(font.render(message, True, COLOR_TEXT), (popup_x + 20, popup_y + 80))
+    surface.blit(font_title.render(title, True, color), (popup_x + 28, popup_y + 28))
+    surface.blit(font.render(message, True, COLOR_TEXT), (popup_x + 28, popup_y + 95))
     buttons = []
-    rect = pygame.Rect(popup_x + (popup_w - 120) // 2, popup_y + 150, 120, 45)
+    rect = pygame.Rect(popup_x + (popup_w - 120) // 2, popup_y + 185, 120, 48)
     pygame.draw.rect(surface, COLOR_UI_ACCENT, rect)
     pygame.draw.rect(surface, COLOR_TEXT, rect, 2)
     surface.blit(font.render("В меню", True, COLOR_UI_BG), font.render("В меню", True, COLOR_UI_BG).get_rect(center=rect.center))
@@ -294,13 +303,29 @@ def draw_main_screen(
     hint_surf = font.render(hint, True, COLOR_TEXT_DIM)
     surface.blit(hint_surf, (20, SCREEN_HEIGHT - 55))
 
-    notifs = getattr(game_state, "notifications", [])[-3:]
-    nx = SCREEN_WIDTH - 400
-    ny = SCREEN_HEIGHT - 70
+    # Блок лога действий AI — выше нижней панели, в рамке, заметный и не обрезаемый
+    notifs = getattr(game_state, "notifications", [])[-4:]
+    log_box_w, log_box_h = 420, 92
+    log_box_x = SCREEN_WIDTH - log_box_w - 24
+    log_box_y = SCREEN_HEIGHT - 80 - log_box_h - 12
+    log_bg = pygame.Surface((log_box_w, log_box_h))
+    log_bg.set_alpha(230)
+    log_bg.fill(COLOR_UI_BG)
+    surface.blit(log_bg, (log_box_x, log_box_y))
+    pygame.draw.rect(surface, COLOR_UI_ACCENT, (log_box_x, log_box_y, log_box_w, log_box_h), 2)
+    try:
+        log_font = pygame.font.SysFont("dejavusans", 16)
+    except Exception:
+        log_font = font
+    ny = log_box_y + 12
     for _, msg in reversed(notifs):
-        ns = font.render(msg[:50] + ("…" if len(msg) > 50 else ""), True, COLOR_TEXT_DIM)
-        surface.blit(ns, (nx, ny))
-        ny -= 18
+        line = (msg[:52] + "…") if len(msg) > 52 else msg
+        ns = log_font.render(line, True, COLOR_TEXT)
+        surface.blit(ns, (log_box_x + 14, ny))
+        ny += 20
+    if not notifs:
+        ns = log_font.render("Действия AI появятся после хода.", True, COLOR_TEXT_DIM)
+        surface.blit(ns, (log_box_x + 14, log_box_y + 36))
 
 
 def draw_narrative_dialog(
@@ -319,9 +344,9 @@ def draw_narrative_dialog(
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
 
-    # Окно диалога
-    dialog_w = 700
-    dialog_h = 400
+    # Окно диалога — увеличенное, чтобы текст не слипался
+    dialog_w = 780
+    dialog_h = 460
     dialog_x = (SCREEN_WIDTH - dialog_w) // 2
     dialog_y = (SCREEN_HEIGHT - dialog_h) // 2
     dialog_rect = pygame.Rect(dialog_x, dialog_y, dialog_w, dialog_h)
@@ -330,22 +355,22 @@ def draw_narrative_dialog(
 
     # Заголовок
     title_surf = font_title.render(event.title, True, COLOR_UI_ACCENT)
-    surface.blit(title_surf, (dialog_x + 20, dialog_y + 15))
+    surface.blit(title_surf, (dialog_x + 28, dialog_y + 22))
 
     # Текст события (с переносом строк)
-    body_lines = _wrap_text(event.body, font, dialog_w - 40)
-    y_offset = dialog_y + 60
+    body_lines = _wrap_text(event.body, font, dialog_w - 56)
+    y_offset = dialog_y + 72
     for line in body_lines:
         line_surf = font.render(line, True, COLOR_TEXT)
-        surface.blit(line_surf, (dialog_x + 20, y_offset))
-        y_offset += 28
+        surface.blit(line_surf, (dialog_x + 28, y_offset))
+        y_offset += 30
 
-    # Кнопки выбора (ширина под длинный текст, например «Готовиться к походу на Бурсу»)
+    # Кнопки выбора
     button_rects = []
-    btn_y = dialog_y + dialog_h - 80
-    btn_w = 320
-    btn_h = 45
-    spacing = 20
+    btn_y = dialog_y + dialog_h - 88
+    btn_w = 340
+    btn_h = 48
+    spacing = 24
     total_btn_width = len(event.choices) * btn_w + (len(event.choices) - 1) * spacing
     start_x = dialog_x + (dialog_w - total_btn_width) // 2
 
@@ -432,8 +457,8 @@ def draw_pause_popup(
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
 
-    # Окно в центре
-    popup_w, popup_h = 400, 280
+    # Окно в центре — больше, чтобы не слипалось
+    popup_w, popup_h = 460, 320
     popup_x = (SCREEN_WIDTH - popup_w) // 2
     popup_y = (SCREEN_HEIGHT - popup_h) // 2
     popup_rect = pygame.Rect(popup_x, popup_y, popup_w, popup_h)
@@ -442,14 +467,14 @@ def draw_pause_popup(
 
     # Заголовок
     title_surf = font_title.render("Меню", True, COLOR_UI_ACCENT)
-    surface.blit(title_surf, (popup_x + 20, popup_y + 20))
+    surface.blit(title_surf, (popup_x + 28, popup_y + 26))
 
     # Три кнопки
     button_actions = []
-    btn_w, btn_h = 240, 50
+    btn_w, btn_h = 280, 54
     btn_x = (SCREEN_WIDTH - btn_w) // 2
-    start_y = popup_y + 80
-    spacing = 15
+    start_y = popup_y + 90
+    spacing = 20
 
     labels = [
         ("Сохранить игру", PAUSE_SAVE),
@@ -614,7 +639,7 @@ def draw_siege_dialog(
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
 
-    popup_w, popup_h = 500, 420
+    popup_w, popup_h = 560, 460
     popup_x = (SCREEN_WIDTH - popup_w) // 2
     popup_y = (SCREEN_HEIGHT - popup_h) // 2
     popup_rect = pygame.Rect(popup_x, popup_y, popup_w, popup_h)
@@ -738,7 +763,7 @@ def draw_hire_dialog(
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
 
-    popup_w, popup_h = 520, 400
+    popup_w, popup_h = 580, 450
     popup_x = (SCREEN_WIDTH - popup_w) // 2
     popup_y = (SCREEN_HEIGHT - popup_h) // 2
     popup_rect = pygame.Rect(popup_x, popup_y, popup_w, popup_h)
@@ -866,7 +891,7 @@ def draw_build_dialog(
     overlay.set_alpha(200)
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
-    popup_w, popup_h = 500, 450
+    popup_w, popup_h = 560, 500
     popup_x = (SCREEN_WIDTH - popup_w) // 2
     popup_y = (SCREEN_HEIGHT - popup_h) // 2
     pygame.draw.rect(surface, COLOR_UI_BG, (popup_x, popup_y, popup_w, popup_h))
@@ -918,7 +943,7 @@ def draw_governor_dialog(
     overlay.set_alpha(200)
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
-    popup_w, popup_h = 420, 200
+    popup_w, popup_h = 480, 240
     popup_x = (SCREEN_WIDTH - popup_w) // 2
     popup_y = (SCREEN_HEIGHT - popup_h) // 2
     pygame.draw.rect(surface, COLOR_UI_BG, (popup_x, popup_y, popup_w, popup_h))
@@ -958,7 +983,7 @@ def draw_rename_dialog(
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
 
-    popup_w, popup_h = 450, 200
+    popup_w, popup_h = 500, 240
     popup_x = (SCREEN_WIDTH - popup_w) // 2
     popup_y = (SCREEN_HEIGHT - popup_h) // 2
     popup_rect = pygame.Rect(popup_x, popup_y, popup_w, popup_h)
@@ -1008,7 +1033,7 @@ def draw_diplo_proposal_dialog(
     overlay.set_alpha(200)
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
-    popup_w, popup_h = 420, 200
+    popup_w, popup_h = 480, 240
     popup_x = (SCREEN_WIDTH - popup_w) // 2
     popup_y = (SCREEN_HEIGHT - popup_h) // 2
     pygame.draw.rect(surface, COLOR_UI_BG, (popup_x, popup_y, popup_w, popup_h))
@@ -1043,7 +1068,7 @@ def draw_trade_proposal_dialog(
     overlay.set_alpha(200)
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
-    popup_w, popup_h = 400, 180
+    popup_w, popup_h = 460, 220
     popup_x = (SCREEN_WIDTH - popup_w) // 2
     popup_y = (SCREEN_HEIGHT - popup_h) // 2
     pygame.draw.rect(surface, COLOR_UI_BG, (popup_x, popup_y, popup_w, popup_h))
@@ -1084,7 +1109,7 @@ def draw_diplomacy_dialog(
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
 
-    popup_w, popup_h = 540, 440
+    popup_w, popup_h = 620, 500
     popup_x = (SCREEN_WIDTH - popup_w) // 2
     popup_y = (SCREEN_HEIGHT - popup_h) // 2
     pygame.draw.rect(surface, COLOR_UI_BG, (popup_x, popup_y, popup_w, popup_h))
@@ -1096,13 +1121,13 @@ def draw_diplomacy_dialog(
     if selected_faction_id is None:
         # Шаг 1: выбор государства
         title_surf = font_title.render("Дипломатия — выберите государство", True, COLOR_UI_ACCENT)
-        surface.blit(title_surf, (popup_x + 20, popup_y + 15))
-        y = popup_y + 55
-        col_w = (popup_w - 80) // 2
+        surface.blit(title_surf, (popup_x + 28, popup_y + 22))
+        y = popup_y + 68
+        col_w = (popup_w - 96) // 2
         for i, fid in enumerate(AI_FACTION_IDS):
             name = FACTION_NAMES_RU.get(fid, fid)
             row, col = i // 2, i % 2
-            rect = pygame.Rect(popup_x + 20 + col * (col_w + 12), y + row * 44, col_w, 38)
+            rect = pygame.Rect(popup_x + 28 + col * (col_w + 16), y + row * 48, col_w, 42)
             pygame.draw.rect(surface, COLOR_UI_ACCENT, rect)
             pygame.draw.rect(surface, COLOR_TEXT, rect, 2)
             surface.blit(font.render(name, True, COLOR_UI_BG),
@@ -1114,11 +1139,11 @@ def draw_diplomacy_dialog(
         rel = game_state.get_relation_with(selected_faction_id) if hasattr(game_state, "get_relation_with") else "war"
         rel_name = rel_names.get(rel, rel)
         title_surf = font_title.render(f"Дипломатия: {target_name}", True, COLOR_UI_ACCENT)
-        surface.blit(title_surf, (popup_x + 20, popup_y + 15))
+        surface.blit(title_surf, (popup_x + 28, popup_y + 22))
         status_surf = font.render(f"Отношения: {rel_name}", True, COLOR_TEXT)
-        surface.blit(status_surf, (popup_x + 20, popup_y + 50))
+        surface.blit(status_surf, (popup_x + 28, popup_y + 58))
 
-        y = popup_y + 88
+        y = popup_y + 98
         options = [
             ("Мир", f"diplo_peace:{selected_faction_id}"),
             ("Объявить войну", f"diplo_war:{selected_faction_id}"),
@@ -1128,15 +1153,15 @@ def draw_diplomacy_dialog(
             ("Торговое соглашение", f"diplo_trade:{selected_faction_id}"),
         ]
         for label, action in options:
-            rect = pygame.Rect(popup_x + 40, y, popup_w - 80, 40)
+            rect = pygame.Rect(popup_x + 48, y, popup_w - 96, 44)
             pygame.draw.rect(surface, COLOR_UI_ACCENT if not label.startswith("Объявить") else COLOR_UI_BG, rect)
             pygame.draw.rect(surface, COLOR_UI_ACCENT, rect, 2)
             surface.blit(font.render(label, True, COLOR_UI_BG if not label.startswith("Объявить") else COLOR_UI_ACCENT),
                          font.render(label, True, COLOR_UI_BG).get_rect(center=rect.center))
             buttons.append((rect, action))
-            y += 46
+            y += 50
 
-        rect_back = pygame.Rect(popup_x + 40, y + 8, 120, 38)
+        rect_back = pygame.Rect(popup_x + 48, y + 12, 130, 42)
         pygame.draw.rect(surface, COLOR_UI_BG, rect_back)
         pygame.draw.rect(surface, COLOR_UI_ACCENT, rect_back, 2)
         surface.blit(font.render("← Назад", True, COLOR_UI_ACCENT),
@@ -1181,7 +1206,7 @@ def draw_economy_dialog(
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
 
-    popup_w, popup_h = 520, 420
+    popup_w, popup_h = 580, 460
     popup_x = (SCREEN_WIDTH - popup_w) // 2
     popup_y = (SCREEN_HEIGHT - popup_h) // 2
     popup_rect = pygame.Rect(popup_x, popup_y, popup_w, popup_h)
@@ -1268,7 +1293,7 @@ def draw_laws_dialog(
     overlay.fill((0, 0, 0))
     surface.blit(overlay, (0, 0))
 
-    popup_w, popup_h = 680, 560
+    popup_w, popup_h = 760, 620
     popup_x = (SCREEN_WIDTH - popup_w) // 2
     popup_y = (SCREEN_HEIGHT - popup_h) // 2
     pygame.draw.rect(surface, COLOR_UI_BG, (popup_x, popup_y, popup_w, popup_h))

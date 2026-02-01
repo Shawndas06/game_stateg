@@ -1,6 +1,11 @@
 """
-Этапы кампании — эволюция Бейлик → Султанат → Империя
-Триггеры: захват Бурсы, захват Константинополя
+campaign_stages.py — этапы кампании и условия перехода между ними.
+
+Реализует:
+- Класс CampaignStage: id, название, год начала, описание, trigger_fortress (крепость, захват которой переводит на этот этап).
+- Словарь STAGES: Бейлик (1299), Султанат (Бурса), Империя (Константинополь).
+- get_stage_by_fortress(fortress_id): этап, разблокируемый захватом данной крепости.
+- get_next_stage(current_stage): следующий этап в цепочке.
 """
 
 from dataclasses import dataclass
@@ -9,13 +14,13 @@ from src.utils.constants import STAGE_BEYLIK, STAGE_SULTANATE, STAGE_EMPIRE
 
 @dataclass
 class CampaignStage:
-    """Этап кампании"""
+    """Один этап кампании: идентификатор, названия, год, описание; trigger_fortress — id крепости, при захвате которой игрок переходит на этот этап."""
     id: str
     name: str
     name_ru: str
     year_start: int
     description: str
-    trigger_fortress: str | None = None  # Крепость для перехода
+    trigger_fortress: str | None = None
 
 
 STAGES = {

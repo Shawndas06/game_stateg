@@ -1,9 +1,11 @@
 """
-Типы войск по этапу государства (исторически).
+troops_data.py — типы войск по этапу кампании (исторические названия).
 
-Бейлик: ополченцы, конница, лучники, гази.
-Султанат: азапы, сипахи, янычары, акынджи.
-Империя: тимариоты, капыкулу, топчу.
+Реализует:
+- Класс TroopType: id, название, стоимость найма, содержание (upkeep), множитель силы, требуемый этап.
+- TROOPS_DATA: ополченцы, конница, лучники, гази (Бейлик); азапы, сипахи, янычары, акынджи (Султанат); тимариоты, капыкулу, топчу (Империя).
+- get_troops_for_stage(stage): список типов войск, доступных на данном этапе.
+- get_troop_type(troop_id): поиск по id.
 """
 
 from dataclasses import dataclass
@@ -12,11 +14,12 @@ from src.utils.constants import STAGE_BEYLIK, STAGE_SULTANATE, STAGE_EMPIRE
 
 @dataclass
 class TroopType:
+    """Один тип войск: стоимость найма (cost), содержание за ход (upkeep), множитель силы в бою (strength), этап появления (required_stage)."""
     id: str
     name_ru: str
     cost: int
     upkeep: float
-    strength: float  # Множитель силы в бою
+    strength: float
     required_stage: str
 
 
@@ -36,12 +39,14 @@ TROOPS_DATA = [
 
 
 def get_troops_for_stage(stage: str) -> list[TroopType]:
+    """Вернуть список типов войск, доступных на данном этапе (бейлик/султанат/империя)."""
     order = {STAGE_BEYLIK: 0, STAGE_SULTANATE: 1, STAGE_EMPIRE: 2}
     s = order.get(stage, 0)
     return [t for t in TROOPS_DATA if order.get(t.required_stage, 0) <= s]
 
 
 def get_troop_type(troop_id: str) -> TroopType | None:
+    """Вернуть тип войск по id или None."""
     for t in TROOPS_DATA:
         if t.id == troop_id:
             return t
