@@ -27,8 +27,15 @@ COLOR_KARAMAN = (120, 60, 40)
 COLOR_AYDIN = (80, 100, 60)
 COLOR_BULGARIA = (80, 60, 100)
 COLOR_SERBIA = (60, 80, 100)
+COLOR_HUNGARY = (140, 60, 60)
+COLOR_MENTESE = (90, 100, 80)
+COLOR_SARUHAN = (110, 90, 70)
+COLOR_CANDAR = (70, 90, 110)
+COLOR_HAMID = (100, 70, 90)
+COLOR_TEKE = (80, 110, 100)
+COLOR_KARASI = (90, 85, 75)
 
 # Этапы кампании
-STAGE_BEYLIK = "beylik"           # Османский беелик (до Бурсы)
-STAGE_SULTANATE = "sultanate"     # Османский султанат (после Бурсы)
-STAGE_EMPIRE = "empire"           # Османская империя (после Константинополя)
+STAGE_BEYLIK = "beylik"
+STAGE_SULTANATE = "sultanate"
+STAGE_EMPIRE = "empire"

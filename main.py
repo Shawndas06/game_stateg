@@ -43,7 +43,7 @@ from src.ui.screens import (
 )
 from src.map.map_renderer import get_clicked_fortress, MAP_OFFSET_X, MAP_OFFSET_Y, MAP_VIEW_WIDTH, MAP_VIEW_HEIGHT
 from src.game.save_manager import save_game, load_game, has_save
-from src.game.diplomacy_engine import propose_peace, propose_nap, propose_tribute, propose_alliance, declare_war
+from src.game.diplomacy_engine import propose_peace, propose_nap, propose_tribute, propose_alliance, propose_trade, declare_war
 from src.data.fortresses import get_fortress_by_id
 
 
@@ -86,12 +86,13 @@ def main():
 
     # Диалоги: Дипломатия, Экономика, Законы
     diplomacy_open = False
+    diplomacy_selected_faction = None  # Сначала выбор государства, потом действие
     economy_open = False
     laws_open = False
     top_dialog_buttons = []
 
     # Карта: zoom и pan
-    map_zoom = 0.55
+    map_zoom = 0.6
     map_offset_x = 0.0
     map_offset_y = 0.0
     map_panning = False
@@ -188,32 +189,58 @@ def main():
                         if rect.collidepoint(mouse_pos):
                             if action == "diplo_close" or action == "econ_close" or action == "laws_close":
                                 diplomacy_open = economy_open = laws_open = False
+                                diplomacy_selected_faction = None
                                 if hasattr(game_state, "_diplomacy_message"):
                                     delattr(game_state, "_diplomacy_message")
-                            elif action == "diplo_peace":
-                                ok, msg = propose_peace(game_state)
+                            elif action == "diplo_back":
+                                diplomacy_selected_faction = None
+                            elif action.startswith("diplo_select:"):
+                                diplomacy_selected_faction = action.split(":", 1)[1]
+                            elif action.startswith("diplo_peace:"):
+                                target_id = action.split(":", 1)[1]
+                                ok, msg = propose_peace(game_state, target_id)
                                 game_state._diplomacy_message = msg
                                 if ok:
-                                    game_state.byzantine_relation = "peace"
-                            elif action == "diplo_war":
-                                _, msg = declare_war(game_state)
+                                    game_state.ai_state.setdefault(target_id, {})["relation"] = "peace"
+                                    if target_id == "byzantine":
+                                        game_state.byzantine_relation = "peace"
+                            elif action.startswith("diplo_war:"):
+                                target_id = action.split(":", 1)[1]
+                                _, msg = declare_war(game_state, target_id)
                                 game_state._diplomacy_message = msg
-                                game_state.byzantine_relation = "war"
-                            elif action == "diplo_tribute":
-                                ok, msg = propose_tribute(game_state)
-                                game_state._diplomacy_message = msg
-                                if ok:
-                                    game_state.byzantine_relation = "tribute"
-                            elif action == "diplo_alliance":
-                                ok, msg = propose_alliance(game_state)
-                                game_state._diplomacy_message = msg
-                                if ok:
-                                    game_state.byzantine_relation = "alliance"
-                            elif action == "diplo_nap":
-                                ok, msg = propose_nap(game_state)
+                                game_state.ai_state.setdefault(target_id, {})["relation"] = "war"
+                                if target_id == "byzantine":
+                                    game_state.byzantine_relation = "war"
+                            elif action.startswith("diplo_tribute:"):
+                                target_id = action.split(":", 1)[1]
+                                ok, msg = propose_tribute(game_state, target_id)
                                 game_state._diplomacy_message = msg
                                 if ok:
-                                    game_state.byzantine_relation = "nap"
+                                    game_state.ai_state.setdefault(target_id, {})["relation"] = "tribute"
+                                    if target_id == "byzantine":
+                                        game_state.byzantine_relation = "tribute"
+                            elif action.startswith("diplo_alliance:"):
+                                target_id = action.split(":", 1)[1]
+                                ok, msg = propose_alliance(game_state, target_id)
+                                game_state._diplomacy_message = msg
+                                if ok:
+                                    game_state.ai_state.setdefault(target_id, {})["relation"] = "alliance"
+                                    if target_id == "byzantine":
+                                        game_state.byzantine_relation = "alliance"
+                            elif action.startswith("diplo_nap:"):
+                                target_id = action.split(":", 1)[1]
+                                ok, msg = propose_nap(game_state, target_id)
+                                game_state._diplomacy_message = msg
+                                if ok:
+                                    game_state.ai_state.setdefault(target_id, {})["relation"] = "nap"
+                                    if target_id == "byzantine":
+                                        game_state.byzantine_relation = "nap"
+                            elif action.startswith("diplo_trade:"):
+                                target_id = action.split(":", 1)[1]
+                                ok, msg = propose_trade(game_state, target_id)
+                                game_state._diplomacy_message = msg
+                                if ok:
+                                    game_state.trade_partners.add(target_id)
                             elif action.startswith("law_enact:"):
                                 law_id = action.split(":")[1]
                                 game_state.enacted_laws.add(law_id)
@@ -258,6 +285,15 @@ def main():
                             if len(parts) >= 3:
                                 amount_str, mode = parts[1], parts[2]
                                 target_id = selected_fortress.id
+                                target_owner = game_state.get_fortress_owner(target_id)
+                                if target_owner and target_owner != "ottoman":
+                                    rel = game_state.get_relation_with(target_owner)
+                                    if rel == "nap":
+                                        game_state.nap_violations += 1
+                                    if rel != "war":
+                                        game_state.ai_state.setdefault(target_owner, {})["relation"] = "war"
+                                        if target_owner == "byzantine":
+                                            game_state.byzantine_relation = "war"
                                 if mode == "siege":
                                     ok, _ = game_state.start_siege_from_field_army(target_id, int(amount_str))
                                     if ok:
@@ -314,8 +350,19 @@ def main():
                         if rect.collidepoint(mouse_pos):
                             top_clicked = action
                             break
-                    if top_clicked == "top_diplomacy":
+                    if top_clicked == "top_turn":
+                        game_state.next_turn()
+                        next_ev = get_next_narrative_event(
+                            game_state.stage, game_state.turn, game_state.shown_events
+                        )
+                        if next_ev:
+                            active_dialog_event = next_ev
+                            active_dialog_buttons = draw_narrative_dialog(
+                                screen, next_ev, font_title, font
+                            )
+                    elif top_clicked == "top_diplomacy":
                         diplomacy_open = True
+                        diplomacy_selected_faction = None
                         economy_open = laws_open = False
                     elif top_clicked == "top_economy":
                         economy_open = True
@@ -387,7 +434,7 @@ def main():
                 pause_popup_buttons = draw_pause_popup(screen, font_title, font)
 
             if diplomacy_open:
-                top_dialog_buttons = draw_diplomacy_dialog(screen, game_state, font_title, font)
+                top_dialog_buttons = draw_diplomacy_dialog(screen, game_state, font_title, font, diplomacy_selected_faction)
             elif economy_open:
                 top_dialog_buttons = draw_economy_dialog(screen, game_state, font_title, font)
             elif laws_open:

@@ -1,9 +1,8 @@
 """
 Данные крепостей эпохи Османской экспансии (1299-1453)
 Историческое размещение: Анатолия, Балканы
-Координаты: x запад→восток, y север→юг (0..3000 x 0..1800)
-Крепости ТОЛЬКО на суше, расстояние между ними ≥ 120 px
-География: запад=Балканы/Эгейское, восток=Чёрное/центральная Анатолия
+Координаты: x запад→восток, y север→юг (0..4800 x 0..2880)
+Минимальное расстояние между крепостями: 140 px (логические единицы)
 """
 
 from dataclasses import dataclass
@@ -21,71 +20,109 @@ class Fortress:
     faction: str
     base_garrison: int = 50
     is_capital: bool = False
-    stage_trigger: Optional[str] = None
     description: str = ""
     fortification: float = 1.0
 
 
-MAP_LOGICAL_WIDTH = 3000
-MAP_LOGICAL_HEIGHT = 1800
+# Логический размер карты (масштаб 1.6×)
+MAP_LOGICAL_WIDTH = 4800
+MAP_LOGICAL_HEIGHT = 2880
 
-# Историческая география (см. карты XIV в.):
-# Запад: Балканы (Белград, София, Фессалоника), Эгейское море
-# Центр: Фракия (Адрианополь, Галлиполи), Мраморное море, Бурса
-# Восток: Константинополь (Босфор), Никомедия, центральная Анатолия (Кония)
+# Историческая география.
 FORTESSES_DATA = [
-    # === БЕЕЛИК ОСМАНА I (северо-запад Анатолии, между Мраморным морем и внутренностью) ===
-    Fortress("sogut", "Söğüt", "Сёгют", 760, 860, "ottoman", 80, is_capital=True),        # Первая столица, южнее Бурсы
-    Fortress("bilecik", "Bilecik", "Биледжик", 700, 800, "ottoman", 50),                  # Между Сёгют и Бурсой
-    Fortress("karacahisar", "Karacahisar", "Караджахисар", 800, 960, "ottoman", 60),      # Южнее, к Эскишехиру
-    Fortress("yarhisar", "Yarhisar", "Ярхисар", 820, 800, "ottoman", 50),                 # Путь к византийским землям
-    Fortress("inegol", "İnegöl", "Инегёль", 860, 860, "ottoman", 60),                     # Подступы к Бурсе
-    Fortress("yenishehir", "Yenişehir", "Йенишехир", 920, 820, "ottoman", 70),            # Еленос, у границы Вифинии
-    Fortress("koyunhisar", "Koyunhisar", "Койунхисар", 980, 760, "ottoman", 80),          # Бафейон (1302)
+    # === ОСМАНЫ (северо-запад Анатолии) ===
+    Fortress("sogut", "Söğüt", "Сёгют", 1184, 1440, "ottoman", 80, is_capital=True),
+    Fortress("bilecik", "Bilecik", "Биледжик", 1056, 1312, "ottoman", 50),
+    Fortress("karacahisar", "Karacahisar", "Караджахисар", 1312, 1600, "ottoman", 60),
+    Fortress("yarhisar", "Yarhisar", "Ярхисар", 1280, 1248, "ottoman", 50),
+    Fortress("inegol", "İnegöl", "Инегёль", 1408, 1440, "ottoman", 60),
+    Fortress("yenishehir", "Yenişehir", "Йенишехир", 1536, 1280, "ottoman", 70),
+    Fortress("koyunhisar", "Koyunhisar", "Койунхисар", 1632, 1152, "ottoman", 80),
 
-    # === ГЕРМИЯН (западная Анатолия, южнее османов) ===
-    Fortress("kutahya", "Kütahya", "Кютахья", 540, 640, "germiyan", 120),                 # Столица Гермияна
-    Fortress("afyon", "Afyon", "Афьон", 620, 540, "germiyan", 90),                        # Афьон-Карахисар
-    Fortress("usak", "Uşak", "Ушак", 380, 560, "germiyan", 60),                           # Западнее
+    # === ГЕРМИЯН ===
+    Fortress("kutahya", "Kütahya", "Кютахья", 800, 992, "germiyan", 120),
+    Fortress("afyon", "Afyon", "Афьон", 960, 800, "germiyan", 90),
+    Fortress("usak", "Uşak", "Ушак", 544, 864, "germiyan", 60),
+    Fortress("simav", "Simav", "Симав", 704, 1056, "germiyan", 50),
 
-    # === КАРАМАН (центральная Анатолия — далеко от побережья) ===
-    Fortress("konya", "Konya", "Кония", 1320, 720, "karaman", 200),                       # Столица Карамана, центр Анатолии
-    Fortress("aksehir", "Akşehir", "Акшехир", 1000, 560, "karaman", 80),                  # Северо-запад от Коньи
-    Fortress("beysehir", "Beyşehir", "Бейшехир", 1120, 660, "karaman", 70),               # У озера Бейшехир
+    # === КАРАМАН ===
+    Fortress("konya", "Konya", "Кония", 2144, 1216, "karaman", 200),
+    Fortress("aksehir", "Akşehir", "Акшехир", 1568, 832, "karaman", 80),
+    Fortress("beysehir", "Beyşehir", "Бейшехир", 1824, 1120, "karaman", 70),
+    Fortress("nigde", "Niğde", "Нигде", 2336, 1312, "karaman", 100),
+    Fortress("larende", "Larende", "Ларинда", 2080, 1344, "karaman", 90),
 
-    # === АЙДЫН (эгейское побережье, юго-запад) ===
-    Fortress("smyrna", "Smyrna", "Смирна", 180, 720, "aydin", 150),                       # Измир, порт
-    Fortress("ephesus", "Ephesus", "Эфес", 140, 820, "aydin", 90),                        # Эфес, южнее Смирны
-    Fortress("aydin_city", "Aydın", "Айдын", 300, 660, "aydin", 100),                     # Внутри, у реки
+    # === АЙДЫН (эгейское побережье) ===
+    Fortress("smyrna", "Smyrna", "Смирна", 256, 1088, "aydin", 150),
+    Fortress("ephesus", "Ephesus", "Эфес", 192, 1376, "aydin", 90),
+    Fortress("aydin_city", "Aydın", "Айдын", 512, 992, "aydin", 100),
+    Fortress("tyrha", "Tyrha", "Тирха", 352, 1280, "aydin", 60),
 
-    # === ВИЗАНТИЯ — Анатолия (северо-запад, у Мраморного моря) ===
-    Fortress("bursa", "Prusa", "Пруса", 920, 920, "byzantine", 350, fortification=1.2, stage_trigger="sultanate"),  # Бурса, южный берег Мраморного
-    Fortress("lopadion", "Lopadion", "Лопадион", 800, 720, "byzantine", 120),             # Улубад, у реки Риндак
-    Fortress("nicaea", "Nicaea", "Никея", 1080, 860, "byzantine", 350, fortification=1.25),  # Изник, у озера
-    Fortress("milingia", "Milingia", "Мелингия", 1020, 1000, "byzantine", 120),           # Мелингой
-    Fortress("thebes", "Thebes", "Фивы", 1220, 920, "byzantine", 150),                    # Фие, южный берег залива
-    Fortress("cius", "Cius", "Киос", 860, 800, "byzantine", 100),                         # Гемлик, порт Мраморного — северо-запад Бурсы
-    Fortress("kalolimni", "Kalolimni", "Калолимни", 1100, 800, "byzantine", 80),          # Гёльджюк, у залива
-    Fortress("nicomedia", "Nicomedia", "Никомедия", 1300, 640, "byzantine", 400, fortification=1.3),  # Измит, восточный берег Мраморного
-    Fortress("acra", "Acra", "Акра", 1500, 420, "byzantine", 60),                         # Акча-Хисар, Чёрное море
+    # === МЕНТЕШЕ (юго-запад) ===
+    Fortress("mugla", "Muğla", "Мугла", 320, 1568, "mentese", 100),
+    Fortress("milas", "Milas", "Милас", 448, 1440, "mentese", 80),
+    Fortress("peçin", "Peçin", "Печин", 384, 1504, "mentese", 70),
 
-    # === ВИЗАНТИЯ — Европа (Фракия, Балканы) ===
-    Fortress("gallipoli", "Gallipoli", "Галлиполи", 780, 460, "byzantine", 150, fortification=1.2),   # Гелиболу, Дарданеллы
-    Fortress("constantinople", "Constantinople", "Константинополь", 1140, 380, "byzantine", 500, fortification=1.5, stage_trigger="empire"),  # Босфор
-    Fortress("selymbria", "Selymbria", "Селимврия", 1220, 440, "byzantine", 80),          # Силиври
-    Fortress("adrianople", "Adrianople", "Адрианополь", 940, 340, "byzantine", 200, fortification=1.2),  # Эдирне, Фракия
-    Fortress("thessalonica", "Thessalonica", "Фессалоника", 480, 420, "byzantine", 180, fortification=1.15),  # Солунь, северная Греция
+    # === САРУХАН (запад) ===
+    Fortress("manisa", "Manisa", "Маниса", 608, 1184, "saruhan", 120),
+    Fortress("nif", "Nif", "Ниф", 544, 1344, "saruhan", 60),
+    Fortress("gordes", "Gördes", "Гёрдес", 736, 1088, "saruhan", 70),
+
+    # === ДЖАНДАР/КАНДАР (Чёрное море) ===
+    Fortress("kastamonu", "Kastamonu", "Кастамону", 1888, 768, "candar", 150),
+    Fortress("sinop", "Sinop", "Синоп", 2208, 480, "candar", 120),
+    Fortress("cankiri", "Çankırı", "Чанкыры", 1728, 896, "candar", 80),
+
+    # === ХАМИД (центральная Анатолия) ===
+    Fortress("isparta", "Isparta", "Испарта", 1248, 1376, "hamid", 100),
+    Fortress("egirdir", "Eğirdir", "Эгирдир", 1440, 1184, "hamid", 80),
+    Fortress("ulusuborga", "Uluborlu", "Улуборлу", 1184, 1280, "hamid", 60),
+
+    # === ТЕКЕ (юг, Анталья) ===
+    Fortress("antalya", "Antalya", "Анталья", 1024, 1728, "teke", 130),
+    Fortress("alanya", "Alanya", "Аланья", 1536, 1696, "teke", 100),
+    Fortress("korkuteli", "Korkuteli", "Коркутели", 1152, 1600, "teke", 70),
+
+    # === КАРАСЫ (северо-запад Анатолии) ===
+    Fortress("balikesir", "Balıkesir", "Балыкесир", 864, 1088, "karasi", 120),
+    Fortress("bergama", "Bergama", "Бергама", 480, 1088, "karasi", 90),
+    Fortress("edremit", "Edremit", "Эдремит", 576, 992, "karasi", 70),
+
+    # === ВИЗАНТИЯ — Анатолия ===
+    Fortress("bursa", "Prusa", "Пруса", 1536, 1536, "byzantine", 350, fortification=1.2),
+    Fortress("lopadion", "Lopadion", "Лопадион", 1216, 1088, "byzantine", 120),
+    Fortress("nicaea", "Nicaea", "Никея", 1792, 1440, "byzantine", 350, fortification=1.25),
+    Fortress("milingia", "Milingia", "Мелингия", 1664, 1664, "byzantine", 120),
+    Fortress("thebes", "Thebes", "Фивы", 1984, 1536, "byzantine", 150),
+    Fortress("cius", "Cius", "Киос", 1408, 1180, "byzantine", 100),
+    Fortress("kalolimni", "Kalolimni", "Калолимни", 1824, 1344, "byzantine", 80),
+    Fortress("nicomedia", "Nicomedia", "Никомедия", 2112, 960, "byzantine", 400, fortification=1.3),
+    Fortress("acra", "Acra", "Акра", 2432, 608, "byzantine", 60),
+
+    # === ВИЗАНТИЯ — Европа ===
+    Fortress("gallipoli", "Gallipoli", "Галлиполи", 1184, 672, "byzantine", 150, fortification=1.2),
+    Fortress("constantinople", "Constantinople", "Константинополь", 1856, 544, "byzantine", 500, fortification=1.5),
+    Fortress("selymbria", "Selymbria", "Селимврия", 1984, 640, "byzantine", 80),
+    Fortress("adrianople", "Adrianople", "Адрианополь", 1568, 480, "byzantine", 200, fortification=1.2),
+    Fortress("thessalonica", "Thessalonica", "Фессалоника", 704, 608, "byzantine", 180, fortification=1.15),
 
     # === БОЛГАРИЯ ===
-    Fortress("tarnovo", "Tarnovo", "Тырново", 1100, 220, "bulgaria", 150),                # Столица
-    Fortress("sofia", "Sofia", "София", 780, 300, "bulgaria", 180),                       # София
-    Fortress("plovdiv", "Plovdiv", "Пловдив", 860, 360, "bulgaria", 120),                 # Пловдив (Филиппополь) — западнее Константинополя
-    Fortress("varna", "Varna", "Варна", 1380, 180, "bulgaria", 100),                      # Порт на Чёрном море
+    Fortress("tarnovo", "Tarnovo", "Тырново", 1792, 288, "bulgaria", 150),
+    Fortress("sofia", "Sofia", "София", 1184, 416, "bulgaria", 180),
+    Fortress("plovdiv", "Plovdiv", "Пловдив", 1088, 512, "bulgaria", 120),
+    Fortress("varna", "Varna", "Варна", 2240, 224, "bulgaria", 100),
+    Fortress("vidin", "Vidin", "Видин", 960, 320, "bulgaria", 80),
 
     # === СЕРБИЯ ===
-    Fortress("belgrade", "Belgrade", "Белград", 360, 260, "serbia", 200),                 # Белград, Дунай
-    Fortress("nis", "Niš", "Ниш", 620, 400, "serbia", 120),                               # Ниш
-    Fortress("skopje", "Skopje", "Скопье", 520, 460, "serbia", 100),                      # Скопье
+    Fortress("belgrade", "Belgrade", "Белград", 512, 352, "serbia", 200),
+    Fortress("nis", "Niš", "Ниш", 928, 576, "serbia", 120),
+    Fortress("skopje", "Skopje", "Скопье", 768, 672, "serbia", 100),
+    Fortress("prizren", "Prizren", "Призрен", 640, 768, "serbia", 70),
+
+    # === ВЕНГРИЯ ===
+    Fortress("buda", "Buda", "Буда", 384, 224, "hungary", 250),
+    Fortress("visegrad", "Visegrád", "Вышеград", 512, 160, "hungary", 100),
+    Fortress("szeged", "Szeged", "Сегед", 672, 320, "hungary", 80),
 ]
 
 

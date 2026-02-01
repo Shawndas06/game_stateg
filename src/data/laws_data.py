@@ -133,3 +133,19 @@ def get_laws_for_stage(stage: str) -> list[Law]:
         if req_idx <= stage_idx:
             result.append(law)
     return result
+
+
+# Эффекты законов (множители)
+LAW_EFFECTS = {
+    "akhi_teşkilat": {"income": 1.15},
+    "gaza_ideology": {"assault_morale": 0.1},  # −10% шанс поражения при штурме
+    "uc_bey_system": {"garrison_min": 0},
+    "timar_draft": {"hire_cost": 0.8},
+    "devsirme": {"upkeep": 1.05, "garrison_bonus": 5},
+    "kanunname": {"income": 1.2},
+    "millet_system": {"income": 1.1},
+    "vezir_divan": {"income": 1.15},
+    "timar_full": {"hire_cost": 0.7},
+    "capitulations": {"trade_income": 1.25},
+    "devlet_ali": {"income": 1.2, "upkeep": 1.1},
+}
