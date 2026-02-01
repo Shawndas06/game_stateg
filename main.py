@@ -16,12 +16,36 @@ from src.ui.screens import (
     draw_main_menu,
     get_menu_button_at_pos,
     MENU_BTN_NEW_GAME,
+    MENU_BTN_LOAD_GAME,
     MENU_BTN_EXIT,
     draw_main_screen,
     draw_narrative_dialog,
     is_end_turn_button_clicked,
+    get_pause_menu_button_rect,
+    draw_pause_popup,
+    get_pause_button_at_pos,
+    PAUSE_SAVE,
+    PAUSE_EXIT,
+    PAUSE_CLOSE,
+    draw_siege_dialog,
+    draw_hire_dialog,
+    draw_capital_dialog,
+    draw_rename_dialog,
+    SIEGE_CANCEL,
+    HIRE_CANCEL,
+    CAPITAL_CANCEL,
 )
 from src.map.map_renderer import get_clicked_fortress
+from src.game.save_manager import save_game, load_game, has_save
+from src.data.fortresses import get_fortress_by_id
+
+
+def get_fortress_name_ru(game_state, fortress_id: str) -> str:
+    """Получить отображаемое имя крепости (с учётом переименований)"""
+    if game_state and hasattr(game_state, "get_fortress_display_name"):
+        return game_state.get_fortress_display_name(fortress_id)
+    f = get_fortress_by_id(fortress_id)
+    return f.name_ru if f else fortress_id
 
 
 def main():
@@ -31,32 +55,52 @@ def main():
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.RESIZABLE)
     clock = pygame.time.Clock()
 
-    # Шрифты — SysFont для кроссплатформенности
     font_title = pygame.font.SysFont("dejavusans", 24)
     font = pygame.font.SysFont("dejavusans", 18)
 
-    # Состояние: "menu" или "game"
     screen_state = "menu"
-    menu_buttons = []  # Кэш кнопок меню для кликов
+    menu_buttons = []
 
-    # Состояние игры (создаётся при переходе из меню)
     game_state = None
     active_dialog_event = None
-    active_dialog_buttons = []  # [(rect, choice), ...]
+    active_dialog_buttons = []
+    pause_popup_open = False
+    pause_popup_buttons = []
+
+    selected_fortress = None
+    fortress_dialog_buttons = []
+
+    # Диалог переименования: (fortress_id, current_text) или None
+    rename_state = None
+    rename_dialog_buttons = []
 
     running = True
     while running:
-        # === ОБРАБОТКА СОБЫТИЙ ===
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
                 break
 
+            # Ввод текста для переименования
+            if rename_state and event.type == pygame.KEYDOWN:
+                fortress_id, text = rename_state
+                if event.key == pygame.K_ESCAPE:
+                    rename_state = None
+                elif event.key == pygame.K_RETURN:
+                    if text.strip():
+                        game_state.rename_fortress(fortress_id, text)
+                    rename_state = None
+                    selected_fortress = get_fortress_by_id(fortress_id) if fortress_id else None
+                elif event.key == pygame.K_BACKSPACE:
+                    rename_state = (fortress_id, text[:-1])
+                elif event.unicode and len(text) < 30 and event.unicode.isprintable():
+                    rename_state = (fortress_id, text + event.unicode)
+                continue
+
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_pos = pygame.mouse.get_pos()
 
                 if screen_state == "menu":
-                    # Клик по кнопке меню
                     action = get_menu_button_at_pos(mouse_pos, menu_buttons)
                     if action == MENU_BTN_NEW_GAME:
                         screen_state = "game"
@@ -65,22 +109,122 @@ def main():
                             game_state.stage, game_state.turn, game_state.shown_events
                         )
                         active_dialog_buttons = []
+                    elif action == MENU_BTN_LOAD_GAME and has_save():
+                        loaded = load_game()
+                        if loaded is not None:
+                            screen_state = "game"
+                            game_state = loaded
+                            active_dialog_event = None
+                            active_dialog_buttons = []
                     elif action == MENU_BTN_EXIT:
                         running = False
                         break
                     continue
 
+                # Диалог переименования
+                if rename_state and game_state:
+                    for rect, action in rename_dialog_buttons:
+                        if rect.collidepoint(mouse_pos):
+                            fortress_id, text = rename_state
+                            if action == "rename_ok" and text.strip():
+                                game_state.rename_fortress(fortress_id, text)
+                            rename_state = None
+                            selected_fortress = get_fortress_by_id(fortress_id) if fortress_id else None
+                            break
+                    continue
+
+                # Диалог осады, найма или столицы
+                if selected_fortress and game_state and not pause_popup_open and not active_dialog_event and not rename_state:
+                    for rect, action in fortress_dialog_buttons:
+                        if not rect.collidepoint(mouse_pos):
+                            continue
+
+                        if action == SIEGE_CANCEL or action == HIRE_CANCEL or action == CAPITAL_CANCEL:
+                            selected_fortress = None
+                            break
+
+                        if action == "capital_rename":
+                            rename_state = (game_state.capital_id, game_state.get_fortress_display_name(game_state.capital_id))
+                            break
+
+                        if action.startswith("hire_rename:"):
+                            fid = action.split(":")[1]
+                            rename_state = (fid, game_state.get_fortress_display_name(fid))
+                            break
+
+                        if action.startswith("make_capital:"):
+                            fid = action.split(":")[1]
+                            ok, _ = game_state.set_capital(fid)
+                            if ok:
+                                selected_fortress = get_fortress_by_id(fid)
+                            break
+
+                        if action.startswith("capital_transfer:"):
+                            parts = action.split(":")
+                            if len(parts) >= 3:
+                                source_id, amount_str = parts[1], parts[2]
+                                game_state.transfer_to_field_army(source_id, int(amount_str))
+                            break
+
+                        if action.startswith("siege_field:"):
+                            parts = action.split(":")
+                            if len(parts) >= 3:
+                                amount_str, mode = parts[1], parts[2]
+                                target_id = selected_fortress.id
+                                if mode == "siege":
+                                    ok, _ = game_state.start_siege_from_field_army(target_id, int(amount_str))
+                                    if ok:
+                                        selected_fortress = None
+                                elif mode == "assault":
+                                    ok, _ = game_state.assault_from_field_army(target_id, int(amount_str))
+                                    if ok:
+                                        selected_fortress = None
+                                        next_ev = get_next_narrative_event(
+                                            game_state.stage, game_state.turn, game_state.shown_events
+                                        )
+                                        if next_ev:
+                                            active_dialog_event = next_ev
+                                            active_dialog_buttons = draw_narrative_dialog(
+                                                screen, next_ev, font_title, font
+                                            )
+                            break
+
+                        if action.startswith("hire_amount:"):
+                            count = int(action.split(":")[1])
+                            game_state.hire_troops(selected_fortress.id, count)
+                            break
+                    continue
+
+                if pause_popup_open and game_state:
+                    action = get_pause_button_at_pos(mouse_pos, pause_popup_buttons)
+                    if action == PAUSE_SAVE:
+                        save_game(game_state)
+                        pause_popup_open = False
+                    elif action == PAUSE_EXIT:
+                        screen_state = "menu"
+                        game_state = None
+                        active_dialog_event = None
+                        selected_fortress = None
+                        rename_state = None
+                        pause_popup_open = False
+                    elif action == PAUSE_CLOSE:
+                        pause_popup_open = False
+                    continue
+
                 if active_dialog_event and game_state:
-                    # Клик по кнопке выбора в диалоге
                     for btn_rect, choice in active_dialog_buttons:
                         if btn_rect.collidepoint(mouse_pos):
                             game_state.shown_events.add(active_dialog_event.id)
                             active_dialog_event = None
                             active_dialog_buttons = []
                             break
-                elif game_state:
-                    # Кнопка "Следующий ход"
-                    if is_end_turn_button_clicked(mouse_pos):
+                    continue
+
+                if game_state and not pause_popup_open and not active_dialog_event and not rename_state:
+                    if get_pause_menu_button_rect().collidepoint(mouse_pos):
+                        pause_popup_open = True
+                        pause_popup_buttons = draw_pause_popup(screen, font_title, font)
+                    elif is_end_turn_button_clicked(mouse_pos):
                         game_state.next_turn()
                         next_ev = get_next_narrative_event(
                             game_state.stage, game_state.turn, game_state.shown_events
@@ -91,23 +235,62 @@ def main():
                                 screen, next_ev, font_title, font
                             )
                     else:
-                        # Клик по крепости — пока только выбор (захват через отдельную механику)
                         fortress = get_clicked_fortress(*mouse_pos)
-                        # TODO: механика захвата крепостей (осада, армия и т.д.)
-                        if fortress and not game_state.is_fortress_owned(fortress.id):
-                            pass  # Пока клик не захватывает
+                        if fortress:
+                            selected_fortress = fortress
 
         # === ОТРИСОВКА ===
         screen.fill((30, 35, 45))
 
         if screen_state == "menu":
-            menu_buttons = draw_main_menu(screen, font_title, font)
+            menu_buttons = draw_main_menu(
+                screen, font_title, font, has_save=has_save()
+            )
         else:
             draw_main_screen(screen, game_state, font_title, font)
             if active_dialog_event:
                 active_dialog_buttons = draw_narrative_dialog(
                     screen, active_dialog_event, font_title, font
                 )
+            if pause_popup_open:
+                pause_popup_buttons = draw_pause_popup(screen, font_title, font)
+
+            if rename_state:
+                fortress_id, text = rename_state
+                name = game_state.get_fortress_display_name(fortress_id)
+                rename_dialog_buttons = draw_rename_dialog(
+                    screen, name, fortress_id, text, font_title, font
+                )
+            elif selected_fortress:
+                get_name = lambda fid: get_fortress_name_ru(game_state, fid)
+                if selected_fortress.id == game_state.capital_id:
+                    fortress_dialog_buttons = draw_capital_dialog(
+                        screen,
+                        get_name(selected_fortress.id),
+                        game_state,
+                        font_title,
+                        font,
+                        get_name,
+                    )
+                elif game_state.is_fortress_owned(selected_fortress.id):
+                    fortress_dialog_buttons = draw_hire_dialog(
+                        screen,
+                        get_name(selected_fortress.id),
+                        selected_fortress.id,
+                        game_state,
+                        font_title,
+                        font,
+                    )
+                else:
+                    fortress_dialog_buttons = draw_siege_dialog(
+                        screen,
+                        get_name(selected_fortress.id),
+                        selected_fortress.id,
+                        game_state,
+                        font_title,
+                        font,
+                        get_name,
+                    )
 
         pygame.display.flip()
         clock.tick(60)

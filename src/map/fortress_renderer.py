@@ -11,6 +11,7 @@ from src.utils.constants import (
     FORTRESS_ICON_SIZE,
     COLOR_OWNED,
     COLOR_ENEMY,
+    COLOR_BESIEGED,
     COLOR_NEUTRAL,
     COLOR_TEXT,
 )
@@ -20,20 +21,25 @@ def draw_fortress_icon(
     surface: pygame.Surface,
     fortress: Fortress,
     is_owned: bool,
+    is_besieged: bool = False,
+    is_capital: bool = False,
+    display_name: Optional[str] = None,
     font: Optional[pygame.font.Font] = None,
     offset_x: int = 0,
     offset_y: int = 0,
 ) -> pygame.Rect:
     """
     Рисует иконку крепости на карте.
-    Османские — зелёные, византийские — красные, нейтральные — серые.
+    Османские — зелёные, византийские — красные, осада — оранжевые, нейтральные — серые.
     """
     x = fortress.x + offset_x
     y = fortress.y + offset_y
 
-    # Цвет по принадлежности
+    # Цвет по состоянию
     if is_owned:
         color = COLOR_OWNED
+    elif is_besieged:
+        color = COLOR_BESIEGED
     elif fortress.faction == "byzantine":
         color = COLOR_ENEMY
     else:
@@ -56,9 +62,12 @@ def draw_fortress_icon(
     pygame.draw.polygon(surface, color, roof_points)
     pygame.draw.polygon(surface, (255, 255, 255), roof_points, 1)
 
-    # Название крепости под иконкой
+    # Название крепости под иконкой (★ для столицы)
     if font:
-        text_surf = font.render(fortress.name_ru, True, COLOR_TEXT)
+        name = display_name if display_name is not None else fortress.name_ru
+        if is_capital:
+            name = "★ " + name
+        text_surf = font.render(name, True, COLOR_TEXT)
         text_rect = text_surf.get_rect(centerx=x, top=y + half + 4)
         surface.blit(text_surf, text_rect)
 

@@ -1,6 +1,6 @@
 """
 Данные крепостей эпохи Османской экспансии (1299-1453)
-Все крепости Анатолии и Балкан с историческими координатами
+Северо-западная Анатолия — Византия и беелик Османа I
 """
 
 from dataclasses import dataclass
@@ -13,133 +13,173 @@ class Fortress:
     id: str
     name: str
     name_ru: str
-    # Позиция на карте (x, y) - большое расстояние между крепостями
+    # Позиция на карте (x, y) — большое расстояние между крепостями
     x: int
     y: int
-    # Принадлежность: ottoman, byzantine, neutral
+    # Принадлежность: ottoman, byzantine
     faction: str
+    # Базовый гарнизон — для византийских это защитники, для османских — начальный гарнизон
+    base_garrison: int = 50
     # Ключевые крепости для сюжета
     is_capital: bool = False
-    # Триггер перехода: sultanate (Бурса), empire (Константинополь)
+    # Триггер перехода: sultanate (Бурса)
     stage_trigger: Optional[str] = None
     # Описание для нарратива
     description: str = ""
 
 
-# Крепости с исторически большими расстояниями друг от друга
-# Координаты в пикселях на карте 1200x600
+# Координаты на карте: x — запад→восток, y — север→юг
+# Большие расстояния между крепостями (100-150 px)
+# Карта: ~1400x650 px
 FORTESSES_DATA = [
-    # === АНАТОЛИЯ - Начальные территории ===
+    # === БЕЕЛИК ОСМАНА I ===
     Fortress(
         id="sogut",
         name="Söğüt",
         name_ru="Сёгют",
-        x=180, y=320,
+        x=180, y=420,
         faction="ottoman",
+        base_garrison=80,
         is_capital=True,
-        description="Колыбель Османского беелика. Осман I провозгласил независимость в 1299 году."
+        description="Первая столица беелика, укреплённое поселение. Осман I провозгласил независимость в 1299 году."
+    ),
+    Fortress(
+        id="karacahisar",
+        name="Karacahisar",
+        name_ru="Караджахисар",
+        x=320, y=500,
+        faction="ottoman",
+        base_garrison=60,
+        description="Крепость около Эскишехира. Одна из первых османских цитаделей."
     ),
     Fortress(
         id="bilecik",
         name="Bilecik",
         name_ru="Биледжик",
-        x=240, y=280,
+        x=250, y=350,
         faction="ottoman",
+        base_garrison=50,
         description="Одна из первых крепостей, захваченных Османом I."
     ),
     Fortress(
-        id="inyegol",
+        id="yarhisar",
+        name="Yarhisar",
+        name_ru="Ярхисар",
+        x=350, y=380,
+        faction="ottoman",
+        base_garrison=50,
+        description="Крепость на пути к византийским землям."
+    ),
+    Fortress(
+        id="inegol",
         name="İnegöl",
         name_ru="Инегёль",
-        x=320, y=300,
+        x=420, y=420,
         faction="ottoman",
-        description="Ключевая крепость на пути к Бурсе."
-    ),
-    # === БУРСА - Переход в Султанат ===
-    Fortress(
-        id="bursa",
-        name="Bursa",
-        name_ru="Бурса",
-        x=420, y=260,
-        faction="byzantine",
-        stage_trigger="sultanate",
-        description="Византийская Пруса. Падение крепости — восхождение Османского Султаната (1326)."
+        base_garrison=60,
+        description="Ключевая крепость на подступах к Бурсе."
     ),
     Fortress(
-        id="nizaea",
-        name="Nicaea",
-        name_ru="Никея",
-        x=480, y=220,
-        faction="byzantine",
-        description="Древняя Никея — одна из важнейших византийских крепостей Анатолии."
+        id="yenishehir",
+        name="Yenişehir",
+        name_ru="Йенишехир",
+        x=480, y=380,
+        faction="ottoman",
+        base_garrison=70,
+        description="Еленос. Османская крепость у границы с Вифинией."
     ),
+    Fortress(
+        id="koyunhisar",
+        name="Koyunhisar",
+        name_ru="Койунхисар",
+        x=550, y=350,
+        faction="ottoman",
+        base_garrison=80,
+        description="Бафейон. Место битвы при Бафее (1302) — первая крупная победа османов над византийцами."
+    ),
+
+    # === ВИЗАНТИЙСКАЯ ИМПЕРИЯ (северо-западная Анатолия) ===
     Fortress(
         id="nicomedia",
         name="Nicomedia",
         name_ru="Никомедия",
-        x=560, y=200,
+        x=950, y=180,
         faction="byzantine",
-        description="Столица Византии до Константинополя. Изумит."
+        base_garrison=400,
+        description="Измит. Крупнейший город-крепость в регионе, центр византийской власти в Вифинии."
     ),
-    # === ПРОЛИВЫ И ГАЛЛИПОЛИ ===
     Fortress(
-        id="gallipoli",
-        name="Gallipoli",
-        name_ru="Галлиполи",
-        x=580, y=380,
+        id="nicaea",
+        name="Nicaea",
+        name_ru="Никея",
+        x=820, y=300,
         faction="byzantine",
-        description="Ключ к проливам. Первая османская крепость в Европе (1354)."
+        base_garrison=350,
+        description="Изник. Древняя Никея — одна из важнейших византийских крепостей Анатолии."
     ),
     Fortress(
-        id="tzympe",
-        name="Tzympe",
-        name_ru="Цимпа",
-        x=540, y=360,
+        id="bursa",
+        name="Prusa",
+        name_ru="Пруса",
+        x=700, y=400,
         faction="byzantine",
-        description="Крепость у пролива Дарданеллы."
+        base_garrison=350,
+        stage_trigger="sultanate",
+        description="Бурса. Падение крепости — восхождение Османского Султаната (1326)."
     ),
-    # === БАЛКАНЫ - Фракия ===
     Fortress(
-        id="adrianople",
-        name="Adrianople",
-        name_ru="Адрианополь",
-        x=680, y=340,
+        id="thebes",
+        name="Thebes",
+        name_ru="Фивы",
+        x=880, y=320,
         faction="byzantine",
-        description="Эдирне. Станет второй османской столицей в Европе (1361)."
+        base_garrison=150,
+        description="Фие. Крепость на южном берегу Никомедийского залива."
     ),
     Fortress(
-        id="philippopolis",
-        name="Philippopolis",
-        name_ru="Пловдив",
-        x=720, y=420,
-        faction="neutral",
-        description="Филиппополь — ворота в глубинные Балканы."
-    ),
-    Fortress(
-        id="thessaloniki",
-        name="Thessaloniki",
-        name_ru="Салоники",
-        x=640, y=480,
-        faction="neutral",
-        description="Второй по величине город Византии."
-    ),
-    # === КОНСТАНТИНОПОЛЬ ===
-    Fortress(
-        id="constantinople",
-        name="Constantinople",
-        name_ru="Константинополь",
-        x=620, y=260,
+        id="lopadion",
+        name="Lopadion",
+        name_ru="Лопадион",
+        x=580, y=250,
         faction="byzantine",
-        stage_trigger="empire",
-        description="Новый Рим. Падение в 1453 — рождение Османской Империи."
+        base_garrison=120,
+        description="Улубад. Крепость на реке Риндак (Муданья)."
     ),
     Fortress(
-        id="heraclea",
-        name="Heraclea",
-        name_ru="Гераклея",
-        x=500, y=320,
+        id="cius",
+        name="Cius",
+        name_ru="Киос",
+        x=780, y=220,
         faction="byzantine",
-        description="Крепость на Мраморном море."
+        base_garrison=100,
+        description="Гемлик. Порт на Мраморном море."
+    ),
+    Fortress(
+        id="kalolimni",
+        name="Kalolimni",
+        name_ru="Калолимни",
+        x=920, y=250,
+        faction="byzantine",
+        base_garrison=80,
+        description="Гёльджюк. Укрепление у залива."
+    ),
+    Fortress(
+        id="milingia",
+        name="Milingia",
+        name_ru="Мелингия",
+        x=850, y=400,
+        faction="byzantine",
+        base_garrison=120,
+        description="Мелингой. Крепость в Вифинии."
+    ),
+    Fortress(
+        id="acra",
+        name="Acra",
+        name_ru="Акра",
+        x=1000, y=100,
+        faction="byzantine",
+        base_garrison=60,
+        description="Акча-Хисар. Укрепление на Чёрном море."
     ),
 ]
 
