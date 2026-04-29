@@ -21,7 +21,7 @@ from src.data.campaign_stages import get_stage_by_fortress, get_next_stage, STAG
 from src.data.laws_data import LAW_EFFECTS
 from src.utils.constants import STAGE_BEYLIK
 
-SIEGE_ADJACENCY_DISTANCE = 720
+SIEGE_ADJACENCY_DISTANCE = 740
 SIEGE_TURNS_CAPITULATION = 3
 HIRE_COST_PER_TROOP = 5
 GOLD_PER_FORTRESS_PER_TURN = 15
@@ -288,7 +288,12 @@ class GameState:
                         fortification += b.fortification
                     if getattr(b, "garrison_bonus", 0):
                         defender += b.garrison_bonus
-        fatigue = 0.9 ** siege_turns
+        fatigue = 0.88 ** siege_turns
+        siege = self.sieges_in_progress.get(fortress_id)
+        if siege:
+            catapult_pressure = max(0.72, 1.0 - getattr(siege, "catapults", 0) * 0.06)
+            supply_pressure = 0.9 if getattr(siege, "defender_supplies", 3) <= 0 else 1.0
+            fatigue *= catapult_pressure * supply_pressure
         return defender * fortification * fatigue
 
     def can_assault(self, fortress_id: str, attacker_troops: int) -> bool:
@@ -363,11 +368,15 @@ class GameState:
         defeat_chance -= mods["assault_morale"]  # Идеология газа снижает шанс поражения
         defeat_chance = max(0.02, defeat_chance)
         if random.random() < defeat_chance:
+            losses = max(1, int(actual_troops * 0.35))
+            survivors = max(0, actual_troops - losses)
             if use_siege_troops:
-                siege.attacker_troops += actual_troops
+                siege.attacker_troops += survivors
+                if siege.attacker_troops <= 0:
+                    self.sieges_in_progress.pop(target_fortress_id, None)
             else:
-                self.field_army += actual_troops
-            return False, f"Штурм отбит! Потери: {actual_troops} воинов. Укрепления оказались крепче."
+                self.field_army += survivors
+            return False, f"Штурм отбит! Потери: {losses} воинов. Остатки армии отступили."
         loss_factor = 0.5 - (ratio - 1.5) * 0.05
         loss_factor = max(0.0, min(0.95, loss_factor))  # Ограничить потери 0–95%
         survivors = max(1, min(actual_troops, int(actual_troops * (1 - loss_factor))))
@@ -466,6 +475,137 @@ class GameState:
 
     def get_stage_info(self):
         return STAGES.get(self.stage, STAGES[STAGE_BEYLIK])
+
+    def apply_narrative_effect(self, effect: str) -> str | None:
+        """
+        Применить численные последствия сюжетного выбора. Вернуть краткое сообщение в лог или None.
+        """
+        g = self.gold
+        leg = getattr(self, "legitimacy", 50)
+        fa = self.field_army
+        msg: str | None = None
+
+        def _set_gold(v: int) -> None:
+            self.gold = max(0, v)
+
+        if effect == "start_military":
+            _set_gold(g - 30)
+            self.legitimacy = min(100, leg + 4)
+            msg = "Сюжет: военный набор — −30 золота, +4 легитимности."
+        elif effect == "start_defense":
+            _set_gold(g - 18)
+            self.legitimacy = min(100, leg + 7)
+            msg = "Сюжет: укрепления — −18 золота, +7 легитимности."
+        elif effect == "vizier_reward_loyal":
+            _set_gold(g - 12)
+            self.legitimacy = min(100, leg + 9)
+            msg = "Сюжет: награда лоялистам — −12 золота, +9 легитимности."
+        elif effect == "vizier_audit":
+            _set_gold(g + 28)
+            self.legitimacy = max(0, leg - 6)
+            msg = "Сюжет: аудит — +28 золота, −6 легитимности."
+        elif effect == "council_feast":
+            _set_gold(g - 22)
+            self.legitimacy = min(100, leg + 6)
+            msg = "Сюжет: пир — −22 золота, +6 легитимности."
+        elif effect == "council_barracks":
+            _set_gold(g - 8)
+            self.field_army = fa + 10
+            msg = "Сюжет: казармы — −8 золота, +10 к походной армии."
+        elif effect == "siege_bursa":
+            self.legitimacy = min(100, leg + 5)
+            msg = "Сюжет: удар на Бурсу — +5 легитимности."
+        elif effect == "siege_nicaea":
+            _set_gold(g + 24)
+            self.legitimacy = max(0, leg - 3)
+            msg = "Сюжет: удар на Никею — +24 золота, −3 легитимности."
+        elif effect == "nomad_hire":
+            _set_gold(g - 42)
+            self.field_army = fa + 18
+            msg = "Сюжет: тюркмены — −42 золота, +18 к походной армии."
+        elif effect == "nomad_refuse":
+            self.legitimacy = min(100, leg + 7)
+            msg = "Сюжет: отказ от наёмников — +7 легитимности."
+        elif effect == "trade_permit":
+            _set_gold(g + 38)
+            self.legitimacy = max(0, leg - 4)
+            msg = "Сюжет: пошлины — +38 золота, −4 легитимности."
+        elif effect == "trade_balance":
+            _set_gold(g + 22)
+            self.legitimacy = min(100, leg + 5)
+            msg = "Сюжет: сбалансированная торговля — +22 золота, +5 легитимности."
+        elif effect == "millet_tolerate":
+            _set_gold(g + 32)
+            self.legitimacy = min(100, leg + 4)
+            msg = "Сюжет: миллет — +32 золота, +4 легитимности."
+        elif effect == "millet_strict":
+            _set_gold(g - 25)
+            self.legitimacy = min(100, leg + 10)
+            msg = "Сюжет: жёсткий порядок — −25 золота, +10 легитимности."
+        elif effect == "expand_aggressive":
+            _set_gold(g + 35)
+            self.legitimacy = min(100, leg + 6)
+            msg = "Сюжет: экспансия — +35 золота, +6 легитимности."
+        elif effect == "expand_consolidate":
+            _set_gold(g - 20)
+            self.legitimacy = min(100, leg + 12)
+            msg = "Сюжет: консолидация — −20 золота, +12 легитимности."
+        elif effect == "succession_elder":
+            self.legitimacy = min(100, leg + 11)
+            msg = "Сюжет: престолонаследие — +11 легитимности."
+        elif effect == "succession_bribes":
+            _set_gold(g - 28)
+            self.legitimacy = min(100, leg + 6)
+            msg = "Сюжет: подкуп дворцов — −28 золота, +6 легитимности."
+        elif effect == "gallipoli_push":
+            _set_gold(g - 18)
+            self.field_army = fa + 15
+            msg = "Сюжет: Балканы — −18 золота, +15 к походной армии."
+        elif effect == "gallipoli_fortify":
+            _set_gold(g + 26)
+            self.legitimacy = min(100, leg + 5)
+            msg = "Сюжет: укрепление Галлиполи — +26 золота, +5 легитимности."
+        elif effect == "rumelia_raid":
+            _set_gold(g + 44)
+            self.legitimacy = max(0, leg - 7)
+            msg = "Сюжет: набег — +44 золота, −7 легитимности."
+        elif effect == "rumelia_diplomacy":
+            _set_gold(g - 14)
+            self.legitimacy = min(100, leg + 9)
+            msg = "Сюжет: дипломатия — −14 золота, +9 легитимности."
+        elif effect == "janissary_invest":
+            _set_gold(g - 55)
+            self.legitimacy = min(100, leg + 14)
+            msg = "Сюжет: янычары — −55 золота, +14 легитимности."
+        elif effect == "janissary_slow":
+            _set_gold(g - 22)
+            self.legitimacy = min(100, leg + 7)
+            msg = "Сюжет: постепенное учреждение — −22 золота, +7 легитимности."
+        elif effect == "conquest_mercy":
+            _set_gold(g + 90)
+            self.legitimacy = min(100, leg + 18)
+            msg = "Сюжет: милость к городу — +90 золота, +18 легитимности."
+        elif effect == "conquest_harsh":
+            _set_gold(g + 130)
+            self.legitimacy = min(100, leg + 8)
+            msg = "Сюжет: жёсткая оккупация — +130 золота, +8 легитимности."
+        elif effect == "rome_islamic":
+            self.legitimacy = min(100, leg + 13)
+            msg = "Сюжет: исламский образ империи — +13 легитимности."
+        elif effect == "rome_dhimmi":
+            _set_gold(g + 42)
+            self.legitimacy = min(100, leg + 6)
+            msg = "Сюжет: миллет в столице — +42 золота, +6 легитимности."
+        elif effect == "code_majesty":
+            _set_gold(g - 70)
+            self.legitimacy = min(100, leg + 16)
+            msg = "Сюжет: большой свод законов — −70 золота, +16 легитимности."
+        elif effect == "code_pragmatic":
+            _set_gold(g - 38)
+            self.legitimacy = min(100, leg + 9)
+            msg = "Сюжет: прагматичный свод — −38 золота, +9 легитимности."
+
+        return msg
 
     def is_fortress_owned(self, fortress_id: str) -> bool:
         return fortress_id in self.owned_fortresses

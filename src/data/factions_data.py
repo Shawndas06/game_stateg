@@ -23,6 +23,8 @@ FACTION_IDS = [
     "bulgaria",
     "serbia",
     "hungary",
+    "mamluk",
+    "maghreb",
 ]
 
 # AI-фракции (не игрок)
@@ -44,4 +46,6 @@ FACTION_NAMES_RU = {
     "bulgaria": "Болгария",
     "serbia": "Сербия",
     "hungary": "Венгрия",
+    "mamluk": "Мамлюки",
+    "maghreb": "Магриб",
 }

@@ -25,6 +25,8 @@ AI_PERSONALITY = {
     "bulgaria": "defensive",
     "serbia": "peaceful",
     "hungary": "aggressive",
+    "mamluk": "defensive",
+    "maghreb": "trade",
 }
 
 def get_personality(faction_id: str) -> str:

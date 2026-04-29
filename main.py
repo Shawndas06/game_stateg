@@ -17,7 +17,7 @@ import sys
 
 from src.game.game_state import GameState
 from src.narrative.narrative_engine import get_next_narrative_event
-from src.utils.constants import SCREEN_WIDTH, SCREEN_HEIGHT
+from src.utils.constants import SCREEN_WIDTH, SCREEN_HEIGHT, COLOR_MAP_BACKGROUND
 
 
 def get_screen_size() -> tuple[int, int]:
@@ -56,11 +56,22 @@ from src.ui.screens import (
     draw_diplomacy_dialog,
     draw_economy_dialog,
     draw_laws_dialog,
+    draw_dynasty_dialog,
+    DYNASTY_CLOSE,
+    DYNASTY_SCROLL_UP,
+    DYNASTY_SCROLL_DOWN,
     SIEGE_CANCEL,
     HIRE_CANCEL,
     CAPITAL_CANCEL,
 )
-from src.map.map_renderer import get_clicked_fortress, MAP_OFFSET_X, MAP_OFFSET_Y, MAP_VIEW_WIDTH, MAP_VIEW_HEIGHT
+from src.map.map_renderer import (
+    get_clicked_fortress,
+    get_max_map_offset,
+    MAP_OFFSET_X,
+    MAP_OFFSET_Y,
+    MAP_VIEW_WIDTH,
+    MAP_VIEW_HEIGHT,
+)
 from src.game.save_manager import save_game, load_game, has_save
 from src.game.diplomacy_engine import propose_peace, propose_nap, propose_tribute, propose_alliance, propose_trade, declare_war
 from src.audio.sound_manager import play_click, play_build, play_capture, play_diplomacy
@@ -84,8 +95,8 @@ def main():
     flags = pygame.RESIZABLE
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), flags)
     clock = pygame.time.Clock()
-    font_title = pygame.font.SysFont("dejavusans", 24)
-    font = pygame.font.SysFont("dejavusans", 18)
+    font_title = pygame.font.SysFont("dejavusans", 32)
+    font = pygame.font.SysFont("dejavusans", 19)
 
     # --- Состояние экрана и меню ---
     screen_state = "menu"  # "menu" | "settings" | "game"
@@ -119,12 +130,14 @@ def main():
     diplomacy_selected_faction = None  # сначала выбор государства, затем действие
     economy_open = False
     laws_open = False
+    dynasty_open = False
+    dynasty_scroll = 0
     top_dialog_buttons = []
 
     # --- Карта: масштаб и смещение при перетаскивании ---
-    map_zoom = 0.6
-    map_offset_x = 0.0
-    map_offset_y = 0.0
+    map_zoom = 0.62
+    map_offset_x = 2850.0
+    map_offset_y = 820.0
     map_panning = False
     pan_start = (0, 0, 0.0, 0.0)  # (mouse_x, mouse_y, offset_x, offset_y) в начале перетаскивания
 
@@ -171,9 +184,12 @@ def main():
 
             # --- Зум карты колёсиком мыши (только на экране игры, без открытых диалогов) ---
             if event.type == pygame.MOUSEWHEEL and screen_state == "game" and game_state:
-                if not (pause_popup_open or active_dialog_event or rename_state or diplomacy_open or economy_open or laws_open):
+                if not (pause_popup_open or active_dialog_event or rename_state or diplomacy_open or economy_open or laws_open or dynasty_open):
                     zoom_delta = 1.1 if event.y > 0 else 0.9
-                    map_zoom = max(0.35, min(1.5, map_zoom * zoom_delta))
+                    map_zoom = max(0.22, min(1.85, map_zoom * zoom_delta))
+                    max_ox, max_oy = get_max_map_offset(map_zoom)
+                    map_offset_x = max(0, min(max_ox, map_offset_x))
+                    map_offset_y = max(0, min(max_oy, map_offset_y))
                 continue
 
             # --- Клик левой кнопкой мыши: определение цели и выполнение действия ---
@@ -229,10 +245,10 @@ def main():
 
                 # --- Диалог победы/поражения: кнопка «В меню» ---
                 if victory_defeat_state:
-                    popup_w, popup_h = 560, 260
+                    popup_w, popup_h = 620, 300
                     popup_x = (SCREEN_WIDTH - popup_w) // 2
                     popup_y = (SCREEN_HEIGHT - popup_h) // 2
-                    vd_btn_rect = pygame.Rect(popup_x + (popup_w - 120) // 2, popup_y + 185, 120, 48)
+                    vd_btn_rect = pygame.Rect(popup_x + (popup_w - 160) // 2, popup_y + 225, 160, 52)
                     if vd_btn_rect.collidepoint(mouse_pos):
                         play_click()
                         screen_state = "menu"
@@ -298,14 +314,20 @@ def main():
                     continue
 
                 # --- Диалоги верхней панели: Дипломатия, Экономика, Законы ---
-                if (diplomacy_open or economy_open or laws_open) and game_state:
+                if (diplomacy_open or economy_open or laws_open or dynasty_open) and game_state:
                     for rect, action in top_dialog_buttons:
                         if rect.collidepoint(mouse_pos):
-                            if action == "diplo_close" or action == "econ_close" or action == "laws_close":
-                                diplomacy_open = economy_open = laws_open = False
+                            if action == "diplo_close" or action == "econ_close" or action == "laws_close" or action == DYNASTY_CLOSE:
+                                diplomacy_open = economy_open = laws_open = dynasty_open = False
                                 diplomacy_selected_faction = None
                                 if hasattr(game_state, "_diplomacy_message"):
                                     delattr(game_state, "_diplomacy_message")
+                            elif action == DYNASTY_SCROLL_UP:
+                                dynasty_scroll = max(0, dynasty_scroll - 1)
+                            elif action == DYNASTY_SCROLL_DOWN:
+                                dynasty_scroll += 1
+                            elif action.startswith("dynasty_select:"):
+                                game_state._dynasty_selected = action.split(":", 1)[1]
                             elif action == "diplo_back":
                                 diplomacy_selected_faction = None
                             elif action.startswith("diplo_select:"):
@@ -362,7 +384,7 @@ def main():
                     continue
 
                 # --- Диалог выбранной крепости: осада (вражеская), найм (своя), столица ---
-                if selected_fortress and game_state and not pause_popup_open and not active_dialog_event and not rename_state and not (diplomacy_open or economy_open or laws_open):
+                if selected_fortress and game_state and not pause_popup_open and not active_dialog_event and not rename_state and not (diplomacy_open or economy_open or laws_open or dynasty_open):
                     for rect, action in fortress_dialog_buttons:
                         if not rect.collidepoint(mouse_pos):
                             continue
@@ -475,6 +497,10 @@ def main():
                 if active_dialog_event and game_state:
                     for btn_rect, choice in active_dialog_buttons:
                         if btn_rect.collidepoint(mouse_pos):
+                            play_click()
+                            note = game_state.apply_narrative_effect(choice.effect)
+                            if note:
+                                game_state.notifications.append((game_state.turn, note))
                             game_state.shown_events.add(active_dialog_event.id)
                             active_dialog_event = None
                             active_dialog_buttons = []
@@ -482,7 +508,7 @@ def main():
                     continue
 
                 # --- Игровой экран: кнопки верхней панели, меню паузы, «Следующий ход», клик по карте/крепости ---
-                if game_state and not pause_popup_open and not active_dialog_event and not rename_state and not (diplomacy_open or economy_open or laws_open):
+                if game_state and not pause_popup_open and not active_dialog_event and not rename_state and not (diplomacy_open or economy_open or laws_open or dynasty_open):
                     top_clicked = None
                     for rect, action in get_top_bar_button_rects():
                         if rect.collidepoint(mouse_pos):
@@ -517,13 +543,18 @@ def main():
                         play_diplomacy()
                         diplomacy_open = True
                         diplomacy_selected_faction = None
-                        economy_open = laws_open = False
+                        economy_open = laws_open = dynasty_open = False
                     elif top_clicked == "top_economy":
                         economy_open = True
-                        diplomacy_open = laws_open = False
+                        diplomacy_open = laws_open = dynasty_open = False
                     elif top_clicked == "top_laws":
                         laws_open = True
-                        diplomacy_open = economy_open = False
+                        diplomacy_open = economy_open = dynasty_open = False
+                    elif top_clicked == "top_dynasty":
+                        play_click()
+                        dynasty_open = True
+                        diplomacy_open = economy_open = laws_open = False
+                        dynasty_scroll = 0
                     elif get_pause_menu_button_rect().collidepoint(mouse_pos):
                         pause_popup_open = True
                         pause_popup_buttons = draw_pause_popup(screen, font_title, font)
@@ -568,7 +599,7 @@ def main():
                     mx, my = pygame.mouse.get_pos()
                     dx = abs(mx - pan_start[0])
                     dy = abs(my - pan_start[1])
-                    if dx < 5 and dy < 5 and game_state and not (pause_popup_open or active_dialog_event or rename_state or diplomacy_open or economy_open or laws_open):
+                    if dx < 5 and dy < 5 and game_state and not (pause_popup_open or active_dialog_event or rename_state or diplomacy_open or economy_open or laws_open or dynasty_open):
                         map_rect = pygame.Rect(MAP_OFFSET_X, MAP_OFFSET_Y, MAP_VIEW_WIDTH, MAP_VIEW_HEIGHT)
                         if map_rect.collidepoint(mx, my):
                             fortress = get_clicked_fortress(mx, my, map_zoom, map_offset_x, map_offset_y)
@@ -583,11 +614,12 @@ def main():
                 dy = (my - pan_start[1]) / map_zoom
                 map_offset_x = pan_start[2] - dx
                 map_offset_y = pan_start[3] - dy
-                map_offset_x = max(0, min(1400, map_offset_x))
-                map_offset_y = max(0, min(700, map_offset_y))
+                max_ox, max_oy = get_max_map_offset(map_zoom)
+                map_offset_x = max(0, min(max_ox, map_offset_x))
+                map_offset_y = max(0, min(max_oy, map_offset_y))
 
         # ========== Отрисовка текущего экрана ==========
-        screen.fill((30, 35, 45))
+        screen.fill(COLOR_MAP_BACKGROUND)
 
         if screen_state == "menu":
             menu_buttons = draw_main_menu(
@@ -614,6 +646,8 @@ def main():
                 top_dialog_buttons = draw_economy_dialog(screen, game_state, font_title, font)
             elif laws_open:
                 top_dialog_buttons = draw_laws_dialog(screen, game_state, font_title, font)
+            elif dynasty_open:
+                top_dialog_buttons = draw_dynasty_dialog(screen, game_state, font_title, font, scroll=dynasty_scroll)
 
             if rename_state:
                 fortress_id, text = rename_state

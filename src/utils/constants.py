@@ -1,48 +1,54 @@
 """
 constants.py — глобальные константы игры.
 
-Реализует:
-- Размеры окна (SCREEN_WIDTH, SCREEN_HEIGHT).
-- Цвета карты и UI: фон, территории игрока/врага, осада, нейтрал; фон панелей, акцент, текст.
-- Размеры иконок крепостей на карте.
-- Цвета фракций для отрисовки территорий и иконок (Османы, Византия, беилики, Болгария, Сербия, Венгрия).
-- Идентификаторы этапов кампании (beylik, sultanate, empire).
+Палитра карты — приглушённые «пергаментные» тона фракций (близко к историческим картам).
 """
 
 # --- Размеры окна ---
 SCREEN_WIDTH = 1920
 SCREEN_HEIGHT = 1080
 
-# --- Цвета карты и UI (R, G, B) ---
-COLOR_MAP_BACKGROUND = (34, 45, 55)
-COLOR_OWNED = (34, 139, 34)      # территории игрока (Османы) — тёмно-зелёный
-COLOR_ENEMY = (139, 0, 0)        # Византия — тёмно-красный
-COLOR_BESIEGED = (180, 100, 30)  # осада в процессе — оранжевый
-COLOR_NEUTRAL = (128, 128, 128)  # нейтральные/неизвестные
-COLOR_UI_BG = (45, 55, 72)       # фон панелей и диалогов
-COLOR_UI_ACCENT = (180, 140, 80) # акцентные кнопки, рамки
-COLOR_TEXT = (240, 240, 230)     # основной текст
-COLOR_TEXT_DIM = (160, 160, 150) # приглушённый текст (подсказки)
+# --- Карта (фон вне карты / швы — тёплый тёмный тон под пергаментную карту) ---
+COLOR_MAP_BACKGROUND = (26, 22, 18)
+COLOR_OWNED = (72, 98, 78)
+COLOR_ENEMY = (118, 76, 76)
+COLOR_BESIEGED = (148, 108, 62)
+COLOR_NEUTRAL = (96, 100, 94)
 
-# --- Размеры иконок крепостей на карте ---
+# --- Интерфейс ---
+COLOR_UI_BG = (32, 38, 54)
+COLOR_UI_BG_DEEP = (22, 26, 38)
+COLOR_UI_PANEL = (40, 46, 64)
+COLOR_UI_ACCENT = (212, 168, 88)
+COLOR_UI_ACCENT_DIM = (160, 124, 68)
+COLOR_UI_GOLD_LIGHT = (235, 210, 160)
+COLOR_PARCHMENT = (232, 218, 188)
+COLOR_PARCHMENT_SHADOW = (180, 160, 130)
+COLOR_TEXT = (245, 242, 235)
+COLOR_TEXT_DIM = (165, 172, 188)
+COLOR_SHADOW = (8, 10, 18)
+
+# --- Иконки крепостей ---
 FORTRESS_ICON_SIZE = 26
 FORTRESS_SPACING = 100
 
-# --- Цвета фракций (территории и иконки на карте) ---
-COLOR_GERMIYAN = (100, 80, 60)
-COLOR_KARAMAN = (120, 60, 40)
-COLOR_AYDIN = (80, 100, 60)
-COLOR_BULGARIA = (80, 60, 100)
-COLOR_SERBIA = (60, 80, 100)
-COLOR_HUNGARY = (140, 60, 60)
-COLOR_MENTESE = (90, 100, 80)
-COLOR_SARUHAN = (110, 90, 70)
-COLOR_CANDAR = (70, 90, 110)
-COLOR_HAMID = (100, 70, 90)
-COLOR_TEKE = (80, 110, 100)
-COLOR_KARASI = (90, 85, 75)
+# --- Фракции (земляные, приглушённые) ---
+COLOR_GERMIYAN = (92, 78, 68)
+COLOR_KARAMAN = (98, 82, 68)
+COLOR_AYDIN = (78, 92, 74)
+COLOR_BULGARIA = (88, 78, 98)
+COLOR_SERBIA = (78, 88, 96)
+COLOR_HUNGARY = (104, 82, 72)
+COLOR_MENTESE = (84, 94, 80)
+COLOR_SARUHAN = (96, 88, 76)
+COLOR_CANDAR = (78, 88, 96)
+COLOR_HAMID = (96, 80, 92)
+COLOR_TEKE = (78, 96, 90)
+COLOR_KARASI = (92, 88, 78)
+COLOR_MAMLUK = (112, 98, 76)
+COLOR_MAGHREB = (96, 82, 92)
 
-# --- Идентификаторы этапов кампании (Бейлик → Султанат → Империя) ---
+# --- Этапы кампании ---
 STAGE_BEYLIK = "beylik"
 STAGE_SULTANATE = "sultanate"
 STAGE_EMPIRE = "empire"

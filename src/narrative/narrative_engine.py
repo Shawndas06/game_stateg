@@ -8,12 +8,7 @@ narrative_engine.py — выбор и показ нарративных собы
 
 from typing import Optional
 
-from src.data.narrative_data import (
-    NarrativeEvent,
-    NarrativeChoice,
-    NARRATIVE_EVENTS,
-    EVENT_START,
-)
+from src.data.narrative_data import NarrativeEvent, NarrativeChoice, NARRATIVE_EVENTS
 
 
 def get_next_narrative_event(
