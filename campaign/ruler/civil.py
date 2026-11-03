@@ -17,6 +17,8 @@ INSTITUTIONS={
 
 
 def obligation(s: RulerState,kind: str,who: str,due: int,amount: int=0,province: str | None=None,scope: str='state') -> str:
+    require(kind in ['debt','reward','protection','charter'],'Неизвестный вид обязательства')
+    require(kind in ['debt','reward'] or province in s.places,'Для этого обязательства нужно владение')
     ident=uid(s,'obligation')
     s.obligations[ident]={'id':ident,'kind':kind,'creditor':who,'due':due,'amount':amount,'province':province,'scope':scope,'status':'open','created':s.day}
     return ident

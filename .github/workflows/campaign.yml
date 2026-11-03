@@ -39,6 +39,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npm run build
+      - run: node ../tests/atlas_geometry.mjs
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -53,10 +54,13 @@ jobs:
           server_pid=$!
           trap 'kill "$server_pid"' EXIT
           python scripts/wait_for_server.py
+          python tests/browser_auth.py
+          ATLAS_PERF_ASSERT=1 python tests/browser_atlas_performance.py
           python tests/browser_campaign.py
           PYTHONPATH=. python tests/browser_fortress.py
           PYTHONPATH=. python tests/ruler_scenarios.py --out /tmp/ruler-acceptance.json
           PYTHONPATH=. python tests/long_scenarios.py
+          PYTHONPATH=. python tests/dynasty_scenarios.py
           PYTHONPATH=. python tests/court_scenarios.py
           RULER_ACCEPTANCE=/tmp/ruler-combined-acceptance.json RULER_SCREENSHOTS=/tmp/ruler-browser-evidence PYTHONPATH=. python tests/browser_ruler.py
           RULER_UX_SCREENSHOTS=/tmp/ruler-ux-evidence PYTHONPATH=. python tests/browser_ruler_ux.py
@@ -70,10 +74,12 @@ jobs:
           path: |
             /tmp/ruler-acceptance.json
             /tmp/long-campaign-acceptance.json
+            /tmp/dynasty-acceptance.json
             /tmp/ruler-combined-acceptance.json
             /tmp/court-acceptance.json
             /tmp/court-browser-evidence
             /tmp/media-evidence
+            /tmp/atlas-performance.json
             /tmp/ruler-browser-evidence
             /tmp/ruler-ux-evidence
             /tmp/campaign-browser-server.log

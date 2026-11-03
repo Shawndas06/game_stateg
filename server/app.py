@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+import logging
+from time import perf_counter
 from pathlib import Path
 import secrets
 from typing import Literal
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, Query
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -75,6 +77,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.middleware("http")
     async def headers(request: Request, call_next):
+        started = perf_counter()
+        request_id = secrets.token_hex(8)
         origin = request.headers.get("origin")
         if request.method == "POST" and origin:
             public = urlparse(cfg.public_url)
@@ -82,18 +86,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if cfg.mode != "production": accepted |= {"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8000", "http://127.0.0.1:8000"}
             if origin not in accepted: return JSONResponse({"detail": "Недопустимый источник запроса"}, status_code=403)
         response = await call_next(request)
+        response.headers['X-Request-ID'] = request_id
+        if request.url.path.startswith('/api/') and request.url.path != '/api/health':
+            route = request.scope.get('route')
+            logging.getLogger('uvicorn.error').info('api request_id=%s method=%s route=%s status=%s duration_ms=%.1f', request_id, request.method, getattr(route, 'path', '/api/unknown'), response.status_code, (perf_counter()-started)*1000)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "same-origin"
         if request.url.path.startswith("/api/"): response.headers["Cache-Control"] = "no-store"
         return response
 
     def user(request: Request) -> str:
-        try: return read_session(request.cookies.get("campaign_session", ""), secret)
+        try:
+            authorization = request.headers.get("authorization", "")
+            token = authorization[7:] if authorization.startswith("Bearer ") else request.cookies.get("campaign_session", "")
+            return read_session(token, secret)
         except (ValueError, KeyError, TypeError): raise HTTPException(401, "Откройте игру из Telegram или войдите в локальную демонстрацию")
 
     def login_response(response: Response, uid: str):
         response.set_cookie("campaign_session", session_token(uid, secret), httponly=True, secure=cfg.mode == "production", samesite="lax", max_age=86400)
-        return {"authenticated": True}
+        return {"authenticated": True, "session_token": session_token(uid, secret)}
 
     @app.post("/api/auth/telegram")
     def login(body: Login, response: Response):
@@ -149,6 +160,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except RuleError as exc: raise HTTPException(422, str(exc))
 
     dist = ROOT / "web" / "dist"
+    @app.get('/favicon.ico', include_in_schema=False)
+    def favicon_legacy(): return RedirectResponse('/favicon.svg')
+
+    @app.get('/favicon.svg', include_in_schema=False)
+    def favicon(): return FileResponse(ROOT / 'web' / 'public' / 'favicon.svg', media_type='image/svg+xml')
     if (dist / "assets").is_dir(): app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
     if (dist / "media").is_dir(): app.mount("/media", StaticFiles(directory=dist / "media"), name="media")
 

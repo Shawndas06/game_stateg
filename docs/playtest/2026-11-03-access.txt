@@ -1,0 +1,650 @@
+2026-11-03T19:59:46.535354657Z ==> Cloning from https://github.com/Shawndas06/game_stateg
+2026-11-03T20:00:08.045284839Z ==> Checking out commit 4a29a76c79642489fd325b81d5a4ee5092aae85e in branch main
+2026-11-03T20:00:18.547237738Z #1 [internal] load build definition from Dockerfile
+2026-11-03T20:00:18.547248641Z #1 transferring dockerfile: 822B done
+2026-11-03T20:00:18.547250249Z #1 DONE 0.0s
+2026-11-03T20:00:18.547251721Z 
+2026-11-03T20:00:18.547253748Z #2 [auth] library/python:pull render-prod/docker-mirror-repository/library/python:pull token for us-west1-docker.pkg.dev
+2026-11-03T20:00:18.699273694Z #2 DONE 0.0s
+2026-11-03T20:00:18.69928617Z 
+2026-11-03T20:00:18.699288951Z #3 [auth] library/node:pull render-prod/docker-mirror-repository/library/node:pull token for us-west1-docker.pkg.dev
+2026-11-03T20:00:18.699290677Z #3 DONE 0.0s
+2026-11-03T20:00:18.699291959Z 
+2026-11-03T20:00:18.699293937Z #4 [internal] load metadata for docker.io/library/node:22-alpine
+2026-11-03T20:00:18.895440021Z #4 ...
+2026-11-03T20:00:18.895457214Z 
+2026-11-03T20:00:18.895459509Z #5 [internal] load metadata for docker.io/library/python:3.11-slim
+2026-11-03T20:00:18.895461114Z #5 DONE 0.5s
+2026-11-03T20:00:19.057829884Z 
+2026-11-03T20:00:19.05783533Z #4 [internal] load metadata for docker.io/library/node:22-alpine
+2026-11-03T20:00:19.057837147Z #4 DONE 0.5s
+2026-11-03T20:00:19.057838372Z 
+2026-11-03T20:00:19.057840532Z #6 [internal] load .dockerignore
+2026-11-03T20:00:19.057842225Z #6 transferring context: 181B done
+2026-11-03T20:00:19.057843927Z #6 DONE 0.0s
+2026-11-03T20:00:19.057845168Z 
+2026-11-03T20:00:19.057846569Z #7 [internal] load build context
+2026-11-03T20:00:19.05784791Z #7 transferring context: 6.12MB 0.0s done
+2026-11-03T20:00:19.057849238Z #7 DONE 0.0s
+2026-11-03T20:00:19.057850388Z 
+2026-11-03T20:00:19.057852443Z #8 [client 1/6] FROM docker.io/library/node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+2026-11-03T20:00:19.057853974Z #8 resolve docker.io/library/node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 done
+2026-11-03T20:00:19.278761553Z #8 extracting sha256:7b229517ed222597277036d94892173207d01a731ab3a88eeb1de2e963a2c788 0.1s done
+2026-11-03T20:00:19.715116068Z #8 extracting sha256:8776aa3d2ba7247a375d06dcec03856b99dbb0e16e904a5672d3bf08c852d4f1
+2026-11-03T20:00:20.03544971Z #8 ...
+2026-11-03T20:00:20.035461437Z 
+2026-11-03T20:00:20.035463533Z #9 [stage-1  1/10] FROM docker.io/library/python:3.11-slim@sha256:db20d8506e2f15b6db39b40b6015ca46bae855dec6dd326d462cfe79ae972893
+2026-11-03T20:00:20.035465993Z #9 resolve docker.io/library/python:3.11-slim@sha256:db20d8506e2f15b6db39b40b6015ca46bae855dec6dd326d462cfe79ae972893 done
+2026-11-03T20:00:20.035469669Z #9 extracting sha256:6fc242d221a673263eabd14a9ad9584d3177c96e5cb504c891497338e2f912f5 0.5s done
+2026-11-03T20:00:20.035471106Z #9 DONE 1.1s
+2026-11-03T20:00:20.185778396Z 
+2026-11-03T20:00:20.185794801Z #9 [stage-1  1/10] FROM docker.io/library/python:3.11-slim@sha256:db20d8506e2f15b6db39b40b6015ca46bae855dec6dd326d462cfe79ae972893
+2026-11-03T20:00:20.185796747Z #9 extracting sha256:ee5aaeba9945927662bea2702989dfd74d9273796415b896363e6a9c44d9a8ce
+2026-11-03T20:00:20.237959035Z #9 extracting sha256:ee5aaeba9945927662bea2702989dfd74d9273796415b896363e6a9c44d9a8ce 0.2s done
+2026-11-03T20:00:20.237972549Z #9 DONE 1.3s
+2026-11-03T20:00:20.2379749Z 
+2026-11-03T20:00:20.237976887Z #8 [client 1/6] FROM docker.io/library/node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+2026-11-03T20:00:20.396477707Z #8 extracting sha256:8776aa3d2ba7247a375d06dcec03856b99dbb0e16e904a5672d3bf08c852d4f1 0.9s done
+2026-11-03T20:00:20.396484808Z #8 DONE 1.5s
+2026-11-03T20:00:20.396491703Z 
+2026-11-03T20:00:20.39649525Z #9 [stage-1  1/10] FROM docker.io/library/python:3.11-slim@sha256:db20d8506e2f15b6db39b40b6015ca46bae855dec6dd326d462cfe79ae972893
+2026-11-03T20:00:20.396496729Z #9 extracting sha256:24ff04c921070df4f4dc987278926d5dabde59d57b55ae3665439331f79af932
+2026-11-03T20:00:20.582941408Z #9 extracting sha256:24ff04c921070df4f4dc987278926d5dabde59d57b55ae3665439331f79af932 0.3s done
+2026-11-03T20:00:20.582951444Z #9 DONE 1.6s
+2026-11-03T20:00:20.582953091Z 
+2026-11-03T20:00:20.582955025Z #8 [client 1/6] FROM docker.io/library/node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+2026-11-03T20:00:20.582956565Z #8 extracting sha256:7246d4c6a55dd0f8dd00d2e63aece3a68d91e6a5d04c4e748fc2706897d96312 0.0s done
+2026-11-03T20:00:20.582958279Z #8 extracting sha256:304511616d6a6d472222f696b9045e20dc90e8043b2a8ba2acb61746595781f3 done
+2026-11-03T20:00:20.582959672Z #8 DONE 1.5s
+2026-11-03T20:00:20.582960996Z 
+2026-11-03T20:00:20.582962829Z #10 [client 2/6] WORKDIR /build/web
+2026-11-03T20:00:20.582964091Z #10 DONE 0.0s
+2026-11-03T20:00:20.582965294Z 
+2026-11-03T20:00:20.582967018Z #11 [client 3/6] COPY web/package.json web/package-lock.json ./
+2026-11-03T20:00:20.5829684Z #11 DONE 0.0s
+2026-11-03T20:00:20.582969759Z 
+2026-11-03T20:00:20.582971452Z #12 [client 4/6] RUN npm ci
+2026-11-03T20:00:20.746603612Z #12 ...
+2026-11-03T20:00:20.746610059Z 
+2026-11-03T20:00:20.746612008Z #9 [stage-1  1/10] FROM docker.io/library/python:3.11-slim@sha256:db20d8506e2f15b6db39b40b6015ca46bae855dec6dd326d462cfe79ae972893
+2026-11-03T20:00:20.746617577Z #9 extracting sha256:361db81715472ecba5e656c314c299bd945309020483159596a8d123c2b1d580 done
+2026-11-03T20:00:20.746619116Z #9 DONE 1.6s
+2026-11-03T20:00:20.746620645Z 
+2026-11-03T20:00:20.746622262Z #13 [stage-1  2/10] WORKDIR /app
+2026-11-03T20:00:20.746623619Z #13 DONE 0.0s
+2026-11-03T20:00:20.746625914Z 
+2026-11-03T20:00:20.746628584Z #14 [stage-1  3/10] COPY requirements-server.txt ./
+2026-11-03T20:00:20.746630652Z #14 DONE 0.0s
+2026-11-03T20:00:20.896853337Z 
+2026-11-03T20:00:20.896861352Z #15 [stage-1  4/10] RUN pip install --no-cache-dir -r requirements-server.txt && useradd --create-home campaign
+2026-11-03T20:00:21.831836094Z #15 1.236 Collecting annotated-doc==0.0.5 (from -r requirements-server.txt (line 2))
+2026-11-03T20:00:21.936627082Z #15 ...
+2026-11-03T20:00:21.936635148Z 
+2026-11-03T20:00:21.93663741Z #12 [client 4/6] RUN npm ci
+2026-11-03T20:00:21.936638949Z #12 1.407 
+2026-11-03T20:00:21.936641136Z #12 1.407 added 22 packages, and audited 23 packages in 1s
+2026-11-03T20:00:21.936642472Z #12 1.407 
+2026-11-03T20:00:21.936644124Z #12 1.407 5 packages are looking for funding
+2026-11-03T20:00:21.936645587Z #12 1.407   run `npm fund` for details
+2026-11-03T20:00:21.936646813Z #12 1.408 
+2026-11-03T20:00:21.936648194Z #12 1.408 found 0 vulnerabilities
+2026-11-03T20:00:21.936649906Z #12 1.408 npm notice
+2026-11-03T20:00:21.936651538Z #12 1.408 npm notice New major version of npm available! 10.9.9 -> 12.2.1
+2026-11-03T20:00:21.936652867Z #12 1.408 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
+2026-11-03T20:00:21.93665424Z #12 1.408 npm notice To update run: npm install -g npm@12.2.1
+2026-11-03T20:00:21.936655609Z #12 1.408 npm notice
+2026-11-03T20:00:21.936656944Z #12 DONE 1.4s
+2026-11-03T20:00:21.936658115Z 
+2026-11-03T20:00:21.936659864Z #15 [stage-1  4/10] RUN pip install --no-cache-dir -r requirements-server.txt && useradd --create-home campaign
+2026-11-03T20:00:21.936661381Z #15 1.271   Downloading annotated_doc-0.0.5-py3-none-any.whl.metadata (6.5 kB)
+2026-11-03T20:00:21.936674369Z #15 1.290 Collecting annotated-types==0.8.0 (from -r requirements-server.txt (line 3))
+2026-11-03T20:00:21.936678617Z #15 1.298   Downloading annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+2026-11-03T20:00:21.936680078Z #15 1.331 Collecting anyio==4.15.1 (from -r requirements-server.txt (line 4))
+2026-11-03T20:00:21.936681409Z #15 1.340   Downloading anyio-4.15.1-py3-none-any.whl.metadata (4.7 kB)
+2026-11-03T20:00:22.0701857Z #15 ...
+2026-11-03T20:00:22.070196443Z 
+2026-11-03T20:00:22.070198513Z #16 [client 5/6] COPY web/ ./
+2026-11-03T20:00:22.070200099Z #16 DONE 0.1s
+2026-11-03T20:00:22.070201416Z 
+2026-11-03T20:00:22.070203776Z #15 [stage-1  4/10] RUN pip install --no-cache-dir -r requirements-server.txt && useradd --create-home campaign
+2026-11-03T20:00:22.07020554Z #15 1.368 Collecting click==8.5.0 (from -r requirements-server.txt (line 5))
+2026-11-03T20:00:22.070207067Z #15 1.378   Downloading click-8.5.0-py3-none-any.whl.metadata (2.6 kB)
+2026-11-03T20:00:22.07020862Z #15 1.474 Collecting fastapi==0.162.0 (from -r requirements-server.txt (line 6))
+2026-11-03T20:00:22.246339358Z #15 1.483   Downloading fastapi-0.162.0-py3-none-any.whl.metadata (26 kB)
+2026-11-03T20:00:22.24635741Z #15 1.650 Collecting greenlet==3.5.6 (from -r requirements-server.txt (line 7))
+2026-11-03T20:00:22.360529936Z #15 1.659   Downloading greenlet-3.5.6-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (3.8 kB)
+2026-11-03T20:00:22.360537689Z #15 1.676 Collecting h11==0.16.0 (from -r requirements-server.txt (line 8))
+2026-11-03T20:00:22.360539216Z #15 1.687   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+2026-11-03T20:00:22.360540768Z #15 1.712 Collecting idna==3.20 (from -r requirements-server.txt (line 9))
+2026-11-03T20:00:22.360542301Z #15 1.720   Downloading idna-3.20-py3-none-any.whl.metadata (7.2 kB)
+2026-11-03T20:00:22.360544156Z #15 1.764 Collecting opentelemetry-api==1.45.2 (from -r requirements-server.txt (line 10))
+2026-11-03T20:00:22.562780292Z #15 1.777   Downloading opentelemetry_api-1.45.2-py3-none-any.whl.metadata (1.4 kB)
+2026-11-03T20:00:22.562796634Z #15 1.807 Collecting psycopg==3.3.6 (from -r requirements-server.txt (line 11))
+2026-11-03T20:00:22.562798494Z #15 1.816   Downloading psycopg-3.3.6-py3-none-any.whl.metadata (4.4 kB)
+2026-11-03T20:00:22.594663108Z #15 1.998 Collecting psycopg-binary==3.3.6 (from -r requirements-server.txt (line 12))
+2026-11-03T20:00:22.734869313Z #15 2.007   Downloading psycopg_binary-3.3.6-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (2.7 kB)
+2026-11-03T20:00:22.73488527Z #15 2.139 Collecting pydantic==2.14.2 (from -r requirements-server.txt (line 13))
+2026-11-03T20:00:22.908108001Z #15 2.151   Downloading pydantic-2.14.2-py3-none-any.whl.metadata (137 kB)
+2026-11-03T20:00:22.908130314Z #15 2.161      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 137.6/137.6 kB 15.9 MB/s eta 0:00:00
+2026-11-03T20:00:23.600843739Z #15 3.005 Collecting pydantic-core==2.50.2 (from -r requirements-server.txt (line 14))
+2026-11-03T20:00:23.760016104Z #15 3.013   Downloading pydantic_core-2.50.2-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (6.5 kB)
+2026-11-03T20:00:23.998162957Z #15 3.402 Collecting sqlalchemy==2.1.6 (from -r requirements-server.txt (line 15))
+2026-11-03T20:00:24.11283117Z #15 3.410   Downloading sqlalchemy-2.1.6-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (9.7 kB)
+2026-11-03T20:00:24.112853984Z #15 3.456 Collecting starlette==1.10.0 (from -r requirements-server.txt (line 16))
+2026-11-03T20:00:24.11285754Z #15 3.464   Downloading starlette-1.10.0-py3-none-any.whl.metadata (6.6 kB)
+2026-11-03T20:00:24.11286816Z #15 3.489 Collecting typing-extensions==4.16.0 (from -r requirements-server.txt (line 17))
+2026-11-03T20:00:24.112870249Z #15 3.497   Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+2026-11-03T20:00:24.112872626Z #15 3.517 Collecting typing-inspection==0.4.4 (from -r requirements-server.txt (line 18))
+2026-11-03T20:00:24.321231639Z #15 3.525   Downloading typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)
+2026-11-03T20:00:24.321240796Z #15 3.566 Collecting uvicorn==0.54.0 (from -r requirements-server.txt (line 19))
+2026-11-03T20:00:24.321242379Z #15 3.575   Downloading uvicorn-0.54.0-py3-none-any.whl.metadata (6.6 kB)
+2026-11-03T20:00:24.326274729Z #15 3.730 Downloading annotated_doc-0.0.5-py3-none-any.whl (5.3 kB)
+2026-11-03T20:00:24.426971278Z #15 3.739 Downloading annotated_types-0.8.0-py3-none-any.whl (13 kB)
+2026-11-03T20:00:24.426981066Z #15 3.747 Downloading anyio-4.15.1-py3-none-any.whl (132 kB)
+2026-11-03T20:00:24.426983162Z #15 3.750    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 132.1/132.1 kB 132.4 MB/s eta 0:00:00
+2026-11-03T20:00:24.426984735Z #15 3.758 Downloading click-8.5.0-py3-none-any.whl (125 kB)
+2026-11-03T20:00:24.426986307Z #15 3.760    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 125.3/125.3 kB 446.1 MB/s eta 0:00:00
+2026-11-03T20:00:24.426987598Z #15 3.769 Downloading fastapi-0.162.0-py3-none-any.whl (148 kB)
+2026-11-03T20:00:24.426989142Z #15 3.771    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 148.9/148.9 kB 234.0 MB/s eta 0:00:00
+2026-11-03T20:00:24.426990941Z #15 3.780 Downloading greenlet-3.5.6-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (624 kB)
+2026-11-03T20:00:24.426992311Z #15 3.789    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 624.4/624.4 kB 73.6 MB/s eta 0:00:00
+2026-11-03T20:00:24.426993523Z #15 3.799 Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+2026-11-03T20:00:24.426994722Z #15 3.808 Downloading idna-3.20-py3-none-any.whl (69 kB)
+2026-11-03T20:00:24.426996022Z #15 3.810    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 69.6/69.6 kB 403.9 MB/s eta 0:00:00
+2026-11-03T20:00:24.426997315Z #15 3.818 Downloading opentelemetry_api-1.45.2-py3-none-any.whl (60 kB)
+2026-11-03T20:00:24.426998562Z #15 3.820    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 60.3/60.3 kB 387.4 MB/s eta 0:00:00
+2026-11-03T20:00:24.427002292Z #15 3.829 Downloading psycopg-3.3.6-py3-none-any.whl (215 kB)
+2026-11-03T20:00:24.526975556Z #15 3.831    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 215.5/215.5 kB 475.2 MB/s eta 0:00:00
+2026-11-03T20:00:24.526986095Z #15 3.841 Downloading psycopg_binary-3.3.6-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (5.3 MB)
+2026-11-03T20:00:24.526988598Z #15 3.903    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.3/5.3 MB 88.6 MB/s eta 0:00:00
+2026-11-03T20:00:24.52699183Z #15 3.912 Downloading pydantic-2.14.2-py3-none-any.whl (490 kB)
+2026-11-03T20:00:24.526994184Z #15 3.914    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 490.4/490.4 kB 502.5 MB/s eta 0:00:00
+2026-11-03T20:00:24.52699564Z #15 3.923 Downloading pydantic_core-2.50.2-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (2.2 MB)
+2026-11-03T20:00:24.752179789Z #15 3.931    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.2/2.2 MB 358.5 MB/s eta 0:00:00
+2026-11-03T20:00:24.752200431Z #15 3.939 Downloading sqlalchemy-2.1.6-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (4.7 MB)
+2026-11-03T20:00:24.75220368Z #15 3.967    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.7/4.7 MB 176.8 MB/s eta 0:00:00
+2026-11-03T20:00:24.75220656Z #15 3.976 Downloading starlette-1.10.0-py3-none-any.whl (80 kB)
+2026-11-03T20:00:24.752208824Z #15 3.978    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 80.6/80.6 kB 421.6 MB/s eta 0:00:00
+2026-11-03T20:00:24.752211229Z #15 3.987 Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+2026-11-03T20:00:24.752213321Z #15 3.988    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.6/45.6 kB 346.5 MB/s eta 0:00:00
+2026-11-03T20:00:24.752215334Z #15 3.997 Downloading typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+2026-11-03T20:00:24.752217483Z #15 4.005 Downloading uvicorn-0.54.0-py3-none-any.whl (87 kB)
+2026-11-03T20:00:24.752219362Z #15 4.007    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 87.4/87.4 kB 413.9 MB/s eta 0:00:00
+2026-11-03T20:00:24.752222138Z #15 4.153 Installing collected packages: typing-extensions, psycopg-binary, idna, h11, greenlet, click, annotated-types, annotated-doc, uvicorn, typing-inspection, sqlalchemy, pydantic-core, psycopg, opentelemetry-api, anyio, starlette, pydantic, fastapi
+2026-11-03T20:00:26.16594455Z #15 ...
+2026-11-03T20:00:26.165954693Z 
+2026-11-03T20:00:26.165958937Z #17 [client 6/6] RUN npm run build
+2026-11-03T20:00:26.165960476Z #17 0.191 
+2026-11-03T20:00:26.165962016Z #17 0.191 > ottoman-campaign@0.1.0 build
+2026-11-03T20:00:26.165963483Z #17 0.191 > tsc --noEmit && vite build
+2026-11-03T20:00:26.16596496Z #17 0.191 
+2026-11-03T20:00:26.165967575Z #17 2.870 vite v7.3.7 building client environment for production...
+2026-11-03T20:00:26.165969988Z #17 2.933 transforming...
+2026-11-03T20:00:26.165971389Z #17 3.820 ✓ 39 modules transformed.
+2026-11-03T20:00:26.165972817Z #17 3.974 rendering chunks...
+2026-11-03T20:00:26.165974256Z #17 3.981 computing gzip size...
+2026-11-03T20:00:26.165975652Z #17 3.992 dist/index.html                   0.70 kB │ gzip:   0.45 kB
+2026-11-03T20:00:26.165977161Z #17 3.992 dist/assets/index-Dcbxmg59.css   31.76 kB │ gzip:   8.01 kB
+2026-11-03T20:00:26.165978605Z #17 3.992 dist/assets/index-DSo6Wpyp.js   345.82 kB │ gzip: 105.16 kB
+2026-11-03T20:00:26.165979987Z #17 3.992 ✓ built in 1.09s
+2026-11-03T20:00:26.165981247Z #17 DONE 4.1s
+2026-11-03T20:00:26.31618219Z 
+2026-11-03T20:00:26.316190231Z #15 [stage-1  4/10] RUN pip install --no-cache-dir -r requirements-server.txt && useradd --create-home campaign
+2026-11-03T20:00:26.658877578Z #15 6.063 Successfully installed annotated-doc-0.0.5 annotated-types-0.8.0 anyio-4.15.1 click-8.5.0 fastapi-0.162.0 greenlet-3.5.6 h11-0.16.0 idna-3.20 opentelemetry-api-1.45.2 psycopg-3.3.6 psycopg-binary-3.3.6 pydantic-2.14.2 pydantic-core-2.50.2 sqlalchemy-2.1.6 starlette-1.10.0 typing-extensions-4.16.0 typing-inspection-0.4.4 uvicorn-0.54.0
+2026-11-03T20:00:26.889760128Z #15 6.063 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+2026-11-03T20:00:26.889785461Z #15 6.143 
+2026-11-03T20:00:26.88978792Z #15 6.143 [notice] A new release of pip is available: 24.0 -> 26.3
+2026-11-03T20:00:26.889789724Z #15 6.143 [notice] To update, run: pip install --upgrade pip
+2026-11-03T20:00:27.089960514Z #15 DONE 6.5s
+2026-11-03T20:00:27.285154432Z 
+2026-11-03T20:00:27.285166899Z #18 [stage-1  5/10] COPY campaign/ campaign/
+2026-11-03T20:00:27.285168662Z #18 DONE 0.0s
+2026-11-03T20:00:27.285169969Z 
+2026-11-03T20:00:27.285171366Z #19 [stage-1  6/10] COPY server/ server/
+2026-11-03T20:00:27.285172766Z #19 DONE 0.0s
+2026-11-03T20:00:27.285174062Z 
+2026-11-03T20:00:27.285176512Z #20 [stage-1  7/10] COPY --from=client /build/web/dist/ web/dist/
+2026-11-03T20:00:27.285177958Z #20 DONE 0.0s
+2026-11-03T20:00:27.285179235Z 
+2026-11-03T20:00:27.285180548Z #21 [stage-1  8/10] COPY web/public/land.geojson web/public/land.geojson
+2026-11-03T20:00:27.285181792Z #21 DONE 0.0s
+2026-11-03T20:00:27.285182936Z 
+2026-11-03T20:00:27.285185107Z #22 [stage-1  9/10] COPY web/public/bithynia-geography.json web/public/bithynia-geography.json
+2026-11-03T20:00:27.285186642Z #22 DONE 0.0s
+2026-11-03T20:00:27.285187752Z 
+2026-11-03T20:00:27.285189346Z #23 [stage-1 10/10] COPY web/public/mediterranean-geography.json web/public/mediterranean-geography.json
+2026-11-03T20:00:27.285190604Z #23 DONE 0.0s
+2026-11-03T20:00:27.285191789Z 
+2026-11-03T20:00:27.285193213Z #24 exporting to image
+2026-11-03T20:00:27.285194741Z #24 exporting layers
+2026-11-03T20:00:27.566701982Z #24 exporting layers 0.4s done
+2026-11-03T20:00:27.720613011Z #24 pushing layers
+2026-11-03T20:00:30.49653234Z #24 pushing layers 2.9s done
+2026-11-03T20:00:30.767844772Z #24 DONE 3.5s
+2026-11-03T20:00:30.767859873Z 
+2026-11-03T20:00:30.767862646Z #25 exporting cache to registry
+2026-11-03T20:00:30.767864994Z #25 sending cache export
+2026-11-03T20:00:33.621109902Z #25 sending cache export 3.9s done
+2026-11-03T20:00:33.621116324Z #25 DONE 6.1s
+2026-11-03T20:00:35.070433415Z ==> Deploying...
+2026-11-03T20:00:35.280450667Z ==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+2026-11-03T20:00:53.745814577Z INFO:     Started server process [1]
+2026-11-03T20:00:53.745891082Z INFO:     Waiting for application startup.
+2026-11-03T20:00:53.746428507Z INFO:     Application startup complete.
+2026-11-03T20:00:53.746723876Z INFO:     Uvicorn running on http://[proxy] (Press CTRL+C to quit)
+2026-11-03T20:00:54.724805883Z INFO:     [proxy] - "HEAD / HTTP/1.1" 405 Method Not Allowed
+2026-11-03T20:00:57.409489728Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:00:57.92333274Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:00:59.359672899Z ==> Your service is live 🎉
+2026-11-03T20:00:59.598139192Z INFO:     [proxy] - "GET / HTTP/1.1" 200 OK
+2026-11-03T20:01:00.007884182Z ==> 
+2026-11-03T20:01:00.015146961Z ==> ///////////////////////////////////////////////////////////
+2026-11-03T20:01:00.021165696Z ==> 
+2026-11-03T20:01:00.024266955Z ==> Available at your primary URL https://osman-campaign.onrender.com
+2026-11-03T20:01:00.027913095Z ==> 
+2026-11-03T20:01:00.052719939Z ==> ///////////////////////////////////////////////////////////
+2026-11-03T20:01:02.926467568Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:01:07.402491903Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:01:07.922840287Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:01:12.923776271Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:01:17.922671582Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:01:22.927050589Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:01:27.925612599Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:01:32.923358627Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:01:37.401729423Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:01:37.923067161Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:01:42.923040352Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:01:47.922556895Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:01:52.929723811Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:01:56.823268152Z INFO:     [proxy] - "GET / HTTP/1.1" 200 OK
+2026-11-03T20:01:57.181758735Z INFO:     [proxy] - "GET /assets/index-Dcbxmg59.css HTTP/1.1" 200 OK
+2026-11-03T20:01:57.185376269Z INFO:     [proxy] - "GET /assets/index-DSo6Wpyp.js HTTP/1.1" 200 OK
+2026-11-03T20:01:57.923765819Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:17:07.415186374Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:17:07.928256979Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:17:12.927680657Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:17:17.929531931Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:17:22.923619973Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:17:27.929356919Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:17:32.933734856Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:17:37.402033319Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:17:37.930009559Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:17:42.929313069Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:17:47.925536009Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:17:52.924357887Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:17:57.928849372Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:18:02.925697513Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:18:07.402872171Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:18:07.928374971Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:18:12.922307283Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:18:17.923296362Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:18:22.930437209Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:18:27.924697752Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:18:32.92304086Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:18:37.410242746Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:18:37.928168666Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:18:42.92552177Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:18:47.929456609Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:18:52.925140194Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:18:57.928357627Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:19:02.933464652Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:19:07.402665524Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:19:07.923110427Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:19:12.942399369Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:19:17.922490276Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:19:19.048043678Z INFO:     [proxy] - "GET /media/voice/army.mp3 HTTP/1.1" 206 Partial Content
+2026-11-03T20:19:19.415969806Z INFO:     [proxy] - "GET /media/voice/army.mp3 HTTP/1.1" 206 Partial Content
+2026-11-03T20:19:19.978470519Z INFO:     [proxy] - "GET /media/voice/wait.mp3 HTTP/1.1" 206 Partial Content
+2026-11-03T20:19:20.409934307Z INFO:     [proxy] - "GET /media/voice/wait.mp3 HTTP/1.1" 206 Partial Content
+2026-11-03T20:19:22.927649145Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:19:23.84375707Z INFO:     [proxy] - "GET / HTTP/1.1" 200 OK
+2026-11-03T20:19:24.563716047Z INFO:     [proxy] - "GET /assets/index-Dcbxmg59.css HTTP/1.1" 304 Not Modified
+2026-11-03T20:19:24.607380011Z INFO:     [proxy] - "GET /assets/index-DSo6Wpyp.js HTTP/1.1" 304 Not Modified
+2026-11-03T20:19:24.984466282Z INFO:     [proxy] - "GET /api/catalog HTTP/1.1" 200 OK
+2026-11-03T20:19:24.998678261Z INFO:     [proxy] - "GET /api/config HTTP/1.1" 200 OK
+2026-11-03T20:19:25.600137374Z INFO:     [proxy] - "GET /api/campaigns/latest HTTP/1.1" 401 Unauthorized
+2026-11-03T20:19:25.948877501Z INFO:     [proxy] - "GET /media/cover.webp HTTP/1.1" 304 Not Modified
+2026-11-03T20:19:27.930689726Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:19:32.922865475Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:19:37.402178171Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:19:37.930588029Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:19:42.926731084Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:19:47.922835067Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:19:52.931106407Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:19:57.929154216Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:20:02.927012452Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:20:05.289287907Z INFO:     [proxy] - "GET / HTTP/1.1" 200 OK
+2026-11-03T20:20:05.678379463Z INFO:     [proxy] - "GET /assets/index-Dcbxmg59.css HTTP/1.1" 304 Not Modified
+2026-11-03T20:20:05.687989785Z INFO:     [proxy] - "GET /assets/index-DSo6Wpyp.js HTTP/1.1" 304 Not Modified
+2026-11-03T20:20:06.048588169Z INFO:     [proxy] - "GET /api/catalog HTTP/1.1" 200 OK
+2026-11-03T20:20:06.08523983Z INFO:     [proxy] - "GET /api/config HTTP/1.1" 200 OK
+2026-11-03T20:20:06.383621049Z INFO:     [proxy] - "GET /favicon.ico HTTP/1.1" 404 Not Found
+2026-11-03T20:20:06.414022336Z INFO:     [proxy] - "POST /api/auth/telegram HTTP/1.1" 200 OK
+2026-11-03T20:20:07.402654922Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:20:07.779352147Z INFO:     [proxy] - "GET /api/campaigns/latest HTTP/1.1" 200 OK
+2026-11-03T20:20:07.934188242Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:20:08.164289485Z INFO:     [proxy] - "GET /media/advisor.webp HTTP/1.1" 304 Not Modified
+2026-11-03T20:20:10.567380859Z INFO:     [proxy] - "GET /mediterranean-geography.json HTTP/1.1" 200 OK
+2026-11-03T20:20:10.748943793Z INFO:     [proxy] - "GET /media/voice/map.mp3 HTTP/1.1" 304 Not Modified
+2026-11-03T20:20:12.922378943Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:20:14.427384618Z INFO:     [proxy] - "GET /media/voice/army.mp3 HTTP/1.1" 304 Not Modified
+2026-11-03T20:20:15.727417245Z INFO:     [proxy] - "GET /media/voice/state.mp3 HTTP/1.1" 304 Not Modified
+2026-11-03T20:20:17.349772371Z INFO:     [proxy] - "GET /media/voice/wait.mp3 HTTP/1.1" 304 Not Modified
+2026-11-03T20:20:17.929270673Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:20:18.853408168Z INFO:     [proxy] - "GET /media/voice/archive.mp3 HTTP/1.1" 304 Not Modified
+2026-11-03T20:20:20.30795733Z INFO:     [proxy] - "GET /api/campaigns/[campaign]/archive?after=0&limit=40 HTTP/1.1" 200 OK
+2026-11-03T20:20:22.926755766Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T20:20:27.929950098Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:08:54.10498108Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:08:59.107497898Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:09:03.57042702Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:09:04.108563913Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:09:09.105497264Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:09:14.107670467Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:09:19.106940584Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:09:24.108119865Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:09:29.104772783Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:09:33.579932019Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:09:34.111941563Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:09:39.10893612Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:09:44.104848363Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:09:49.108026773Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:09:54.108742718Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:09:57.84116561Z INFO:     [proxy] - "GET /mediterranean-geography.json HTTP/1.1" 200 OK
+2026-11-03T21:09:59.106550496Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:10:03.569104116Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:10:04.106533365Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:10:09.105501931Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:10:14.109281019Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:10:19.106943667Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:10:24.112853074Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:10:29.104326961Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:10:33.572680787Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:10:34.103998586Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:10:39.107426279Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:10:44.10465754Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:10:49.106107448Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:10:54.110953976Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:10:59.106974809Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:11:03.572631827Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:11:04.112488233Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:11:09.106905092Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:11:14.110821881Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:11:19.109055139Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:11:24.106344926Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:11:29.104579685Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:11:33.571887695Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:11:34.105903987Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:11:39.113159225Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:11:44.105096501Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:11:49.108030752Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:11:54.103289735Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:11:59.106774249Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:12:03.567979292Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:12:04.109168629Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:12:09.102609633Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:12:14.106677373Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:12:19.101912599Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:12:24.106072642Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:12:29.10170672Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:12:33.570327846Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:12:34.101660827Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:12:39.106584049Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:12:44.107617543Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:12:49.107131922Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:12:54.102996746Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:12:59.106558649Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:13:03.569834836Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:13:04.107280868Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:13:09.102307136Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:13:14.106568568Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:13:19.102344174Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:13:24.102646775Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:13:24.141721636Z INFO:     [proxy] - "GET /api/campaigns/[campaign]/archive?after=0&limit=40 HTTP/1.1" 200 OK
+2026-11-03T21:13:29.102270492Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:13:33.573353762Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:13:34.104841467Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:13:39.112307335Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:13:44.102172069Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:13:49.107851877Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:13:54.103516305Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:13:59.106664227Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:14:03.568421525Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:14:04.111475707Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:14:09.107944466Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:14:14.108792266Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:14:19.108416218Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:14:24.107058189Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:14:29.101714588Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:14:33.578082186Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:14:34.108532238Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:14:39.108100942Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:14:44.102398325Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:14:49.110952457Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:14:54.102467117Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:14:59.117322416Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:15:03.578458026Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:15:04.115109801Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:15:09.102242642Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:15:14.111740269Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:15:19.104419928Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:15:24.118754658Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:15:26.152256264Z INFO:     [proxy] - "GET / HTTP/1.1" 200 OK
+2026-11-03T21:15:26.426041372Z INFO:     [proxy] - "GET /assets/index-Dcbxmg59.css HTTP/1.1" 200 OK
+2026-11-03T21:15:26.766041856Z INFO:     [proxy] - "GET /assets/index-DSo6Wpyp.js HTTP/1.1" 200 OK
+2026-11-03T21:15:27.559734634Z INFO:     [proxy] - "GET /api/catalog HTTP/1.1" 200 OK
+2026-11-03T21:15:27.562855726Z INFO:     [proxy] - "GET /api/config HTTP/1.1" 200 OK
+2026-11-03T21:15:27.807992095Z INFO:     [proxy] - "POST /api/auth/telegram HTTP/1.1" 200 OK
+2026-11-03T21:15:28.075414237Z INFO:     [proxy] - "GET /api/campaigns/latest HTTP/1.1" 401 Unauthorized
+2026-11-03T21:15:28.365582663Z INFO:     [proxy] - "GET /media/cover.webp HTTP/1.1" 200 OK
+2026-11-03T21:15:29.102482862Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:15:33.574380804Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:15:34.105125434Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:15:39.117437187Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:15:44.102027423Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:15:49.113658983Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:15:50.797924123Z INFO:     [proxy] - "POST /api/campaigns HTTP/1.1" 401 Unauthorized
+2026-11-03T21:15:54.102931409Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:15:54.131345983Z INFO:     [proxy] - "POST /api/campaigns HTTP/1.1" 401 Unauthorized
+2026-11-03T21:15:56.863700274Z INFO:     [proxy] - "POST /api/campaigns HTTP/1.1" 401 Unauthorized
+2026-11-03T21:15:59.108345736Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:16:03.569822341Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:16:04.10919737Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:16:08.863098673Z INFO:     [proxy] - "POST /api/campaigns HTTP/1.1" 401 Unauthorized
+2026-11-03T21:16:09.104930676Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:16:10.076480833Z INFO:     [proxy] - "POST /api/campaigns HTTP/1.1" 401 Unauthorized
+2026-11-03T21:16:10.910591093Z INFO:     [proxy] - "POST /api/campaigns HTTP/1.1" 401 Unauthorized
+2026-11-03T21:16:11.654816123Z INFO:     [proxy] - "POST /api/campaigns HTTP/1.1" 401 Unauthorized
+2026-11-03T21:16:12.466184159Z INFO:     [proxy] - "POST /api/campaigns HTTP/1.1" 401 Unauthorized
+2026-11-03T21:16:14.107760506Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:16:19.105355786Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:16:24.111997865Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:16:29.105956333Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:16:33.571965845Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:16:34.10726557Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:16:39.107733439Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:16:44.104726098Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:16:49.108645457Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:16:54.105040674Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:16:59.115217918Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:17:03.570671901Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:17:04.108361231Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:17:09.105534737Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:17:14.106773578Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:17:19.105769287Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:17:24.108092474Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:17:29.105927738Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:17:33.571373383Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:17:34.103961056Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:17:39.118276271Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:17:44.105085032Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:17:49.106335627Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:17:54.110569121Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:17:59.108819578Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:18:03.572398574Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:18:04.109645115Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:18:09.106192584Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:18:14.109738334Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:18:19.107890971Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:18:24.109313534Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:18:29.104961853Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:18:33.573634279Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:18:34.105394664Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:18:39.107776711Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:18:44.104919648Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:18:49.106773953Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:18:49.682345838Z INFO:     [proxy] - "GET / HTTP/1.1" 200 OK
+2026-11-03T21:18:49.994199115Z INFO:     [proxy] - "GET /api/config HTTP/1.1" 200 OK
+2026-11-03T21:18:50.007567543Z INFO:     [proxy] - "GET /api/catalog HTTP/1.1" 200 OK
+2026-11-03T21:18:50.273995854Z INFO:     [proxy] - "POST /api/auth/telegram HTTP/1.1" 200 OK
+2026-11-03T21:18:50.524289442Z INFO:     [proxy] - "GET /api/campaigns/latest HTTP/1.1" 401 Unauthorized
+2026-11-03T21:18:54.105478107Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:18:54.375720565Z INFO:     [proxy] - "POST /api/campaigns HTTP/1.1" 401 Unauthorized
+2026-11-03T21:18:59.055682123Z INFO:     [proxy] - "POST /api/campaigns HTTP/1.1" 401 Unauthorized
+2026-11-03T21:18:59.106778071Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:19:01.127051522Z INFO:     [proxy] - "POST /api/campaigns HTTP/1.1" 401 Unauthorized
+2026-11-03T21:19:03.570114117Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:19:04.109785055Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:19:09.106837482Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:19:14.109836937Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:19:19.10622728Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:19:22.119357564Z INFO:     [proxy] - "GET / HTTP/1.1" 200 OK
+2026-11-03T21:19:22.512235879Z INFO:     [proxy] - "GET /assets/index-DSo6Wpyp.js HTTP/1.1" 304 Not Modified
+2026-11-03T21:19:22.927697494Z INFO:     [proxy] - "GET /assets/index-Dcbxmg59.css HTTP/1.1" 304 Not Modified
+2026-11-03T21:19:23.454411923Z INFO:     [proxy] - "GET /api/config HTTP/1.1" 200 OK
+2026-11-03T21:19:23.484099168Z INFO:     [proxy] - "GET /api/catalog HTTP/1.1" 200 OK
+2026-11-03T21:19:24.022385974Z INFO:     [proxy] - "GET /api/campaigns/latest HTTP/1.1" 401 Unauthorized
+2026-11-03T21:19:24.10682744Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:19:29.111534886Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:19:33.570472593Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:19:34.102061215Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:19:34.840787801Z INFO:     [proxy] - "GET / HTTP/1.1" 200 OK
+2026-11-03T21:19:35.169459676Z INFO:     [proxy] - "GET /assets/index-Dcbxmg59.css HTTP/1.1" 304 Not Modified
+2026-11-03T21:19:35.504344235Z INFO:     [proxy] - "GET /assets/index-DSo6Wpyp.js HTTP/1.1" 304 Not Modified
+2026-11-03T21:19:35.973326794Z INFO:     [proxy] - "GET /api/config HTTP/1.1" 200 OK
+2026-11-03T21:19:35.98139421Z INFO:     [proxy] - "GET /favicon.ico HTTP/1.1" 404 Not Found
+2026-11-03T21:19:36.266649984Z INFO:     [proxy] - "GET /api/catalog HTTP/1.1" 200 OK
+2026-11-03T21:19:36.687641597Z INFO:     [proxy] - "POST /api/auth/telegram HTTP/1.1" 200 OK
+2026-11-03T21:19:37.946317286Z INFO:     [proxy] - "GET /api/campaigns/latest HTTP/1.1" 200 OK
+2026-11-03T21:19:38.366357487Z INFO:     [proxy] - "GET /media/advisor.webp HTTP/1.1" 304 Not Modified
+2026-11-03T21:19:39.101929121Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:19:44.106043934Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:19:49.101691484Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:19:54.10670291Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:19:59.105187045Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:20:03.571821794Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:20:04.10227526Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:20:09.107950632Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:20:14.102693694Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:20:19.106707079Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:20:24.10399529Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:20:29.107010724Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:20:33.570336609Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:20:34.117352837Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:20:39.103673517Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:20:44.10920078Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:20:49.10762507Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:20:54.108685991Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:20:59.104934122Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:21:03.573282106Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:21:04.104156992Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:21:09.107976859Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:21:14.103151946Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:21:19.107217709Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:21:24.105207913Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:21:29.108744076Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:21:33.57092775Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:21:34.11060953Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:21:39.105791491Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:21:44.107623995Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:21:49.102716615Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:21:54.106787252Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:21:59.102155259Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:22:03.573733923Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:22:04.106797791Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:22:09.108581317Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:22:14.109213247Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:22:19.106157082Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:22:24.10708739Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:22:29.112526813Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:22:33.566646067Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:22:34.106476391Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:22:39.106596812Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:22:44.107751407Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:22:49.102616128Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:22:54.107331037Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:22:59.104797479Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:23:03.573915582Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:23:04.10306985Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:23:09.10689665Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:23:14.106049222Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:23:19.107422686Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:23:24.102310272Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:23:29.107497965Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:23:33.56750403Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:23:34.108744008Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:23:39.102480868Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:23:44.107638092Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:23:47.018413854Z INFO:     [proxy] - "GET / HTTP/1.1" 200 OK
+2026-11-03T21:23:47.363848428Z INFO:     [proxy] - "GET /assets/index-DSo6Wpyp.js HTTP/1.1" 304 Not Modified
+2026-11-03T21:23:47.365600828Z INFO:     [proxy] - "GET /assets/index-Dcbxmg59.css HTTP/1.1" 304 Not Modified
+2026-11-03T21:23:49.102744305Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:23:54.118512885Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:23:59.102176124Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:24:03.570988456Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:24:04.102371116Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:24:09.118969386Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:24:14.101711407Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:24:19.106344292Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:24:24.102965904Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:24:29.106502075Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:24:33.567067499Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:24:34.106138357Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:24:39.104598863Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:24:44.106702632Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:24:48.489373922Z INFO:     [proxy] - "GET / HTTP/1.1" 200 OK
+2026-11-03T21:24:48.758780783Z INFO:     [proxy] - "GET /assets/index-DSo6Wpyp.js HTTP/1.1" 200 OK
+2026-11-03T21:24:48.76686422Z INFO:     [proxy] - "GET /assets/index-Dcbxmg59.css HTTP/1.1" 200 OK
+2026-11-03T21:24:49.10129739Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:24:54.107802912Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:24:59.10144106Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:25:03.571257321Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:25:04.101764338Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:25:09.110149951Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:25:14.102987365Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:25:19.10620677Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:25:24.101801038Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:25:29.106659121Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:25:33.568678372Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:25:34.114003981Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:25:39.101911743Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:25:44.106712725Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:25:49.106931121Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:25:54.108944599Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:25:59.101400117Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:26:03.573522613Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:26:04.10318647Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:26:09.106732824Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:26:14.105474568Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:26:19.107356004Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:26:24.102154866Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:26:29.108990877Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:26:33.567898159Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:26:34.113104436Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:26:39.10277505Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:26:44.107445752Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:26:49.102357028Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:26:54.106558089Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:26:59.102002658Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:27:03.571900324Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:27:04.10232874Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:27:09.111633469Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:27:14.102805Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:27:19.106655694Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:27:24.102417252Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:27:29.106716166Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:27:33.569260184Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:27:34.107322886Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:27:39.102444219Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:27:44.10613478Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK
+2026-11-03T21:27:49.102039362Z INFO:     [proxy] - "GET /api/health HTTP/1.1" 200 OK

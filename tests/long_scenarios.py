@@ -4,7 +4,7 @@ from pathlib import Path
 from campaign.engine import RuleError
 from campaign.ruler.engine import new_campaign, apply_command, validate
 from campaign.ruler.models import RulerState
-from campaign.ruler.story import SCENES
+from campaign.ruler.story import SCENES, choices as available_choices
 from campaign.ruler.chronicle import SCENES as NEW_SCENES
 from ruler_scenarios import PREFERRED
 
@@ -21,14 +21,14 @@ def run(seed,style,days=3650):
         if style!='idle':act('raise',{'province':pid,'troop':'militia','count':20})
     if style=='war':act('raise',{'province':'sogut','troop':'militia','count':40})
     acted=False;access=False
-    for step in range(2000):
+    for step in range(max(2000,days*2)):
         if s.ending or s.day>=days:break
         for agenda in list(s.agendas):
             scene=agenda['scene'];prefixes.setdefault(scene,s.to_dict())
             if style=='idle' and scene!='succession':continue
             preferred=PREFERRED.get(scene)
             if style=='war' and scene in ['frontier_letter','border_proposal']:preferred='refuse' if scene=='frontier_letter' else 'prepare'
-            choices=[c for c,_ in SCENES[scene][2]]
+            choices=[c for c,_ in available_choices(s,scene)]
             if preferred in choices:choices.remove(preferred);choices.insert(0,preferred)
             for c in choices:
                 if act('decide',{'agenda':agenda['id'],'choice':c}):break

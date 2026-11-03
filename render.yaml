@@ -4,7 +4,8 @@ services:
     runtime: docker
     plan: free
     healthCheckPath: /api/health
-    autoDeployTrigger: "off"
+    branch: main
+    autoDeployTrigger: checksPass
     envVars:
       - key: APP_ENV
         value: production
