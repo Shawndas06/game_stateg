@@ -15,9 +15,11 @@ def verify(prefixes):
             s=RulerState.from_dict(prefixes[scene])
             agenda=next(a for a in s.agendas if a['scene']==scene)
             cost=50 if scene=='murad_education' and choice!='defer' else 60 if scene=='murad_council' and choice in ['accounts','service'] else 0
-            for _ in range(11):
-                if s.gold>=cost:break
-                s=apply_command(s,'advance',{'days':30,'until_event':False})
+            if s.gold<cost:
+                s=apply_command(s,'policy',{'province':s.capital,'tax':'extraordinary'})
+            for _ in range(120):
+                if s.gold>=cost or s.day>=agenda['deadline']-7:break
+                s=apply_command(s,'advance',{'days':7,'until_event':False})
             result=apply_command(s,'decide',{'agenda':agenda['id'],'choice':choice})
             view(result)  # Validate public text, not just internal mutation.
             if scene=='murad_council' and choice=='service':
