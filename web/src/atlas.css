@@ -1,0 +1,49 @@
+.illustrated-atlas{overflow:hidden;border:1px solid #a99a72;border-radius:12px;background:#dfd1aa;box-shadow:0 5px 22px #6d593218;margin:4px 0 6px;isolation:isolate}
+.atlas-map-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:17px 19px;background:linear-gradient(110deg,#263f33,#3a4c37);color:#f3e6bd;border-bottom:3px double #b29b63}
+.atlas-map-heading .eyebrow{color:#c7b078;margin-bottom:5px;font-size:8px;letter-spacing:1.8px}
+.atlas-map-heading strong{font:400 18px Georgia,serif;letter-spacing:.1px}
+.map-heading-button{background:#ffffff09;border:1px solid #c5b17d66;color:#e4d5a9;font-size:10px;white-space:nowrap;min-height:38px;padding:8px 11px;border-radius:5px}
+.map-heading-button:hover:not(:disabled){background:#ffffff19}
+.illustrated-map-canvas{height:570px;position:relative;overflow:hidden;background:#d6c59c}
+.illustrated-map{display:block;width:100%;height:100%;touch-action:none;user-select:none;cursor:grab}
+.illustrated-map:active{cursor:grabbing}
+.illustrated-place{cursor:pointer;outline:none}
+.illustrated-place:hover .place-name{text-decoration:underline;text-underline-offset:3px}
+.illustrated-place:focus-visible .place-hit-target{fill:#f8e5a3;fill-opacity:.35;stroke:#765820;stroke-width:2;stroke-dasharray:4 3}
+.place-name{font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:.1px}
+.map-geographic-labels .sea-name{font:italic 16px Georgia,serif;fill:#476d68;letter-spacing:1.1px;paint-order:stroke;stroke:#bed0bc;stroke-opacity:.5;stroke-width:2px}
+.map-geographic-labels .region-name{font:12px Georgia,serif;fill:#776843;opacity:.55;letter-spacing:4px}
+.illustrated-map-tools{position:absolute;right:12px;bottom:14px;display:flex;gap:6px}
+.illustrated-map-tools button{width:40px;min-height:40px;background:linear-gradient(#f4eacb,#e4d5ac);border:1px solid #a99668;color:#4b5941;font-size:20px;border-radius:5px;box-shadow:0 2px 4px #5e573618;padding:0}
+.illustrated-map-tools button:hover:not(:disabled){background:#fff0c9}
+.map-corner-caption{position:absolute;right:13px;bottom:65px;pointer-events:none;text-align:right;color:#6e6548;text-shadow:0 1px #f6eec9}
+.map-corner-caption span{display:block;font:italic 11px Georgia,serif}
+.map-corner-caption small{display:block;font-size:8px;margin-top:4px;opacity:.8}
+.illustrated-map-legend{display:flex;align-items:center;gap:15px;flex-wrap:wrap;background:#ede2bf;padding:9px 14px;border-top:1px solid #b9a87d;color:#6d674f;font-size:10px}
+.illustrated-map-legend span{display:flex;align-items:center;gap:5px}
+.illustrated-map-legend i{display:inline-block;width:12px;height:8px;clip-path:polygon(0 0,100% 10%,85% 100%,0 90%)}
+.illustrated-map-legend button{font-size:9px;min-height:30px;padding:4px 6px;margin-left:auto;border:0;background:none;color:#74613a;text-decoration:underline;text-underline-offset:3px}
+.world-map-canvas{height:auto;aspect-ratio:1.55;min-height:230px;background:#d4c398;touch-action:none;user-select:none;cursor:grab}
+.original-world-map{position:absolute;max-width:none;display:block;pointer-events:none}
+.world-chapter-link{position:absolute;left:62%;top:29%;padding:8px 10px;background:#263e30ee;border:1px solid #d4bb79;border-radius:5px;color:#f4e5b9;box-shadow:0 3px 10px #31271055;text-align:left}
+.world-chapter-link span{float:left;font-size:26px;margin-right:6px}
+.world-chapter-link strong{font:13px Georgia,serif;display:block}
+.world-chapter-link small{display:block;font-size:8px;color:#d9c697}
+.world-chapter-link:hover:not(:disabled){background:#435d3b}
+.map-load-state{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#e8dfc6dd;color:#6c694b;font:16px Georgia,serif}
+.map-load-state button{font:12px Manrope,system-ui,sans-serif}
+.atlas-fullscreen{position:fixed;inset:12px 12px calc(12px + env(safe-area-inset-bottom,0px));max-width:1400px;margin:auto;z-index:40;display:flex;flex-direction:column;border-radius:8px;box-shadow:0 0 0 100vmax #142b24d9}
+.atlas-fullscreen .illustrated-map-canvas{flex:1;min-height:0;aspect-ratio:auto}
+.atlas-fullscreen .atlas-map-heading{flex-shrink:0}
+.atlas-fullscreen .illustrated-map-legend{flex-shrink:0}
+@media(max-width:420px){.illustrated-map-canvas{height:540px}.atlas-map-heading{padding:14px}.atlas-map-heading strong{font-size:16px}.illustrated-map-legend{gap:10px;font-size:9px;padding:8px 10px}.illustrated-map-tools{right:9px}.world-map-canvas{height:auto;min-height:230px}.world-chapter-link{left:55%;top:24%}.atlas-fullscreen{inset:7px 7px calc(7px + env(safe-area-inset-bottom,0px))}}
+@media(min-width:800px){.illustrated-map-canvas{height:610px}.world-map-canvas{height:auto;min-height:320px}.atlas-map-heading{padding:18px 23px}.atlas-map-heading strong{font-size:21px}.atlas-fullscreen .illustrated-map-canvas{height:auto}}
+@media(prefers-reduced-motion:reduce){.illustrated-atlas *{transition:none}}
+
+.world-map-canvas{height:570px;aspect-ratio:auto}
+.atlas-navigation{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:#eee2bf;color:#6d654b;font-size:10px}
+.atlas-navigation label{display:flex;align-items:center;gap:8px;min-width:0}.atlas-navigation select{width:145px;max-width:100%;min-height:36px;background:#f6edcf;border:1px solid #b4a077;color:#4b5941;border-radius:4px;padding:4px;font:11px inherit}.atlas-navigation>span{font-size:9px;text-align:right}
+.atlas-search{display:flex;gap:8px;padding:12px;background:#eee2bf}.atlas-search input,.atlas-search select{min-width:0;min-height:44px;border:1px solid #baa77a;background:#f8efd6;color:#4d513a;border-radius:5px;padding:8px;font:12px inherit}.atlas-search input{flex:1;width:0}.atlas-search select{max-width:120px}
+.atlas-search-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:0 12px 12px;max-height:260px;overflow:auto;background:#eee2bf}.atlas-search-results>small{grid-column:1/-1}.atlas-search-results button{min-height:48px;text-align:left;font-size:12px;background:#f8efd6;border:1px solid #cbb98e;color:#4b5941;padding:8px}.atlas-search-results small{display:block;font-size:9px;margin-top:3px}
+.atlas-fullscreen .atlas-search,.atlas-fullscreen .atlas-navigation{flex-shrink:0}.atlas-fullscreen .atlas-search-results{max-height:140px;flex-shrink:0}
+@media(max-width:420px){.world-map-canvas{height:540px}.illustrated-map-tools{gap:4px;right:8px}.illustrated-map-tools button{width:38px;min-height:44px}.atlas-navigation{padding:6px 10px}}

@@ -1,0 +1,29 @@
+{
+  "voice": "ru_RU-denis-medium",
+  "clips": {
+    "prologue_home": 16.556,
+    "prologue_border": 13.827,
+    "prologue_word": 13.433,
+    "first_decision": 11.552,
+    "decision": 12.272,
+    "wait": 12.074,
+    "map": 13.177,
+    "army": 14.721,
+    "state": 13.131,
+    "archive": 11.552,
+    "arrears": 13.154,
+    "supply": 13.177,
+    "succession": 11.738,
+    "guide_council": 10.646,
+    "guide_time": 11.064,
+    "guide_reports": 11.204,
+    "succession_farewell": 5.724,
+    "succession_inherit": 6.56,
+    "succession_orhan": 5.538
+  },
+  "film": {
+    "duration": 21.422,
+    "width": 1280,
+    "height": 720
+  }
+}

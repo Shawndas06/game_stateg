@@ -48,3 +48,11 @@ Thumbs.db
 
 # Сохранения игры
 saves/
+
+# Mobile client and local tooling
+node_modules/
+web/dist/
+.pytest_cache/
+.hypothesis/
+.env
+test-results/

@@ -1,0 +1,98 @@
+name: Campaign checks
+on: [push, pull_request]
+jobs:
+  simulation:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: campaign
+          POSTGRES_DB: campaign_test
+          POSTGRES_PASSWORD: ci-campaign-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U campaign -d campaign_test"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+        env:
+          TEST_DATABASE_URL: postgresql+psycopg://campaign:ci-campaign-only@127.0.0.1:5432/campaign_test
+  mobile-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements-dev.txt
+        working-directory: .
+      - run: python -m playwright install --with-deps chromium webkit
+        working-directory: .
+      - name: Check built mobile application
+        working-directory: .
+        run: |
+          python -m uvicorn server.app:create_app --factory --host 127.0.0.1 --port 8000 > /tmp/campaign-browser-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          python scripts/wait_for_server.py
+          python tests/browser_campaign.py
+          PYTHONPATH=. python tests/browser_fortress.py
+          PYTHONPATH=. python tests/ruler_scenarios.py --out /tmp/ruler-acceptance.json
+          PYTHONPATH=. python tests/long_scenarios.py
+          PYTHONPATH=. python tests/court_scenarios.py
+          RULER_ACCEPTANCE=/tmp/ruler-combined-acceptance.json RULER_SCREENSHOTS=/tmp/ruler-browser-evidence PYTHONPATH=. python tests/browser_ruler.py
+          RULER_UX_SCREENSHOTS=/tmp/ruler-ux-evidence PYTHONPATH=. python tests/browser_ruler_ux.py
+          PYTHONPATH=. python tests/browser_media.py
+          RULER_ACCEPTANCE=/tmp/court-browser-acceptance.json RULER_SCREENSHOTS=/tmp/court-browser-evidence PYTHONPATH=. python tests/browser_ruler.py
+      - name: Preserve ruler acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruler-acceptance
+          path: |
+            /tmp/ruler-acceptance.json
+            /tmp/long-campaign-acceptance.json
+            /tmp/ruler-combined-acceptance.json
+            /tmp/court-acceptance.json
+            /tmp/court-browser-evidence
+            /tmp/media-evidence
+            /tmp/ruler-browser-evidence
+            /tmp/ruler-ux-evidence
+            /tmp/campaign-browser-server.log
+          if-no-files-found: ignore
+  container-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t osman-campaign-check .
+      - name: Check built image and platform port
+        run: |
+          game_container=campaign-ci-$GITHUB_RUN_ID
+          docker run -d --name "$game_container" -p 127.0.0.1:18090:8090 -e PORT=8090 -e APP_ENV=test -e DATABASE_URL=sqlite:////tmp/campaign.db osman-campaign-check
+          trap 'docker logs "$game_container"; docker rm -f "$game_container"' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18090/api/health; then
+              curl --fail --silent http://127.0.0.1:18090/ > /tmp/campaign-container.html
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
