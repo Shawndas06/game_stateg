@@ -1,0 +1,15 @@
+.git
+.venv
+**/node_modules
+**/__pycache__
+.pytest_cache
+.hypothesis
+.env
+.env.*
+saves
+web/dist
+test-results
+AGENTS.md
+.agents
+.codex
+*.log

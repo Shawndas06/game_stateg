@@ -1,0 +1,124 @@
+import React, {useEffect, useRef, useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import type {Army, Catalog, Save, State} from './types';
+import './style.css';
+import Atlas from './Atlas';
+import RulerApp from './RulerApp';
+import './media.css';
+import SavedCampaigns from './SavedCampaigns';
+import type {RulerSave} from './ruler-types';
+
+class ApiError extends Error {constructor(message:string, public status:number){super(message)}}
+async function api<T>(url:string, body?:unknown):Promise<T> {
+  const response = await fetch('/api'+url, {credentials:'same-origin',...(body === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});
+  const data = await response.json();
+  if(!response.ok) throw new ApiError(typeof data.detail==='string'?data.detail:'Не удалось выполнить действие. Проверьте введённые данные.',response.status);
+  return data;
+}
+const count=(troops:Record<string,number>)=>Object.values(troops).reduce((a,b)=>a+b,0);
+const signed=(n:number)=>(n>=0?'+':'')+n;
+const groupNames:Record<string,string>={military:'Военная знать',merchants:'Купцы',administration:'Администрация'};
+const nav=[['council','Совет','◈'],['map','Карта','⌖'],['state','Держава','♜'],['army','Армии','⚑'],['knowledge','Развитие','✦']] as const;
+
+
+function App(){
+  const [catalog,setCatalog]=useState<Catalog|null>(null),[save,setSave]=useState<Save|null>(null);
+  const [ready,setReady]=useState(false),[demo,setDemo]=useState(false),[busy,setBusy]=useState(false);
+  const [error,setError]=useState(''),[tab,setTab]=useState('council'),[selected,setSelected]=useState('sogut');
+  const [confirmTurn,setConfirmTurn]=useState(false),[confirmNew,setConfirmNew]=useState(false);
+  const retry=useRef<{id:string;kind:string;payload:unknown;revision:number}|null>(null);
+  const state=save?.state,player=state?.factions?.ottoman;
+  const place=(id:string)=>catalog?.places.find(p=>p.id===id)?.name||id;
+  const pending=!!state?.event;
+  const disabled=busy||pending||!!state?.ending;
+  async function resume(){setSave(await api<Save|null>('/campaigns/latest'));setReady(true)}
+  useEffect(()=>{
+    let live=true;
+    (async()=>{
+      const [c,config]=await Promise.all([api<Catalog>('/catalog'),api<{demo_available:boolean}>('/config')]);
+      if(!live)return;setCatalog(c);setDemo(config.demo_available);
+      const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();tg?.setHeaderColor?.('#122d29');tg?.setBackgroundColor?.('#f4f1e8');
+      if(tg?.initData){await api('/auth/telegram',{init_data:tg.initData});await resume()}
+      else {try{await resume()}catch(e){if(!(e instanceof ApiError)||e.status!==401)throw e;setReady(true)}}
+    })().catch(e=>{if(live){setError(e.message);setReady(true)}});
+    return ()=>{live=false};
+  },[]);
+  useEffect(()=>{const back=window.Telegram?.WebApp.BackButton;if(!back)return;const fn=()=>{setTab('council');setConfirmTurn(false)};if(tab!=='council'){back.show();back.onClick(fn)}else back.hide();return ()=>back.offClick(fn)},[tab]);
+  async function loadCampaign(id:string){setBusy(true);setError('');try{setSave(await api<Save>(`/campaigns/${id}`));setTab('council');setSelected('sogut')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+  async function start(scenario='legacy',campaign_mode=scenario==='ruler_v1'?'long':'chapter'){setBusy(true);setError('');try{if(!window.Telegram?.WebApp.initData)await api('/auth/demo',{});setSave(await api<Save>('/campaigns',{scenario,campaign_mode}));setSelected('sogut');setTab('council');retry.current=null;setConfirmNew(false)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+  async function send(kind:string,payload:Record<string,unknown>={}){
+    if(!save||busy)return;setBusy(true);setError('');
+    const old=retry.current;
+    const req=old&&old.kind===kind&&JSON.stringify(old.payload)===JSON.stringify(payload)&&old.revision===save.state.revision?old:{id:crypto.randomUUID(),kind,payload,revision:save.state.revision};
+    retry.current=req;
+    try{const result=await api<Save>(`/campaigns/${save.id}/commands`,{command_id:req.id,revision:req.revision,kind:req.kind,payload:req.payload});setSave(result);retry.current=null;setConfirmTurn(false);if(result.state.event)setTab('council')}
+    catch(e){setError((e as Error).message);if(e instanceof ApiError){retry.current=null;if(e.status===409){try{setSave(await api<Save>(`/campaigns/${save.id}`))}catch{}}}}
+    finally{setBusy(false)}
+  }
+  function select(id:string){setSelected(id);setTab('map')}
+  const button=(label:string,kind:string,payload:Record<string,unknown>,blocked=false)=> <button disabled={disabled||blocked} onClick={()=>send(kind,payload)}>{label}</button>;
+  if(!ready||!catalog)return <main className="loading"><div className="seal">◈</div><p>{error||'Хронисты открывают летопись…'}</p>{error&&<button onClick={()=>location.reload()}>Повторить</button>}</main>;
+  if(state?.scenario==='ruler_v1'&&save)return <RulerApp key={save.id} initialSave={save as unknown as RulerSave} catalog={catalog} onNew={()=>start('ruler_v1')} onResume={loadCampaign}/>;
+  if(!state||!player)return <main className="cinematic-welcome"><div className="splash-copy"><span className="eyebrow">Анатолия · 1299 год</span><h1>Османская<br/>кампания</h1><p className="lead">Маленький бейлик.<br/>Ваше слово. Ваша история.</p><p>Слушайте людей, отвечайте на послания и ведите государство через испытания. Наставник поможет с первыми шагами.</p>{error&&<p className="error" role="alert">{error}</p>}<button className="primary" onClick={()=>start('ruler_v1')} disabled={busy||(!demo&&!window.Telegram?.WebApp.initData)}>{busy?'Открываем летопись…':'Стать правителем →'}</button><small>Пролог и обучение · время идёт только по вашему приказу</small><details><summary>Другие режимы</summary><button onClick={()=>start('ruler_v1','chapter')} disabled={busy||(!demo&&!window.Telegram?.WebApp.initData)}>Первая глава · учебная партия →</button><button onClick={()=>start()} disabled={busy||(!demo&&!window.Telegram?.WebApp.initData)}>Начать историю · прежние правила →</button></details><small>{demo?'Локальная демонстрация':'Откройте игру из Telegram'}</small></div></main>;
+  const a=state.armies['ottoman-1'];
+  const p=state.provinces[selected];
+  const armyHere=a.location===selected;
+  const mine=p.controller==='ottoman';
+  const siege=state.sieges[a.location];
+  return <div className="app">
+    <header className="header"><div className="brand"><span className="seal">◈</span><div><span className="eyebrow">Османская кампания</span><strong>{state.calendar.season}, {state.calendar.year}</strong></div></div><div className="ruler"><span>{state.ruler}</span><small>{state.ruler_rank>=3?'Держава':'Бейлик'} · ход {state.turn}</small></div></header>
+    <div className="resources" aria-label="Ресурсы государства"><div><small>Казна</small><strong>{player.gold} <em>◈</em></strong><span className={state.budget.net<0?'negative':''}>{signed(state.budget.net)} / сезон</span></div><div><small>Запасы</small><strong>{player.food} <em>✳</em></strong><span>{signed(state.budget.food_income-state.budget.food_expense)} / сезон</span></div><div><small>Резерв</small><strong>{player.manpower} <em>♙</em></strong><span>людей</span></div><div><small>Легитимность</small><strong>{player.legitimacy}<em>%</em></strong><span>признание власти</span></div></div>
+    <main className="content" aria-busy={busy}>
+      {error&&<div className="error" role="alert">{error}<button className="quiet" aria-label="Закрыть сообщение" onClick={()=>setError('')}>×</button></div>}
+      {pending&&tab!=='council'&&<button className="notice" onClick={()=>setTab('council')}>Совет ждёт решения. Вернуться →</button>}
+      {state.ending&&<section className="card"><span className="eyebrow">Летопись завершена</span><h2>{state.ending}</h2><button onClick={()=>setConfirmNew(true)}>Новая история</button></section>}
+      {tab==='council'&&<>
+        <div className="section-heading"><div><span className="eyebrow">Летопись державы</span><h1>{state.chapter.name}</h1></div><span className="chapter-tag">{state.ruler_rank>=3?'Новые крепости открыты':state.flags.chapter_complete?'Развитие державы':'На пути к Бурсе'}</span></div>
+        {state.event?<section className="event card"><div className="event-portrait">◈</div><span className="eyebrow">{state.event.speaker}</span><h2>{state.event.title}</h2><p>{state.event.body}</p><div className="choices">{state.event.choices.map(c=><button key={c.id} disabled={busy} onClick={()=>send('choose',{choice:c.id})}><strong>{c.text}<span>↗</span></strong><small>{c.hint}</small></button>)}</div><div className="event-foot">Ваш ответ останется в истории государства.</div></section>:<section className="card briefing"><span className="eyebrow">Перед следующим сезоном</span><h2>{state.ruler_rank>=3?'Держава растёт':state.flags.chapter_complete?'Удержать завоёванное':'Дорога к Бурсе'}</h2><p>{state.flags.chapter_complete?'Решение о Бурсе принято. Закрепите владения миром и посмотрите, как прежние обещания изменили вашу державу.':'Подготовьте армию, выберите соседнюю цель и обеспечьте осаду. После захвата города совет потребует решения о его жителях.'}</p><button className="primary" onClick={()=>setTab('map')}>К карте кампании →</button><div className="brief-grid"><span><b>{Object.values(state.provinces).filter(p=>p.controller==='ottoman').length}</b> владения под контролем</span><span><b>{count(a.troops)}</b> в походной армии</span></div></section>}
+        <section className="card"><div className="section-heading"><h2>Голоса дивана</h2><span className="muted">Поддержка</span></div>{Object.entries(player.groups).map(([g,value])=><div className="support" key={g}><span>{groupNames[g]}</span><div className="meter"><i style={{width:`${value}%`}}/></div><b>{value}</b></div>)}<p className="muted" style={{fontSize:10,marginTop:20}}>Знать ниже 30 отзывает воинов. Купцы ниже 40 останавливают торговлю. Поддержка администрации влияет на знания и способность управлять владениями.</p></section>
+        <section className="chronicle"><span className="eyebrow">Последние известия</span>{[...state.log].reverse().slice(0,7).map((entry,i)=><article key={i}><span className="timeline-dot"/><div><small>Ход {entry.turn}</small><p>{entry.text}</p></div></article>)}</section>
+      </>}
+      {tab==='map'&&<>
+        <div className="section-heading"><div><span className="eyebrow">Военная география</span><h1>Атлас державы</h1></div></div>
+        <Atlas state={state} catalog={catalog} selected={selected} select={setSelected}/>
+        <div className="place-list" aria-label="Ваши владения">{catalog.places.filter(q=>state.provinces[q.id].controller==='ottoman').map(q=><button key={q.id} className={q.id===selected?'selected':''} onClick={()=>setSelected(q.id)}>{state.provinces[q.id].controller==='ottoman'?'●':'○'} {q.name}</button>)}</div>
+        <section className="card place-card"><span className="eyebrow">{p.fortress_level===0?'Поселение без крепости':catalog.places.find(q=>q.id===selected)?.port?'Порт и укреплённый город':'Укреплённое владение'}</span><h2>{place(selected)} {state.capital===selected&&<small>★ столица</small>}</h2><p className="muted">Владелец: {catalog.factions[p.owner]}{p.controller!==p.owner&&` · Военный контроль: ${catalog.factions[p.controller]}`}</p>
+          <div className="metrics"><span><b>{count(p.garrison)}</b>гарнизон</span><span><b>{p.walls}</b>стены</span><span><b>{p.loyalty}%</b>лояльность</span><span><b>{p.prosperity}%</b>хозяйство</span></div>
+          {mine?<>
+            {p.owner!==p.controller&&<p className="notice">Город занят войсками. Мирный договор закрепит владение и откроет строительство.</p>}
+            {p.construction&&<p className="notice">Строится {(catalog.buildings[p.construction.building]?.name||({new_fortress:'Новая крепость',repair_walls:'Ремонт стен'} as Record<string,string>)[p.construction.building]).toLowerCase()} · {p.construction.left} сезона</p>}
+            <h3>Гарнизон и походная армия</h3>{Object.entries(catalog.troops).map(([tid,t])=><div className="action-row" key={tid}><div><strong>{t.name} · {p.garrison[tid]||0}</strong><small>Нанять 10: {t.cost*10} золота</small></div><div className="inline-actions">{button('+10','recruit',{province:selected,troop:tid,count:10},p.owner!=='ottoman'||!!state.sieges[selected])}{armyHere&&button('В армию 10','mobilize',{army:a.id,troop:tid,count:10},(p.garrison[tid]||0)<10||count(p.garrison)<20||!!state.sieges[selected])}</div></div>)}
+            {!armyHere&&<small className="muted">Для пополнения приведите армию в этот город.</small>}
+            <h3>Строительство</h3>{p.fortress_level===0&&<div className="action-row"><div><strong>Возвести крепость</strong><small>250 золота · 20 человек · 4 сезона</small><small>Стены 60 · содержание 3 золота/сезон</small>{!state.fortress_construction.unlocked&&<small>Откроется при Мураде I в 1362 году</small>}</div>{button(state.fortress_construction.unlocked?'Заложить':'При Мураде I','found_fortress',{province:selected},!state.fortress_construction.unlocked||!!p.construction||p.owner!=='ottoman'||!!state.sieges[selected]||player.manpower<20||player.gold<250)}</div>}{p.fortress_level>0&&p.walls<p.max_walls&&<div className="action-row"><div><strong>Восстановить стены</strong><small>До {p.max_walls} · {(p.max_walls-p.walls)*2} золота · 2 сезона</small></div>{button('Ремонт','repair_walls',{province:selected},!!p.construction||p.owner!=='ottoman'||!!state.sieges[selected])}</div>}{Object.entries(catalog.buildings).map(([bid,b])=><div className="action-row" key={bid}><div><strong>{b.name}</strong><small>{b.description}</small><small>{b.cost} золота · {b.turns} сезона</small></div>{p.buildings.includes(bid)?<span className="pill">Построено</span>:button('Построить','build',{province:selected,building:bid},!!p.construction||p.owner!=='ottoman'||!!state.sieges[selected]||(bid==='walls'&&p.fortress_level===0)||!!b.requires&&!player.technologies.includes(b.requires))}</div>)}
+            {button('Укрепить управление · 25 ◈','integrate',{province:selected},p.owner!=='ottoman'||p.loyalty===100)}
+          </>:<><p>Путь армии начинается в {place(a.location)}. Вход во вражеский город начинает осаду после завершения сезона.</p>{button('Приказать идти сюда','move',{army:a.id,target:selected},!catalog.roads.some(([x,y])=>(x===a.location&&y===selected)||(y===a.location&&x===selected)))}<button className="quiet" onClick={()=>setTab('army')}>Открыть приказы армии →</button></>}
+        </section>
+      </>}
+      {tab==='army'&&<>
+        <span className="eyebrow">Поход и снабжение</span><h1>Походная армия</h1>
+        <section className="card"><div className="section-heading"><div><span className="eyebrow">Османские отряды</span><h2>{place(a.location)}</h2></div><span className="army-number">{count(a.troops)}<small>воинов</small></span></div><div className="metrics"><span><b>{a.supply}%</b>снабжение</span><span><b>{a.morale}%</b>мораль</span><span><b>{a.engines}</b>орудий</span></div>{Object.entries(a.troops).map(([t,n])=><div className="ledger-row" key={t}><span>{catalog.troops[t].name}</span><b>{n}</b></div>)}{a.order&&<p className="notice">Приказ на следующий сезон: {place(a.order.target)}.</p>}
+          {siege?.army_id===a.id?<div className="siege-panel"><span className="eyebrow">Осада</span><h3>{place(a.location)}</h3><div className="metrics"><span><b>{siege.supplies}</b>запасы города</span><span><b>{siege.morale}%</b>мораль защитников</span><span><b>{state.provinces[a.location].walls}</b>целостность стен</span></div><p>Текущий план: {({blockade:'блокада',works:'осадные работы',assault:'штурм в следующем сезоне',negotiate:'договорная сдача'} as Record<string,string>)[siege.mode]}.</p><div className="button-grid">{button('Блокада','siege_mode',{army:a.id,mode:'blockade'})}{button('Осадные работы','siege_mode',{army:a.id,mode:'works'})}{button('Штурм · риск потерь','siege_mode',{army:a.id,mode:'assault'})}{button('Предложить сдачу · 50 ◈','siege_mode',{army:a.id,mode:'negotiate'},siege.supplies>25&&siege.morale>35)}</div></div>:<>{button('Оснастить орудием · 45 ◈','equip',{army:a.id},!state.provinces[a.location].buildings.includes('workshop'))}</>}
+          <h3>{siege?.army_id===a.id?'Пути отступления':'Соседние дороги'}</h3><div className="button-grid">{catalog.roads.flatMap(([x,y])=>x===a.location?[y]:y===a.location?[x]:[]).filter(id=>siege?.army_id!==a.id||state.provinces[id].controller==='ottoman').map(id=><button disabled={disabled} key={id} onClick={()=>send(siege?.army_id===a.id?'retreat':'move',{army:a.id,target:id})}>{place(id)} →{(()=>{const r=catalog.route_details.find(r=>(r.from===a.location&&r.to===id)||(r.to===a.location&&r.from===id));return r&&r.kind!=='land'?<small>{r.kind==='ferry'?'Переправа':'Морской переход'} · {r.cost} ◈{!player.technologies.includes('ferries')?' · нужны знания переправ':''}</small>:null})()}</button>)}</div><button className="quiet" onClick={()=>select(a.location)}>Показать на карте →</button>
+        </section>
+        <section className="card"><h2>Правила похода</h2><p>За сезон армия проходит одну дорогу. Запасы приходят через связанные владения. Без снабжения падает боеспособность и начинаются потери.</p><p>Войска в осаде продолжают получать жалованье. Орудия нужно получить в мастерской и привезти вместе с армией.</p></section>
+      </>}
+      {tab==='state'&&<>
+        <SavedCampaigns load={loadCampaign}/>
+        <span className="eyebrow">Казна, право и соседи</span><h1>Дела державы</h1><section className="card"><h2>Новое правление</h2><p>Отдельный сценарий с людьми, советом, поручениями и местными запасами. Эта кампания останется в хранилище.</p><button onClick={()=>start('ruler_v1')} disabled={busy}>Стать правителем →</button></section><section className="card"><h2>Сезонный бюджет</h2>{[['Налоги',state.budget.income],['Торговля',state.budget.trade],['Армия и управление',-state.budget.expense],['Итог',state.budget.net]].map(([label,n])=><div className="ledger-row" key={label}><span>{label}</span><strong>{signed(Number(n))} ◈</strong></div>)}<p className="muted">Административная способность: {state.budget.capacity}. Город или крепость занимает 1, малое поселение — ¼. Превышение снижает собираемость налогов.</p>{player.arrears>0&&<p className="error">Задолженность по выплатам: {player.arrears}. Мораль и легитимность снижаются; войска дезертируют.</p>}</section>
+        <section className="card"><h2>Преемственность власти</h2><p>Сейчас правит {state.ruler}. {state.dynasty.next?`Следующий правитель: ${state.dynasty.next.name}, ${state.dynasty.next.year} год.`:'Летопись последнего правителя кампании.'}</p><p>Возведение новых крепостей {state.fortress_construction.unlocked?'доступно':'открывается при Мураде I (1362 год)'}. Можно укреплять свои поселения; расширение границ происходит через походы и договоры.</p></section><section className="card"><h2>Государственные реформы</h2>{Object.entries(catalog.reforms).map(([id,r])=><div className="action-row" key={id}><div><strong>{r.name}</strong><small>{r.description}</small><small>{r.cost} золота</small></div>{player.reforms.includes(id)?<span className="pill">Введена</span>:button('Ввести','reform',{reform:id},!!r.requires&&!player.technologies.includes(r.requires))}</div>)}</section>
+        <section className="card"><h2>Дипломатия</h2>{Object.entries(catalog.factions).filter(([id])=>id!=='ottoman').map(([fid,name])=>{const t=state.treaties[['ottoman',fid].sort().join(':')];return <div className="diplomacy" key={fid}><div className="section-heading"><h3>{name}</h3><span className={'pill '+(t.status==='war'?'war':'')}>{t.status==='war'?'Война':t.trade?'Мир и торговля':'Мир'}</span></div><div className="button-grid">{t.status==='war'?button('Предложить мир','diplomacy',{target:fid,proposal:'peace'}):<>{button('Торговля · 20 ◈','diplomacy',{target:fid,proposal:'trade'},t.trade)}{button('Объявить войну','diplomacy',{target:fid,proposal:'war'})}</>}</div></div>})}<p className="muted">Мир закрепляет занятые владения. После мира действует перемирие на четыре сезона. Один посол к государству за сезон.</p></section>
+        <section className="card"><h2>Летопись решений</h2>{Object.entries(state.flags).filter(([,value])=>typeof value==='string').map(([key,value])=><p key={key}>{String(value)==='merchants'?'Первый поход опирался на договор с купцами.':String(value)==='frontier'?'Правитель дал военный мандат пограничным беям.':String(value)==='charter'?'Городам выданы грамоты местных прав.':String(value)==='plunder'?'Войско получило добычу за счёт завоёванного города.':String(value)==='privileges'?'Пошлины отданы купцам в счёт долга.':String(value)==='honour'?'Грамоты защищены вопреки требованиям военных.':String(value)==='capital'?'Двор перенесён в Бурсу.':null}</p>)}<button className="quiet" onClick={()=>setConfirmNew(true)}>Начать другую историю</button></section>
+      </>}
+      {tab==='knowledge'&&<>
+        <span className="eyebrow">Знания открывают возможности</span><h1>Развитие государства</h1><section className="card knowledge-intro"><span className="knowledge-number">{player.knowledge} ✦</span><h2>Знания и внедрение</h2><p>Один приоритет за раз. Освоение мастерства открывает новые действия; войска и мастерские создаются отдельно.</p>{player.research&&<div className="notice">Изучается: {catalog.technologies[player.research.id].name}<progress value={player.research.progress} max={catalog.technologies[player.research.id].cost}/><small>{player.research.progress} / {catalog.technologies[player.research.id].cost} знаний</small>{button('Приостановить','pause_research',{})}</div>}</section>
+        {[...new Set(Object.values(catalog.technologies).map(t=>t.branch))].map(branch=><section className="card tech-branch" key={branch}><span className="branch-symbol">✦</span><h2>{branch}</h2>{Object.entries(catalog.technologies).filter(([,t])=>t.branch===branch).map(([id,t])=>{const known=player.technologies.includes(id),locked=t.requires.some(r=>!player.technologies.includes(r));return <article className={'tech '+(known?'known':'')} key={id}><span className="tech-dot">{known?'✓':'○'}</span><div><h3>{t.name}</h3><p>{t.description}</p>{t.requires.length>0&&<small>Нужно: {t.requires.map(r=>catalog.technologies[r].name).join(', ')}</small>}<div>{known?<span className="pill">Освоено</span>:button(player.research?.id===id?'Изучается':`Выбрать · ${t.cost} ✦`,'research',{technology:id},locked||!!player.research)}</div></div></article>})}</section>)}
+      </>}
+    </main>
+    <div className="season-bar"><span>{pending?'Совет ожидает ответа':busy?'Сохраняем решение…':'Каждое решение сохранено'}<small>{pending?'Выберите, каким будет следующий шаг':`${state.budget.troops} воинов на содержании`}</small></span><button className="primary" disabled={disabled} onClick={()=>setConfirmTurn(true)}>Завершить сезон →</button></div>
+    <nav className="bottom-nav" aria-label="Основные разделы">{nav.map(([id,label,icon])=><button key={id} aria-label={label} className={tab===id?'active':''} aria-current={tab===id?'page':undefined} onClick={()=>setTab(id)}><span aria-hidden="true">{icon}</span>{label}</button>)}</nav>
+    {confirmTurn&&<div className="modal" role="dialog" aria-modal="true" aria-labelledby="season-title"><section className="card"><span className="eyebrow">Передайте приказы</span><h2 id="season-title">Завершить сезон?</h2><p>Казна: {signed(state.budget.net)} золота. Продовольствие: {signed(state.budget.food_income-state.budget.food_expense)}.</p><p>{a.order?`Армия направится в ${place(a.order.target)}.`:'Армия останется на месте.'} {siege?'Осада продолжится по выбранному плану.':''}</p><p className="muted">Соседи тоже сделают ход. После расчёта могут появиться новые решения совета.</p><button className="primary" disabled={busy} onClick={()=>send('end_turn')}>Подтвердить приказы</button><button className="quiet" disabled={busy} onClick={()=>setConfirmTurn(false)}>Вернуться к делам</button></section></div>}
+    {confirmNew&&<div className="modal" role="dialog" aria-modal="true" aria-labelledby="new-title"><section className="card"><h2 id="new-title">Начать новую историю?</h2><p>Новая кампания станет текущей. Прежнее сохранение останется в хранилище.</p><button className="primary" disabled={busy} onClick={()=>start()}>Начать заново</button><button className="quiet" onClick={()=>setConfirmNew(false)}>Продолжить эту кампанию</button></section></div>}
+  </div>
+}
+
+createRoot(document.getElementById('root')!).render(<App/>);
