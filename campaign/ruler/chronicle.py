@@ -85,7 +85,9 @@ def tick(s):
             if enemies:petition(s,'alliance_offer',{'faction':fid,'enemy':enemies[0]})
     free=[p for p in s.people.values() if p.faction=='ottoman' and p.status=='active' and p.location==s.capital and not p.travel and p.id!=s.ruler_id and p.skills['siege']<80]
     if s.institutions.get('builders',{}).get('status')=='active' and free:petition(s,'siege_school',{'person':max(free,key=lambda p:p.skills['command']).id})
-    if s.people[s.ruler_id].born+60<=calendar(s)['year'] and s.people.get('orhan') and s.people['orhan'].status=='active' and s.people['orhan'].skills['stewardship']<80:petition(s,'heir_school',{'person':'orhan'})
+    from campaign.ruler.dynasty import heir
+    successor=heir(s)
+    if s.people[s.ruler_id].born+60<=calendar(s)['year'] and successor and successor.status=='active' and successor.skills['stewardship']<80:petition(s,'heir_school',{'person':successor.id})
     if calendar(s)['season']=='Зима':
         for a in armies:
             if a.location!=s.capital and a.grain<a.size*14:petition(s,'winter_quarters',{'army':a.id,'province':s.capital})

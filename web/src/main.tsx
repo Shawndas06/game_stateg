@@ -8,13 +8,7 @@ import './media.css';
 import SavedCampaigns from './SavedCampaigns';
 import type {RulerSave} from './ruler-types';
 
-class ApiError extends Error {constructor(message:string, public status:number){super(message)}}
-async function api<T>(url:string, body?:unknown):Promise<T> {
-  const response = await fetch('/api'+url, {credentials:'same-origin',...(body === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});
-  const data = await response.json();
-  if(!response.ok) throw new ApiError(typeof data.detail==='string'?data.detail:'Не удалось выполнить действие. Проверьте введённые данные.',response.status);
-  return data;
-}
+import {api,ApiError,authenticate} from './api';
 const count=(troops:Record<string,number>)=>Object.values(troops).reduce((a,b)=>a+b,0);
 const signed=(n:number)=>(n>=0?'+':'')+n;
 const groupNames:Record<string,string>={military:'Военная знать',merchants:'Купцы',administration:'Администрация'};
@@ -23,9 +17,11 @@ const nav=[['council','Совет','◈'],['map','Карта','⌖'],['state','�
 
 function App(){
   const [catalog,setCatalog]=useState<Catalog|null>(null),[save,setSave]=useState<Save|null>(null);
+  const [entryFailed,setEntryFailed]=useState(false);
   const [ready,setReady]=useState(false),[demo,setDemo]=useState(false),[busy,setBusy]=useState(false);
   const [error,setError]=useState(''),[tab,setTab]=useState('council'),[selected,setSelected]=useState('sogut');
   const [confirmTurn,setConfirmTurn]=useState(false),[confirmNew,setConfirmNew]=useState(false);
+  const startLock=useRef(false);
   const retry=useRef<{id:string;kind:string;payload:unknown;revision:number}|null>(null);
   const state=save?.state,player=state?.factions?.ottoman;
   const place=(id:string)=>catalog?.places.find(p=>p.id===id)?.name||id;
@@ -38,14 +34,14 @@ function App(){
       const [c,config]=await Promise.all([api<Catalog>('/catalog'),api<{demo_available:boolean}>('/config')]);
       if(!live)return;setCatalog(c);setDemo(config.demo_available);
       const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();tg?.setHeaderColor?.('#122d29');tg?.setBackgroundColor?.('#f4f1e8');
-      if(tg?.initData){await api('/auth/telegram',{init_data:tg.initData});await resume()}
+      if(tg?.initData){await resume()}
       else {try{await resume()}catch(e){if(!(e instanceof ApiError)||e.status!==401)throw e;setReady(true)}}
-    })().catch(e=>{if(live){setError(e.message);setReady(true)}});
+    })().catch(e=>{if(live){setError(e.message);setEntryFailed(true);setReady(true)}});
     return ()=>{live=false};
   },[]);
   useEffect(()=>{const back=window.Telegram?.WebApp.BackButton;if(!back)return;const fn=()=>{setTab('council');setConfirmTurn(false)};if(tab!=='council'){back.show();back.onClick(fn)}else back.hide();return ()=>back.offClick(fn)},[tab]);
   async function loadCampaign(id:string){setBusy(true);setError('');try{setSave(await api<Save>(`/campaigns/${id}`));setTab('council');setSelected('sogut')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
-  async function start(scenario='legacy',campaign_mode=scenario==='ruler_v1'?'long':'chapter'){setBusy(true);setError('');try{if(!window.Telegram?.WebApp.initData)await api('/auth/demo',{});setSave(await api<Save>('/campaigns',{scenario,campaign_mode}));setSelected('sogut');setTab('council');retry.current=null;setConfirmNew(false)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+  async function start(scenario='legacy',campaign_mode=scenario==='ruler_v1'?'long':'chapter'){if(startLock.current)return;startLock.current=true;setBusy(true);setError('');try{if(!window.Telegram?.WebApp.initData)await authenticate(demo);if(!save){const existing=await api<Save|null>('/campaigns/latest');if(existing){setSave(existing);return}}setSave(await api<Save>('/campaigns',{scenario,campaign_mode}));setSelected('sogut');setTab('council');retry.current=null;setConfirmNew(false)}catch(e){setError((e as Error).message)}finally{startLock.current=false;setBusy(false)}}
   async function send(kind:string,payload:Record<string,unknown>={}){
     if(!save||busy)return;setBusy(true);setError('');
     const old=retry.current;
@@ -59,6 +55,7 @@ function App(){
   const button=(label:string,kind:string,payload:Record<string,unknown>,blocked=false)=> <button disabled={disabled||blocked} onClick={()=>send(kind,payload)}>{label}</button>;
   if(!ready||!catalog)return <main className="loading"><div className="seal">◈</div><p>{error||'Хронисты открывают летопись…'}</p>{error&&<button onClick={()=>location.reload()}>Повторить</button>}</main>;
   if(state?.scenario==='ruler_v1'&&save)return <RulerApp key={save.id} initialSave={save as unknown as RulerSave} catalog={catalog} onNew={()=>start('ruler_v1')} onResume={loadCampaign}/>;
+  if(entryFailed)return <main className="loading"><h1>Не удалось открыть летопись</h1><p role="alert">{error}</p><p>Ваше сохранение не удалено. Повторите вход; если Telegram сообщает об устаревшем входе, закройте игру и откройте её кнопкой бота.</p><button className="primary" onClick={()=>location.reload()}>Повторить вход</button></main>;
   if(!state||!player)return <main className="cinematic-welcome"><div className="splash-copy"><span className="eyebrow">Анатолия · 1299 год</span><h1>Османская<br/>кампания</h1><p className="lead">Маленький бейлик.<br/>Ваше слово. Ваша история.</p><p>Слушайте людей, отвечайте на послания и ведите государство через испытания. Наставник поможет с первыми шагами.</p>{error&&<p className="error" role="alert">{error}</p>}<button className="primary" onClick={()=>start('ruler_v1')} disabled={busy||(!demo&&!window.Telegram?.WebApp.initData)}>{busy?'Открываем летопись…':'Стать правителем →'}</button><small>Пролог и обучение · время идёт только по вашему приказу</small><details><summary>Другие режимы</summary><button onClick={()=>start('ruler_v1','chapter')} disabled={busy||(!demo&&!window.Telegram?.WebApp.initData)}>Первая глава · учебная партия →</button><button onClick={()=>start()} disabled={busy||(!demo&&!window.Telegram?.WebApp.initData)}>Начать историю · прежние правила →</button></details><small>{demo?'Локальная демонстрация':'Откройте игру из Telegram'}</small></div></main>;
   const a=state.armies['ottoman-1'];
   const p=state.provinces[selected];

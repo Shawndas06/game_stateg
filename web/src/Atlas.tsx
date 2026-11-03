@@ -1,7 +1,7 @@
 import {useEffect, useId, useMemo, useRef, useState} from 'react';
 import type {Catalog} from './types';
 export type AtlasState={calendar:{year:number};capital:string;provinces:Record<string,{controller:string;fortress_level:number}>;armies:Record<string,{id:string;faction:string;location:string;troops:Record<string,number>;order:{target:string}|null}>;sieges:Record<string,unknown>};
-import {layoutPlaces, onLand, polygonPath, project, screenPoint} from './atlas-geometry';
+import {layoutPlaces, landSampler, polygonPath, project, screenPoint} from './atlas-geometry';
 import type {Geography, Point, Viewport} from './atlas-geometry';
 import './atlas.css';
 
@@ -62,6 +62,9 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
   const svg = useRef<SVGSVGElement>(null);
   const pointers = useRef(new Map<number, Point>());
   const moved = useRef(false);
+  const cameraFrame = useRef<number | null>(null);
+  const cameraDelta = useRef({x:0,y:0,zoom:1});
+  useEffect(()=>()=>{if(cameraFrame.current!==null)cancelAnimationFrame(cameraFrame.current)},[]);
   const uid = useId().replace(/:/g, '');
   const id = (name: string) => `${uid}-${name}`;
   const width = size.width, height = size.height;
@@ -102,23 +105,47 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
     return () => {document.body.style.overflow = previous; window.removeEventListener('keydown', escape)};
   }, [fullScreen]);
 
+  // Coastline geometry is independent of the camera. React only updates the
+  // surrounding transform during a gesture; the 26k vertices stay unchanged.
+  const coastlines = useMemo(() => {
+    if (!geography) return null;
+    const coordinates = {x:0,y:0,width:1,height:1};
+    return <g data-coastline="true" fillRule="evenodd" strokeLinejoin="round" pointerEvents="none">
+      {geography.land.map((poly,i)=><path key={`shore-${i}`} d={polygonPath(poly,coordinates,1,1)} fill={`url(#${id('earth')})`} stroke="#f0e3b8" strokeWidth="7" vectorEffect="non-scaling-stroke"/>)}
+      {geography.land.map((poly,i)=><path key={i} d={polygonPath(poly,coordinates,1,1)} fill={`url(#${id('earth')})`} stroke="#75846d" strokeWidth="1.15" vectorEffect="non-scaling-stroke"/>)}
+      {geography.lakes.map((poly,i)=><path key={`lake-${i}`} d={polygonPath(poly,coordinates,1,1)} fill="#a1b7a4" stroke="#728b77" strokeWidth=".8" vectorEffect="non-scaling-stroke"/>) }
+    </g>;
+  }, [geography,uid]);
+  const isLand = useMemo(() => geography ? landSampler(geography) : null, [geography]);
+
   const terrain = useMemo(() => {
-    if (!geography) return [];
+    if (!isLand) return [];
     const result: {lon: number; lat: number; kind: number; scale: number}[] = [];
     const step = view.width > 150 ? 1.3 : .14;
     const west = view.x / 20 - 10, north = 50 - view.y / 23;
     for (let row = 0; row < 35; row++) for (let col = 0; col < 42; col++) {
-      const lon = Math.floor(west / step) * step + col * step;
-      const lat = Math.ceil(north / step) * step - row * step;
+      const lon = (Math.floor(west / step) + col) * step;
+      const lat = (Math.ceil(north / step) - row) * step;
       const n = Math.abs(Math.round(lon * 113 + lat * 79)) % 101;
-      if (n > 40 || !onLand(lon, lat, geography)) continue;
+      if (n > 40 || !isLand(lon, lat)) continue;
       const mountain = (lat > 41 && lon > 6 && lon < 25) || (lat > 36 && lat < 40 && lon > 28) || (lat < 35 && lat > 30 && lon < 10);
       result.push({lon, lat, kind: mountain ? n % 3 : 3, scale: .6 + (n % 5) * .12});
     }
     return result;
-  }, [geography, Math.floor(view.x / 8), Math.floor(view.y / 8), view.width > 150]);
+  }, [isLand, Math.floor((view.x/20-10)/(view.width>150?1.3:.14)), Math.ceil((50-view.y/23)/(view.width>150?1.3:.14)), view.width > 150]);
 
-  function reset(toWorld = world, overview = false) {setWorld(toWorld); setRegion(''); setZoom(toWorld || overview ? 1 : 3); setPan([0, 0]); pointers.current.clear(); moved.current = false}
+  function flushCamera() {
+    if(cameraFrame.current!==null)cancelAnimationFrame(cameraFrame.current);
+    cameraFrame.current=null;
+    const delta=cameraDelta.current;cameraDelta.current={x:0,y:0,zoom:1};
+    if(delta.x||delta.y)setPan(p=>[Math.max(-baseCenter[0]-10,Math.min(1090-baseCenter[0],p[0]+delta.x)),Math.max(-baseCenter[1],Math.min(635-baseCenter[1],p[1]+delta.y))]);
+    if(delta.zoom!==1)setZoom(z=>Math.max(.8,Math.min(world?80:6,z*delta.zoom)));
+  }
+  function queueCamera(x=0,y=0,scale=1) {
+    cameraDelta.current.x+=x;cameraDelta.current.y+=y;cameraDelta.current.zoom*=scale;
+    if(cameraFrame.current===null)cameraFrame.current=requestAnimationFrame(flushCamera);
+  }
+  function reset(toWorld = world, overview = false) {if(cameraFrame.current!==null)cancelAnimationFrame(cameraFrame.current);cameraFrame.current=null;cameraDelta.current={x:0,y:0,zoom:1};setWorld(toWorld); setRegion(''); setZoom(toWorld || overview ? 1 : 3); setPan([0, 0]); pointers.current.clear(); moved.current = false}
   function pointerMove(e: React.PointerEvent<SVGSVGElement | HTMLDivElement>) {
     const old = pointers.current.get(e.pointerId);
     if (!old) return;
@@ -126,16 +153,17 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
     if (pointers.current.size === 1) {
       const dx = next[0] - old[0], dy = next[1] - old[1];
       if (Math.abs(dx) + Math.abs(dy) > 2) moved.current = true;
-      setPan(p => [Math.max(-baseCenter[0]-10, Math.min(1090-baseCenter[0], p[0] - dx * view.width / width)), Math.max(-baseCenter[1], Math.min(635-baseCenter[1], p[1] - dy * view.height / height))]);
+      queueCamera(-dx*view.width/width,-dy*view.height/height);
     } else {
       moved.current = true;
       const other = [...pointers.current.entries()].find(([key]) => key !== e.pointerId)![1];
       const before = Math.hypot(old[0] - other[0], old[1] - other[1]);
-      if (before > 10) setZoom(z => Math.max(.8, Math.min(world ? 80 : 6, z * Math.hypot(next[0] - other[0], next[1] - other[1]) / before)));
+      if (before > 10) queueCamera(0,0,Math.hypot(next[0]-other[0],next[1]-other[1])/before);
     }
     pointers.current.set(e.pointerId, next);
   }
   const endPointer = (e: React.PointerEvent<SVGSVGElement | HTMLDivElement>) => {
+    flushCamera();
     pointers.current.delete(e.pointerId);
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   };
@@ -172,21 +200,12 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
           <linearGradient id={id('earth')} x2=".7" y2="1"><stop stopColor="#eaddb9"/><stop offset=".5" stopColor="#e2d0a0"/><stop offset="1" stopColor="#cdbb8b"/></linearGradient>
           <radialGradient id={id('vignette')}><stop offset=".5" stopColor="#725f39" stopOpacity="0"/><stop offset="1" stopColor="#725f39" stopOpacity=".24"/></radialGradient>
           <pattern id={id('waves')} width="35" height="25" patternUnits="userSpaceOnUse"><path d="M2 9Q7 6 12 9T22 9M21 20Q26 17 31 20" fill="none" stroke="#eff2d9" strokeOpacity=".18" strokeWidth=".6"/></pattern>
-          <filter id={id('paper')} x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".6" numOctaves="3" stitchTiles="stitch" seed="12"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope=".16"/></feComponentTransfer><feBlend in="SourceGraphic" mode="multiply"/></filter>
-          <filter id={id('pin-shadow')} x="-50%" y="-60%" width="200%" height="220%"><feDropShadow dx="0" dy="2" stdDeviation="1.5" floodColor="#59472d" floodOpacity=".25"/></filter>
+          <pattern id={id('paper')} width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="2" cy="3" r=".5" fill="#675630" opacity=".12"/><circle cx="7" cy="8" r=".4" fill="#fff2c9" opacity=".22"/></pattern>
           <pattern id={id('hatch')} width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><path d="M0 0V4" stroke="#766e4a" strokeWidth=".7" opacity=".3"/></pattern>
         </defs>
         <rect width={width} height={height} fill={`url(#${id('sea')})`}/>
         <rect width={width} height={height} fill={`url(#${id('waves')})`}/>
-        {geography && <>
-          <g fill={`url(#${id('earth')})`} strokeLinejoin="round" fillRule="evenodd">
-            {geography.land.map((poly, i) => <path key={`shore-${i}`} d={polygonPath(poly, view, width, height)} stroke="#f0e3b8" strokeWidth="7"/>)}
-          </g>
-          <g fill={`url(#${id('earth')})`} stroke="#75846d" strokeWidth="1.15" strokeLinejoin="round" fillRule="evenodd">
-            {geography.land.map((poly, i) => <path key={i} d={polygonPath(poly, view, width, height)}/>)}
-          </g>
-          <g fill="#a1b7a4" stroke="#728b77" strokeWidth=".8" fillRule="evenodd">{geography.lakes.map((poly, i) => <path key={i} d={polygonPath(poly, view, width, height)}/>)}</g>
-        </>}
+        <g transform={`translate(${-view.x*width/view.width} ${-view.y*height/view.height}) scale(${width/view.width})`}>{coastlines}</g>
         <g pointerEvents="none">
           {terrain.map((item, i) => {
             const [x, y] = toScreen(item.lon, item.lat);
@@ -196,7 +215,7 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
               {item.kind === 3 ? <><ellipse cy="4" rx="13" ry="4" fill="#829367" opacity=".5"/><path d="M-8 4V-9M0 6V-6M8 3V-11" stroke="#687954" strokeWidth=".8"/><path d="M-13-1L-8-12-3-1ZM-5 1L0-9 5 1ZM3-3L8-14 13-3Z" fill="#84966c" stroke="#617c53" strokeWidth=".6"/></> : <><path d="M-19 8L-6-13 1-2 8-20 25 8" fill="#c2b081" stroke="#8d835d" strokeWidth=".8"/><path d="M-6-13L-1 8H-13ZM8-20L17 8H2Z" fill={`url(#${id('hatch')})`}/><path d="M-10-7L-6-13-1-6M3-10L8-20 14-9" fill="none" stroke="#f1e6bd" strokeWidth="1.2"/></>}
             </g>;
           })}
-          <rect width={width} height={height} fill="#9b8b59" opacity=".1" filter={`url(#${id('paper')})`}/>
+          <rect width={width} height={height} fill={`url(#${id('paper')})`}/>
           <rect width={width} height={height} fill={`url(#${id('vignette')})`}/>
         </g>
         <g className="map-geographic-labels" pointerEvents="none">
@@ -227,7 +246,7 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
             <rect className="place-hit-target" x="-46" y="-36" width="92" height="68" rx="10" fill="transparent"/>
             {active && <ellipse cy="2" rx="26" ry="14" fill="#eee0a3" stroke="#aa7836" strokeWidth="1.5"/>}
             {besieged && <ellipse cy="2" rx="29" ry="17" fill="none" stroke="#9e4834" strokeWidth="1.6" strokeDasharray="4 3"/>}
-            <g filter={`url(#${id('pin-shadow')})`} pointerEvents="none">{place.fortress_level>0 ? <Fortress large={p.id === state.capital || p.kind==='city'} port={p.port}/> : <Village/>}</g>
+            <g pointerEvents="none">{place.fortress_level>0 ? <Fortress large={p.id === state.capital || p.kind==='city'} port={p.port}/> : <Village/>}</g>
             <path d="M-3-27V-45" stroke="#665437" strokeWidth="1.1" pointerEvents="none"/>
             <path d="M-3-45Q3-48 11-44L10-35Q3-39-3-36Z" fill={color} stroke="#fff0c6" strokeWidth=".7" pointerEvents="none"/>
             {place.controller === 'ottoman' && <path d="M3-43A3 3 0 1 0 6-38A2.6 2.6 0 1 1 3-43" fill="#f8edc9" pointerEvents="none"/>}

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from campaign.engine import require, relation_key
 from campaign.ruler.core import *
-from campaign.ruler import chronicle, court
+from campaign.ruler import chronicle, court, dynasty
 from campaign.ruler.models import Person
 from campaign.ruler.civil import obligation, obligation_text, settle, command as civil_command, budget
 
@@ -33,7 +33,15 @@ SCENES = {
 CHAPTER_SCENES=dict(SCENES)
 SCENES.update(chronicle.SCENES)
 SCENES.update(court.SCENES)
+SCENES.update(dynasty.SCENES)
 SCHEDULE=[(0,'founding'),(30,'frontier_letter'),(60,'grain_offer'),(90,'service_terms'),(120,'village_petition'),(180,'quarter_accounts'),(270,'road_warning'),(360,'merchant_due'),(450,'governor_accounts'),(540,'border_proposal'),(630,'assembly_claim'),(720,'crisis')]
+
+
+def choices(s,scene):
+    if scene=='succession':
+        person=dynasty.heir(s)
+        return [(person.id,'Признать '+person.name+' и сохранить обязательства государства')] if person else []
+    return SCENES[scene][2]
 
 
 def enqueue(s: RulerState,scene: str,context: dict | None=None,deadline: int=90) -> None:
@@ -49,10 +57,13 @@ def enqueue(s: RulerState,scene: str,context: dict | None=None,deadline: int=90)
 
 def schedule(s: RulerState) -> None:
     if s.ending:return
+    dynasty.schedule(s,enqueue)
     ruler=s.people[s.ruler_id]
     if ruler.status=='dead':
-        heir=s.people.get('orhan')
-        if s.ruler_id!='orhan' and heir and heir.status!='dead':enqueue(s,'succession',deadline=36500)
+        heir=dynasty.heir(s)
+        if heir:
+            if 'succession' in s.shown:s.shown.remove('succession')
+            enqueue(s,'succession',deadline=36500)
         else:s.ending='Династия лишилась доступного наследника. Летопись завершена.'
         return
     for day,scene in SCHEDULE:
@@ -97,7 +108,8 @@ def decide(s: RulerState,d: dict) -> None:
     aid=str(d.get('agenda',''));agenda=next((a for a in s.agendas if a['id']==aid),None)
     require(agenda is not None,'Этот вопрос уже закрыт или не существует')
     scene=agenda['scene'];choice=str(d.get('choice',''));treatment=d.get('treatment','receive')
-    require(choice in dict(SCENES[scene][2]),'Такого ответа нет в этом вопросе')
+    decision_text=dict(choices(s,scene)).get(choice,'')
+    require(choice in dict(choices(s,scene)),'Такого ответа нет в этом вопросе')
     require(treatment in ['receive','gift','detain','execute'],'Неизвестное обращение с посланником')
     require(treatment=='receive' or scene in ['frontier_letter','border_proposal','grain_offer','merchant_due'],'В этом вопросе нет иностранного посланника')
     envoy=s.people.get(agenda['context'].get('envoy'))
@@ -117,7 +129,8 @@ def decide(s: RulerState,d: dict) -> None:
             if scene in ['grain_offer','merchant_due']:s.flags['merchants_offended']=True
             # Execution itself is the reply; no peaceful acceptance in the same command.
             require(choice in ['refuse','prepare','decline'],'После казни посланника нельзя отправить с ним мирное согласие')
-    if scene in court.SCENES:court.decide(s,scene,agenda['context'],choice)
+    if scene in dynasty.SCENES:dynasty.decide(s,scene,choice)
+    elif scene in court.SCENES:court.decide(s,scene,agenda['context'],choice)
     elif scene in chronicle.SCENES:chronicle.decide(s,scene,agenda['context'],choice)
     elif scene=='founding':
         s.flags['founding']=choice
@@ -205,10 +218,9 @@ def decide(s: RulerState,d: dict) -> None:
         if choice=='investigate':civil_command(s,'audit',{'province':'karacahisar'})
         elif choice=='release':civil_command(s,'transport_order',{'transport':agenda['context']['transport'],'action':'resume'})
     elif scene=='succession':
-        heir=s.people['orhan'];require(heir.status!='dead','Наследник сейчас не может принять власть')
-        if s.ruler_id=='osman' and s.rules_version>=4:
-            s.flags['accession']={'from':'osman','to':'orhan','day':s.day}
-        s.ruler_id='orhan';heir.role='ruler';record(s,'Орхан признан правителем. Договоры, долги, должности и состав войск сохранены.','succession')
+        heir=dynasty.heir(s);require(heir is not None and choice==heir.id,'Наследник сейчас не может принять власть')
+        if s.rules_version>=4:s.flags['accession']={'from':s.ruler_id,'to':heir.id,'day':s.day}
+        s.ruler_id=heir.id;heir.role='ruler';record(s,heir.name+' признан правителем. Договоры, долги, должности и состав войск сохранены.','succession')
     elif scene=='crisis':
         if choice=='settlement':
             p=owned(s,'karacahisar',True)
@@ -224,7 +236,7 @@ def decide(s: RulerState,d: dict) -> None:
         from campaign.ruler.civil import release_envoy
         release_envoy(s,envoy)
     s.shown.append(scene);s.flags['decision:'+scene]=choice;s.agendas.remove(agenda)
-    record(s,f'{SCENES[scene][0]}: {dict(SCENES[scene][2])[choice]}.','decision')
+    record(s,f'{SCENES[scene][0]}: {decision_text}.','decision')
 
 
 def council(s: RulerState,agenda: dict | None=None,topic: str='state',army_id: str | None=None) -> dict:
@@ -264,6 +276,7 @@ def council(s: RulerState,agenda: dict | None=None,topic: str='state',army_id: s
         else:text='По делам за пределами моего поручения у меня нет подтверждённых сведений.'
         text+=contextual_advice(s,agenda['scene'] if agenda else ('military' if topic=='military' else 'state'),p,agenda['context'] if agenda else {},a)
         text+=court.reaction(s,p,agenda) if s.rules_version>=4 else ''
+        if agenda:text+=dynasty.advice(s,p,agenda['scene'])
         speeches.append({'person':p.id,'name':p.name,'role':p.role,'text':text,'observed_day':s.day,'sources':evidence})
     if topic=='military' and a and a.commander not in {p.id for p in attending}:
         reports=[(k['day'],pid,data) for pid,k in s.knowledge.items() for data in k.get('armies',[]) if data['id']==a.id]
@@ -280,7 +293,7 @@ def council(s: RulerState,agenda: dict | None=None,topic: str='state',army_id: s
         if any(o['status']=='broken' for o in obligations):body='На совет предъявлены неисполненные обещания. Их получатели требуют определить порядок службы и расчётов.'
         elif war(s,'ottoman','byzantine'):body='На границе продолжается война. Беи требуют определить силы обороны и полномочия командующих.'
         else:body='Соседи и местные представители хотят закрепить признанные права и порядок исполнения распоряжений.'
-    return {'agenda':agenda['id'] if agenda else None,'title':title,'body':body,'date':calendar(s)['date'],'speeches':speeches,'choices':[{'id':cid,'text':text,'allowed_treatments':['receive','gift','detain','execute'] if cid in ['refuse','prepare','decline'] else ['receive','gift']} for cid,text in SCENES[agenda['scene']][2]] if agenda else []}
+    return {'agenda':agenda['id'] if agenda else None,'title':title,'body':body,'date':calendar(s)['date'],'speeches':speeches,'choices':[{'id':cid,'text':text,'allowed_treatments':['receive','gift','detain','execute'] if cid in ['refuse','prepare','decline'] else ['receive','gift']} for cid,text in choices(s,agenda['scene'])] if agenda else []}
 
 
 def contextual_advice(s: RulerState,scene: str,person,context: dict,army) -> str:

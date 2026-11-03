@@ -54,8 +54,8 @@ def run(bt,width,url,db_url,prefix,out):
     page.reload();expect(page.get_by_test_id('prologue')).to_have_count(0)
     page.get_by_role('button',name='Пропустить обучение',exact=True).click()
     page.screenshot(path=str(out/f'{bt.name}-{width}-adviser.png'),full_page=True);fits()
-    for tab,title in [('Атлас','Посмотрите, чем вы управляете'),('Войско','Армии нужен понятный приказ'),('Держава','Выберите одно дело'),('Летопись','Вспомните прежние решения')]:
-        page.get_by_role('button',name=tab,exact=True).click();expect(page.get_by_role('heading',name=title,exact=True)).to_be_visible();fits()
+    for tab,title in [('Атлас','Атлас державы'),('Войско','Войско'),('Держава','Держава'),('Летопись','Летопись и люди')]:
+        page.get_by_role('button',name=tab,exact=True).click();expect(page.get_by_role('heading',name=title,exact=True)).to_be_visible();expect(page.locator('.adviser')).to_have_count(0);fits()
     assert state()['revision']==after['revision'],'Media or navigation changed the campaign'
     # A complete, lawful prefix is restored solely to save repeating its commands
     # through each browser. No death, date, troops or scene is manufactured.
@@ -75,9 +75,9 @@ def run(bt,width,url,db_url,prefix,out):
     page.locator('video').evaluate('(v)=>new Promise(ok=>{v.pause();v.addEventListener("seeked",ok,{once:true});v.currentTime=10})');page.screenshot(path=str(out/f'{bt.name}-{width}-film.png'));fits()
     page.reload();expect(page.get_by_role('dialog')).to_be_visible()
     page.get_by_role('button',name='Пропустить видео',exact=True).click();page.reload();expect(page.get_by_role('dialog')).to_have_count(0)
-    page.get_by_role('button',name='Летопись',exact=True).click();page.get_by_role('button',name='Смотреть передачу власти Орхану',exact=True).click()
+    page.get_by_role('button',name='Летопись',exact=True).click();page.get_by_role('button',name='Вспомнить передачу власти',exact=True).click()
     expect(page.get_by_role('dialog')).to_be_visible();page.keyboard.press('Escape');expect(page.get_by_role('dialog')).to_have_count(0)
-    page.get_by_role('button',name='Смотреть передачу власти Орхану',exact=True).click()
+    page.get_by_role('button',name='Вспомнить передачу власти',exact=True).click()
     page.locator('video').evaluate('(v)=>new Promise(ok=>{v.addEventListener("loadedmetadata",ok,{once:true});if(v.readyState>=1)ok()})')
     page.locator('video').evaluate('(v)=>{v.currentTime=v.duration-0.3}')
     page.get_by_role('button',name='Начать просмотр',exact=True).click();expect(page.get_by_role('dialog')).to_have_count(0)
@@ -88,6 +88,25 @@ def run(bt,width,url,db_url,prefix,out):
     for clip,duration in clips.items():
         actual=page.evaluate("async src=>{const a=new Audio();a.preload='metadata';return await new Promise((ok,no)=>{a.onloadedmetadata=()=>ok(a.duration);a.onerror=()=>no(Error(src));a.src=src})}",f'/media/voice/{clip}.mp3')
         assert abs(actual-duration)<0.3,(clip,actual,duration)
+    # Reached by the 1299->1362 recorded walk; only browser preferences are set.
+    from campaign.ruler.models import RulerState
+    dynasty=json.loads(Path('/tmp/dynasty-acceptance.json').read_text())
+    later=RulerState.from_dict(dynasty['prefixes']['orhan_handover'])
+    created=store.create(owner,later.seed,'ruler_v1','long')
+    with store.session.begin() as db:
+        row=db.get(CampaignRow,created['id']);row.snapshot=later.to_dict();row.revision=later.revision
+        db.execute(delete(ArchiveRow).where(ArchiveRow.campaign==created['id']));store._archive(db,created['id'],later.reports)
+    if later.flags.get('accession'):
+        page.evaluate("key=>localStorage.setItem(key,'seen')",f"accession:{created['id']}:{later.flags['accession']['day']}")
+    page.reload()
+    agenda=next(a for a in later.agendas if a['scene']=='orhan_handover')
+    page.locator(f'[data-agenda="{agenda["id"]}"]').click()
+    page.locator('[data-choice=handover]').click()
+    expect(page.get_by_role('heading',name='Мурад принимает державу',exact=True)).to_be_visible();fits()
+    assert state()['ruler_id']=='murad' and state()['gold']==later.gold
+    page.screenshot(path=str(out/f'{bt.name}-{width}-murad.png'))
+    page.get_by_role('button',name='К совету Мурада',exact=False).click()
+    page.reload();expect(page.get_by_role('dialog')).to_have_count(0)
     assert not errors,errors
     print(f'PASS media {bt.name}{width}: consent/audio, three prologue cards, refresh, adviser context, lawful accession day{old["day"]}, decoded MP4, skip/replay and {len(clips)} MP3s',flush=True)
     store.engine.dispose();ctx.close();browser.close()
