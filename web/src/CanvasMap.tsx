@@ -26,6 +26,7 @@ export default function CanvasMap(props:Props){
   const controller=new AbortController(),abort=()=>controller.abort(),leave=(event:PageTransitionEvent)=>{if(!event.persisted)abort()};window.addEventListener('beforeunload',abort);window.addEventListener('pagehide',leave);
   const area=root.current!,surface=canvas.current!,ctx=surface.getContext('2d')!;let live=true,frame=0,w=1,h=1,geo:ReturnType<typeof paths>|null=null;
   let terrain:HTMLCanvasElement|null=null,terrainView:Viewport|null=null;let clearances:number[]=[],refineFocus:string|null=null;
+  const seaEdges=new Set(catalog.route_details.filter(r=>r.kind!=='land').map(r=>[r.from,r.to].sort().join(':')));
   const symbols=new Map<string,HTMLCanvasElement>(),points=catalog.places.map((p,index)=>({...p,index,point:project(p.lon,p.lat)}));
   let lookup=hitIndex([]),active=false,dragged=false,lastFrame=0;const frames:number[]=[];const fingers=new Map<number,Point>();let last:Point=[0,0],start:Point=[0,0],distance=0;
   const persist=()=>remember('camera:'+campaign,JSON.stringify(camera.current));
@@ -43,7 +44,7 @@ export default function CanvasMap(props:Props){
    }
    const origin=at([terrainView.x,terrainView.y],v,w,h);ctx.drawImage(terrain,...origin,terrainView.width/v.width*w,terrainView.height/v.height*h);
    const indexed=new Map(points.map(x=>[x.id,x]));ctx.lineWidth=1;ctx.strokeStyle='#9e8d65';
-   for(const [a,b] of catalog.roads){const p1=indexed.get(a),p2=indexed.get(b);if(!p1||!p2)continue;const [x,y]=at(p1.point,v,w,h),[xx,yy]=at(p2.point,v,w,h);if(Math.max(x,xx)<0||Math.min(x,xx)>w||Math.max(y,yy)<0||Math.min(y,yy)>h)continue;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(xx,yy);ctx.stroke()}
+   for(const [a,b] of catalog.roads){const p1=indexed.get(a),p2=indexed.get(b);if(!p1||!p2)continue;const [x,y]=at(p1.point,v,w,h),[xx,yy]=at(p2.point,v,w,h);if(Math.max(x,xx)<0||Math.min(x,xx)>w||Math.max(y,yy)<0||Math.min(y,yy)>h)continue;const water=seaEdges.has([a,b].sort().join(':'));ctx.strokeStyle=water?'#527e8c':'#9e8d65';ctx.setLineDash(water?[5,5]:[]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(xx,yy);ctx.stroke()}ctx.setLineDash([]);
    const visible:Hit[]=[],occupied=new Set<string>();const ordered=[...points].sort((a,b)=>Number(a.id===p.selected)-Number(b.id===p.selected));
    for(const place of ordered){const [x,y]=at(place.point,v,w,h);if(x<-40||x>w+40||y<-40||y>h+40)continue;const province=p.state.provinces[place.id];if(!province)continue;
     const chosen=place.id===p.selected;const cell=`${Math.floor(x/56)},${Math.floor(y/48)}`;const detailed=v.width<260;const label=chosen||detailed&&!occupied.has(cell);occupied.add(cell);

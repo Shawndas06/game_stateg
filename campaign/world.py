@@ -212,6 +212,9 @@ SEA_CHAINS = [
     "smyrna athens patras bari", "antalya rhodes candia athens", "alanya famagusta latakia",
     "taranto messina palermo cagliari mallorca valencia", "genoa_city cagliari tunis",
     "marseille barcelona", "malaga tangier", "alexandria famagusta", "galata sinop",
+    # New open-water links; do not replace coastal roads or strait ferries.
+    "mudanya constantinople nicomedia", "cius constantinople",
+    "mudanya gallipoli smyrna", "lapseki smyrna",
 ]
 
 REGIONS = [
