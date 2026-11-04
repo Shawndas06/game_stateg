@@ -1,0 +1,2 @@
+const shapes:Record<string,string>={court:'M4 20h16M6 20V9l6-5 6 5v11M10 20v-6h4v6M9 10h6',map:'m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2Zm6-2v16m6-14v16',army:'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6ZM9 10l6 5m0-5-6 5',state:'M3 10h18M5 10v9m7-9v9m7-9v9M3 21h18M3 7l9-4 9 4',archive:'M4 4h7l1 2 1-2h7v15h-7l-1 2-1-2H4ZM12 6v15'};
+export default function NavIcon({name}:{name:string}){return <svg aria-hidden="true" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={shapes[name]}/></svg>}

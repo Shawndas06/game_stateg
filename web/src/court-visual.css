@@ -1,0 +1,76 @@
+/* A readable court: one scene, one current matter, then the working papers. */
+.ruler-app{--paper:#fffcf5;--line:#dfd8c8;background:#f1eee5;color:#243e34}
+.ruler-app .header{background:#102e28;border-bottom:1px solid #b59a5e55}
+.ruler-app .content{max-width:880px}
+.ruler-app .ruler-toolbar{background:#f1eee5;backdrop-filter:none;margin-bottom:18px;padding:10px 0}
+.ruler-app .ruler-toolbar small{font-size:11px}
+.campaign-brief{overflow:hidden;border-radius:16px;background:#183d31;color:#fff5d7;margin:0 0 20px;box-shadow:0 8px 24px #20362914}
+.brief-scene{padding:26px 24px 20px;background:linear-gradient(90deg,#17382ff5,#17382fc9 65%,#17382f66),url('/media/cover.webp') center 43%/cover}
+.brief-scene .eyebrow,.brief-current .eyebrow{font-size:10px;color:#dcc18a;letter-spacing:1.4px}
+.brief-scene h1{color:#fff6dc;font:28px/1.25 Prata,Georgia,serif;margin:8px 0 12px;max-width:550px}
+.brief-scene>p{font-size:14px;line-height:1.6;color:#e0e3d0;margin:0;max-width:600px}
+.reign-facts{display:flex;gap:22px;flex-wrap:wrap;margin-top:20px;font-size:11px;color:#c8d1bf}
+.reign-facts b{font-size:20px;color:#fff4d4;font-variant-numeric:tabular-nums;margin-right:4px}
+.brief-current{padding:18px 24px;background:#102c25;border-top:1px solid #e6ca8b33}
+.brief-current>strong{display:block;font-size:17px;line-height:1.4}.brief-current>p{font-size:12px;line-height:1.6;color:#c1cebc;margin:7px 0 14px}
+.brief-current button{display:flex;justify-content:space-between;align-items:center;gap:16px;width:100%;background:#e4c58c;color:#18392d;border:1px solid #e4c58c;font-size:15px;font-weight:700;min-height:48px}
+.brief-current button span{font-size:24px;line-height:1}
+.ruler-app .card{box-shadow:0 3px 12px #183c2f06;border-color:#ddd7c7;border-radius:14px}
+.ruler-app .ruler-council{border-top:3px solid #b68d4a;background:linear-gradient(145deg,#fffdf7,#f7f3e7)}
+.ruler-app .ruler-council>h2{font-size:27px;line-height:1.35;margin-top:12px}
+.ruler-app .ruler-council>p{font:16px/1.75 Georgia,serif;color:#465647}
+.ruler-app .ruler-decisions{counter-reset:decision}
+.ruler-app .ruler-decisions>button{counter-increment:decision;display:flex;gap:12px;align-items:flex-start;min-height:66px;background:#fffdf6;border-color:#cbd1be;padding:16px;text-align:left}
+.ruler-app .ruler-decisions>button::before{content:counter(decision,decimal-leading-zero);font:16px Georgia,serif;color:#9a753c;flex:0 0 24px;padding-top:3px}
+.ruler-app .ruler-decisions>button:hover:not(:disabled){background:#e8eee0;border-color:#607a57}
+.ruler-app .ruler-decisions strong{font-size:15px;line-height:1.55;color:#294c36}
+.ruler-app .decision-heading p{font-size:13px;line-height:1.6}
+.ruler-app .ruler-inbox button{border-radius:10px;background:#faf7ec;min-height:62px}
+.ruler-app .ruler-inbox [aria-pressed=true]{border-left:4px solid #9c763c;background:#e7eadb}
+.ruler-app .ruler-report{border-color:#ddd9ca;padding:18px 0}
+.ruler-app .ruler-report p{font-size:14px;line-height:1.7}
+.ruler-app .ruler-report>small{font-size:11px;color:#697461}
+.ruler-app .ruler-next-step{background:#e9e9dc;padding:0 14px;border-radius:10px;margin:10px 0 18px}
+.ruler-app .ruler-next-step>summary{font-size:14px;min-height:46px}
+.ruler-app .ruler-next-step[open]{padding-bottom:14px}
+.ruler-app .section-hint{font-size:13px;line-height:1.65}
+.ruler-app .task-tabs{gap:7px;margin-bottom:18px}
+.ruler-app .task-tabs button{min-height:46px;border-radius:9px;font-size:13px}
+.ruler-app .ruler-army-list button{border-radius:10px;min-height:65px;background:#faf7ec}
+.ruler-app .ruler-army-list [aria-pressed=true]{background:#e1e8d5;border-color:#72865e}
+.ruler-app [data-testid=selected-army]{border-top:3px solid #6c825b}
+.ruler-app .metrics{background:#efeedf;border:0;border-radius:10px;padding:16px 10px}
+.ruler-app .metrics span{font-size:11px}.ruler-app .metrics b{font-size:21px}
+.ruler-app .ruler-deed{background:#f5edda;border-left-color:#aa7e3e}
+.ruler-app .place-list [aria-pressed=true]{background:#244c3b;color:#fff8e6;border-color:#244c3b}
+.ruler-app .advisor-help-button{width:auto;max-width:100%;font-size:13px;min-height:42px;background:transparent;border-color:#a9b49b;margin:0 0 16px}
+.ruler-app .advisor-explanation.error{display:block}.ruler-app .advisor-explanation.error button{min-height:44px;padding:8px 14px}
+.ruler-app .bottom-nav{background:#fffcf4;box-shadow:0 -3px 18px #20352b0c;border-top-color:#d4d6c5}
+.ruler-app .bottom-nav button{font-size:12px;color:#63725e}.ruler-app .bottom-nav .active{color:#1b4a35;background:#e5ebdb;border-top-color:#8b6c39}
+.ruler-app .bottom-nav svg{width:23px;height:23px}
+@media(min-width:800px){.campaign-brief{display:grid;grid-template-columns:1.2fr 1fr}.brief-current{border-top:0;border-left:1px solid #e6ca8b33;display:flex;flex-direction:column;justify-content:center}.brief-scene{padding:30px}.brief-current button{margin-top:auto}.ruler-app .content{padding-inline:32px}}
+@media(max-width:360px){.brief-scene{padding:22px 18px 16px}.brief-scene h1{font-size:24px}.brief-current{padding:16px 18px}.reign-facts{gap:14px}.ruler-app .ruler-council>h2{font-size:24px}.ruler-app .ruler-decisions strong{font-size:14px}}
+.ruler-app .play-guide{background:#e7ecde;border:1px solid #b5c2a5;border-left:3px solid #72845d;padding:16px;margin-bottom:20px}
+.ruler-app .play-guide h2{font-size:20px;margin-bottom:10px}
+.ruler-app .play-guide p{font-size:14px;line-height:1.65;margin-bottom:14px}
+.guide-heading img{width:36px;height:44px;object-fit:cover;object-position:center 20%;border-radius:7px}
+.ruler-app .guide-heading{gap:10px}.guide-heading>.eyebrow{flex:1;font-size:10px}
+.ruler-app .play-guide .guide-voice{border:0;margin:10px 0 0;padding:0}
+.ruler-app .guide-voice summary{font-size:12px;min-height:36px}
+.ruler-app .adviser{background:#e8e8da;border-color:#c8cfb9}
+.ruler-app .adviser h2{font-size:22px}.ruler-app .adviser .intro-actions{display:grid;grid-template-columns:1fr}
+.dispatch-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:11px}
+.dispatch-meta>span{color:#6c5837;background:#eee7d5;border-radius:5px;padding:4px 7px;font-weight:650}
+.dispatch-meta time{color:#697461;font-size:11px}
+.ruler-app .dispatch>p{margin:12px 0 8px}
+.ruler-app .dispatch>small{font-size:10px}
+.dispatch[data-kind=battle] .dispatch-meta>span,.dispatch[data-kind=obstruction] .dispatch-meta>span{background:#f0e1d6;color:#804d36}
+.dispatch[data-kind=delivery] .dispatch-meta>span,.dispatch[data-kind=mission_complete] .dispatch-meta>span{background:#e2ead9;color:#3d633e}
+.ruler-app .pending-work{margin:0 0 18px;padding:0 16px;background:#eae8db}
+.ruler-app .pending-work>summary{min-height:48px;font-size:13px}.ruler-app .pending-work .notice{margin-bottom:14px}
+.ruler-app .button-grid button{font-size:13px;min-height:46px}
+.ruler-app .ruler-form label,.ruler-app .ruler-field{font-size:12px}
+.ruler-app .ruler-form select,.ruler-app .ruler-field select,.ruler-app input[type=number]{font-size:14px}
+.ruler-app .ruler-feedback{position:static;transform:none;width:100%;margin:0 0 16px;padding:12px 14px;background:#e3ebdb;color:#294a34;border:1px solid #acbd9d;box-shadow:none;font-size:13px}
+.ruler-app .ruler-feedback button{color:#294a34;min-height:40px;min-width:40px}
+.campaign-brief.brief-intro{display:block}.brief-intro .brief-scene{padding:20px 24px}.brief-intro h1{font-size:24px}

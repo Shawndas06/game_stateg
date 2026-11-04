@@ -15,10 +15,11 @@ from playwright.sync_api import expect, sync_playwright
 
 def run(browser_type, width, url, out):
     browser=browser_type.launch()
-    context=browser.new_context(viewport={'width':width,'height':844},is_mobile=width<800,has_touch=width<800)
-    page=context.new_page();errors=[];commands=[]
+    context=browser.new_context(viewport={'width':width,'height':740 if width==320 else 844},is_mobile=width<800,has_touch=width<800)
+    page=context.new_page();errors=[];commands=[];external_fonts=[]
     page.on('pageerror',lambda e:errors.append(str(e)))
     page.on('request',lambda r:commands.append(r.post_data_json) if '/commands' in r.url and r.method=='POST' else None)
+    page.on('request',lambda r:external_fonts.append(r.url) if 'fonts.googleapis.com' in r.url or 'fonts.gstatic.com' in r.url else None)
     def state():return page.request.get(url+'/api/campaigns/latest').json()['state']
     def nav(name):
         page.get_by_role('button',name=name,exact=True).click()
@@ -42,7 +43,19 @@ def run(browser_type, width, url, out):
         for value in valid:
             field.fill(value);expect(field).to_have_attribute('aria-invalid','false')
             for name in buttons:expect(page.get_by_role('button',name=name,exact=True)).to_be_enabled()
-    page.goto(url);page.get_by_role('button',name='Стать правителем',exact=False).click();page.get_by_role('button',name='Пропустить пролог',exact=True).click();stage('welcome')
+    page.goto(url)
+    expect(page.get_by_role('button',name='Стать правителем',exact=False)).to_be_visible()
+    for family in ['manrope','prata']:
+        response=page.request.get(url+f'/media/fonts/{family}-cyrillic.woff2')
+        assert response.status==200 and response.body()[:4]==b'wOF2','Font route must return actual WOFF2 bytes'
+    loaded=page.evaluate('async()=>{await Promise.all([document.fonts.load("20px Prata","Осман"),document.fonts.load("14px Manrope","Осман")]);await document.fonts.ready;return [...document.fonts].filter(f=>f.status==="loaded").map(f=>f.family.replaceAll("\\\"",""))}')
+    assert 'Manrope' in loaded and 'Prata' in loaded,loaded
+    page.get_by_role('button',name='Стать правителем',exact=False).click();page.get_by_role('button',name='Пропустить пролог',exact=True).click();stage('welcome')
+    expect(page.get_by_role('heading',name=state()['chapter']['name'],exact=True)).to_be_visible()
+    start=page.get_by_role('button',name='Начать обучение',exact=True)
+    box=start.bounding_box();nav_box=page.locator('.bottom-nav').bounding_box()
+    assert box['y']>=0 and box['y']+box['height']<=nav_box['y'],'The first learning action must fit above navigation without scrolling'
+    assert start.evaluate('(el)=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}')
     revision=state()['revision']
     page.get_by_role('button',name='Пропустить обучение',exact=True).click()
     page.reload();expect(page.locator('[data-guide-stage]')).to_have_count(0)
@@ -56,6 +69,10 @@ def run(browser_type, width, url, out):
     assert state()['revision']==revision and state()['day']==0,'Teaching changed the simulation'
     page.screenshot(path=str(out/f'{browser_type.name}-{width}-first-advice.png'),full_page=True)
     page.screenshot(path=str(out/f'{browser_type.name}-{width}-first-viewport.png'))
+    before=state()
+    opened=act(lambda:page.get_by_role('button',name='К вопросу совета',exact=True).click())
+    assert opened['council']['agenda']==before['agendas'][0]['id']
+    assert opened['day']==before['day'] and opened['gold']==before['gold']
     page.get_by_role('button',name='Читать вопрос и мнения',exact=False).click()
     box=page.locator('[data-testid=ruler-council]').bounding_box();assert 90<=box['y']<250,box
     page.locator('.ruler-speech-group > summary').click()
@@ -64,7 +81,12 @@ def run(browser_type, width, url, out):
         if speech.get_attribute('open') is None:speech.locator('summary').click()
         expect(speech.locator('p')).to_be_visible();assert len(speech.locator('p').inner_text())>20
     page.get_by_role('button',name='Перейти к решению',exact=False).click()
-    act(lambda:page.locator('[data-choice="stewardship"]').click())
+    for choice in page.locator('[data-choice]').all():
+        choice.evaluate('(el)=>el.scrollIntoView({block:"center"})')
+        assert choice.evaluate('(el)=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}'),'A status message or toolbar covers a decision'
+    gold=state()['gold']
+    decided=act(lambda:page.locator('[data-choice="stewardship"]').click())
+    assert decided['gold']==gold-25,'The first choice must actually pay once'
     page.get_by_role('button',name='Дальше: ваши владения',exact=False).click();stage('map')
     page.get_by_label('Поиск поселения',exact=True).fill('Сёгют')
     page.locator('[data-search-place="sogut"]').click()
@@ -111,15 +133,24 @@ def run(browser_type, width, url, out):
     after=act(lambda:page.get_by_role('button',name='Начать подготовку',exact=True).click())
     assert after['provinces']['sogut']['training'][0]['count']==2
     nav('Держава')
-    for title,heading in [('Назначения','Назначения и местные правила'),('Строительство','Службы и учреждения'),('Дипломатия','Соседние государства'),('Казна','Счета казны'),('Торговля','Запасы и торговые сделки')]:
+    for title,heading in [('Назначения','Назначения и местные правила'),('Строительство','Строительство и службы'),('Дипломатия','Соседние государства'),('Казна','Счета казны'),('Торговля','Запасы и торговые сделки')]:
         page.get_by_role('tab',name=title,exact=True).click()
         expect(page.get_by_role('heading',name=heading,exact=True)).to_be_visible()
         assert page.get_by_role('tabpanel').count()==1
         if title=='Строительство':
+            page.get_by_role('button',name='Подготовить службы для крепости',exact=True).click()
+            expect(page.locator('#institution-builders')).to_contain_text('Земельный учёт')
+            expect(page.locator('#institution-builders button').last).to_be_disabled()
+            page.locator('#institution-builders').get_by_role('button',name='Показать нужную службу').click()
+            expect(page.locator('#institution-land_register')).to_be_in_viewport()
+            expect(page.locator('#institution-land_register')).to_contain_text('Служба писцов')
             page.get_by_label('Владение для строительства',exact=True).select_option('domanic')
             expect(page.get_by_label('Владение для строительства',exact=True)).to_have_value('domanic')
-            ordered=act(lambda:page.get_by_role('button',name='Зернохранилище · 60 ◈',exact=True).click())
+            ordered=act(lambda:page.get_by_role('button',name='Зернохранилище · 60 монет',exact=True).click())
             assert any(e['kind']=='construction' and e['province']=='domanic' for e in ordered['pending_edicts'])
+            expect(page.locator('[data-building=granary]')).to_contain_text('уже в пути')
+            expect(page.locator('[data-building=granary] button')).to_be_disabled()
+            page.screenshot(path=str(out/f'{browser_type.name}-{width}-building.png'),full_page=True)
     page.get_by_label('Место торговой сделки',exact=True).select_option('sogut')
     expect(page.get_by_label('Торговый груз',exact=True)).to_have_value('400')
     matrix('Торговый груз',['Заказать продовольствие','Согласовать проезд'],['','0','-100','100.5','150','2100'],['100','2000'])
@@ -137,6 +168,7 @@ def run(browser_type, width, url, out):
         nav(title);page.screenshot(path=str(out/f'{browser_type.name}-{width}-{title}.png'),full_page=True)
     assert page.locator('.season-bar').count()==0
     assert not errors,errors
+    assert not external_fonts,'Interface fonts must be served by the game itself'
     print(f'PASS UX {browser_type.name}{width}: guided real decision/time/report; skip/restart/reload; numeric matrix and persisted hiring/trade; task navigation',flush=True)
     context.close();browser.close()
 
