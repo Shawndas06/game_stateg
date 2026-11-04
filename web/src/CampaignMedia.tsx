@@ -39,7 +39,7 @@ export function adviserClip(s:RulerState,tab:string,stage:GuideStage):Clip{
 
 export function Adviser({state,tab,stage,onStart,onDismiss}:{state:RulerState;tab:string;stage:GuideStage;onStart:()=>void;onDismiss:()=>void}){
  const clip=adviserClip(state,tab,stage),active=!['welcome','done','dismissed'].includes(stage);
- return <aside className={`adviser ${active?'adviser-compact':''}`} aria-label="Совет наставника" {...(stage==='welcome'?{'data-guide-stage':'welcome'}:{})}><img src="/media/advisor.webp" alt="Салих, наставник игрока" width="72" height="96"/><div><span className="eyebrow">Салих · наставник</span><h2>{lines[clip].title}</h2>{!active&&<p>{lines[clip].text}</p>}<Voice clip={clip}/>{stage==='welcome'&&<div className="intro-actions"><button className="primary" onClick={onStart}>Начать обучение</button><button aria-label="Пропустить обучение" onClick={onDismiss}>Разберусь сам</button></div>}</div></aside>;
+ return <aside className={`adviser ${active?'adviser-compact':''}`} aria-label="Совет наставника" {...(stage==='welcome'?{'data-guide-stage':'welcome'}:{})}><img src="/media/advisor.webp" alt="Салих, наставник игрока" width="72" height="96"/><div><span className="eyebrow">Салих · наставник</span><h2>{lines[clip].title}</h2>{stage==='welcome'&&<div className="intro-actions"><button className="primary" onClick={onStart}>Начать обучение</button><button aria-label="Пропустить обучение" onClick={onDismiss}>Разберусь сам</button></div>}{!active&&<p>{lines[clip].text}</p>}<Voice clip={clip}/></div></aside>;
 }
 
 export function AccessionFilm({state,onClose}:{state:RulerState;onClose:()=>void}){

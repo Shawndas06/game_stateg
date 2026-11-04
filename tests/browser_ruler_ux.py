@@ -15,7 +15,7 @@ from playwright.sync_api import expect, sync_playwright
 
 def run(browser_type, width, url, out):
     browser=browser_type.launch()
-    context=browser.new_context(viewport={'width':width,'height':844},is_mobile=width<800,has_touch=width<800)
+    context=browser.new_context(viewport={'width':width,'height':740 if width==320 else 844},is_mobile=width<800,has_touch=width<800)
     page=context.new_page();errors=[];commands=[];external_fonts=[]
     page.on('pageerror',lambda e:errors.append(str(e)))
     page.on('request',lambda r:commands.append(r.post_data_json) if '/commands' in r.url and r.method=='POST' else None)
@@ -52,6 +52,10 @@ def run(browser_type, width, url, out):
     assert 'Manrope' in loaded and 'Prata' in loaded,loaded
     page.get_by_role('button',name='Стать правителем',exact=False).click();page.get_by_role('button',name='Пропустить пролог',exact=True).click();stage('welcome')
     expect(page.get_by_role('heading',name=state()['chapter']['name'],exact=True)).to_be_visible()
+    start=page.get_by_role('button',name='Начать обучение',exact=True)
+    box=start.bounding_box();nav_box=page.locator('.bottom-nav').bounding_box()
+    assert box['y']>=0 and box['y']+box['height']<=nav_box['y'],'The first learning action must fit above navigation without scrolling'
+    assert start.evaluate('(el)=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}')
     revision=state()['revision']
     page.get_by_role('button',name='Пропустить обучение',exact=True).click()
     page.reload();expect(page.locator('[data-guide-stage]')).to_have_count(0)
