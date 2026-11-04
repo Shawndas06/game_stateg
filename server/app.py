@@ -47,7 +47,7 @@ class CreateCampaign(BaseModel):
 class Command(BaseModel):
     command_id: str = Field(pattern=r"^[a-zA-Z0-9_-]{8,64}$")
     revision: int = Field(ge=0, strict=True)
-    kind: Literal["choose", "recruit", "mobilize", "move", "retreat", "siege_mode", "build", "equip", "research", "pause_research", "reform", "diplomacy", "integrate", "end_turn", "found_fortress", "repair_walls", "decide", "consult", "advance", "raise", "form_army", "transfer", "split_army", "merge_armies", "lead", "appoint_commander", "mission", "recall", "provision", "requisition", "appoint", "policy", "grant", "revoke_grant", "audit", "fulfil", "trade", "transport_order", "institution", "construction", "ransom", "release_envoy", "demobilize", "trade_reparation", "continue_campaign", "summon", "begin_reign"]
+    kind: Literal["choose", "recruit", "mobilize", "move", "retreat", "siege_mode", "build", "equip", "research", "pause_research", "reform", "diplomacy", "integrate", "end_turn", "found_fortress", "repair_walls", "decide", "consult", "advance", "raise", "form_army", "transfer", "split_army", "merge_armies", "lead", "appoint_commander", "mission", "recall", "provision", "requisition", "appoint", "policy", "grant", "revoke_grant", "audit", "fulfil", "trade", "transport_order", "institution", "construction", "ransom", "release_envoy", "demobilize", "trade_reparation", "continue_campaign", "summon", "begin_reign", "tactical_mode", "battle_deploy", "battle_step", "battle_delegate", "battle_retreat"]
     payload: dict = Field(default_factory=dict)
 
 

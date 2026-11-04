@@ -238,7 +238,9 @@ def occupy(s: RulerState,pid: str,forces: list[Army]) -> None:
                 s.places[a.location].reserve+=a.size;s.places[a.location].grain+=a.grain;a.grain=0;a.cohorts=[];a.travel=None;a.mission=None
 
 
-def _battle(s: RulerState,pid: str,attackers: list[Army],defenders: list[Army]) -> bool:
+def _battle(s: RulerState,pid: str,attackers: list[Army],defenders: list[Army],automatic: bool=False) -> bool | None:
+    from campaign.ruler import tactics
+    if not automatic and tactics.begin(s,pid,attackers,defenders):return None
     ap=sum(effective_power(s,a) for a in attackers);dp=sum(effective_power(s,a) for a in defenders)
     success=ap>=dp
     for group,rate in [(attackers,.15 if success else .30),(defenders,.35 if success else .12)]:
@@ -248,14 +250,12 @@ def _battle(s: RulerState,pid: str,attackers: list[Army],defenders: list[Army]) 
                 p=s.people[a.commander];p.experience['battle']=p.experience.get('battle',0)+1;p.skills['command']=min(90,p.skills['command']+1)
     losers=defenders if success else attackers
     for a in losers:
-        homes=[p for p in s.places.values() if p.controller==a.faction and p.id!=pid]
-        if homes:
-            home=min(homes,key=lambda p: len(route(s,pid,p.id,a.faction) or [None]*10000))
-            a.location=pid;a.travel=None
-            path=route(s,pid,home.id,a.faction,hostile_end=False)
-            if path:a.travel={'path':path,'left':duration(pid,path[0]),'retreat':True}
-        else:
-            losses(a.cohorts,a.size)
+        paths=[path for p in s.places.values() if p.controller==a.faction and p.id!=pid
+               if (path:=route(s,pid,p.id,a.faction,hostile_end=False))]
+        a.location=pid;a.travel=None
+        if paths:
+            path=min(paths,key=len);a.travel={'path':path,'left':duration(pid,path[0]),'retreat':True}
+        else:losses(a.cohorts,a.size)
         if a.mission:a.mission['status']='awaiting'
     if any(a.faction=='ottoman' for a in attackers+defenders):record(s,f'Полевое сражение у {name(pid)}: '+('наступающие удержали поле.' if success else 'наступление остановлено.'),'battle')
     return success
@@ -264,9 +264,15 @@ def _battle(s: RulerState,pid: str,attackers: list[Army],defenders: list[Army]) 
 def tick(s: RulerState) -> None:
     repair_leadership(s)
     arrivals: dict[str,list[Army]]={}
+    if s.flags.get('tactical_mode'):
+        # An interrupted tick must not lose simultaneous encounters elsewhere.
+        for a in s.armies.values():
+            if a.size and not (a.travel and a.travel.get('retreat')) and any(e.size and e.location==a.location and war(s,a.faction,e.faction) and not(e.travel and e.travel.get('retreat')) for e in s.armies.values()):
+                arrivals.setdefault(a.location,[]).append(a)
+    engaged={a.id for group in arrivals.values() for a in group}
     for a in list(s.armies.values()):
         if not a.size:continue
-        if a.travel:
+        if a.travel and a.id not in engaged:
             a.travel['left']-=1
             if a.travel['left']>0:continue
             dest=a.travel['path'][0]
@@ -310,7 +316,10 @@ def tick(s: RulerState) -> None:
             attackers=[a for a in incoming if a.faction==actor and a.size and not(a.travel and a.travel.get('retreat'))]
             enemies=[a for a in present if war(s,actor,a.faction) and a not in attackers and not(a.travel and a.travel.get('retreat')) and tuple(sorted([actor,a.faction])) not in resolved]
             for e in enemies:resolved.add(tuple(sorted([actor,e.faction])))
-            if attackers and enemies and not _battle(s,pid,attackers,enemies):continue
+            if attackers and enemies:
+                success=_battle(s,pid,attackers,enemies)
+                if success is None:return
+                if not success:continue
             if not attackers or any(a.travel and a.travel.get('retreat') for a in attackers):continue
             p=s.places[pid]
             if p.controller!=actor and war(s,actor,p.controller):
@@ -329,7 +338,7 @@ def tick(s: RulerState) -> None:
         if not forces or not war(s,sg['faction'],p.controller):del s.sieges[pid];continue
         defending_fields=[a for a in s.armies.values() if a.location==pid and a.size and a.faction==p.controller and not a.travel]
         if defending_fields:
-            _battle(s,pid,forces,defending_fields)
+            if _battle(s,pid,forces,defending_fields) is None:return
             sg['armies']=[a.id for a in forces if a.size and not a.travel]
             forces=[s.armies[x] for x in sg['armies']]
             if not forces:del s.sieges[pid];continue
@@ -362,7 +371,7 @@ def tick(s: RulerState) -> None:
         if not a.size or a.travel:continue
         if a.faction!='ottoman':_npc(s,a);continue
         if a.mission and a.mission['status']=='active':_resupply(s,a)
-        if a.location in s.sieges and a.id in s.sieges[a.location]['armies'] and a.mission.get('purpose')!='return':continue
+        if a.location in s.sieges and a.id in s.sieges[a.location]['armies'] and (not a.mission or a.mission.get('purpose')!='return'):continue
         m=a.mission
         if not m or m['status']!='active':continue
         if s.day>m['deadline']:

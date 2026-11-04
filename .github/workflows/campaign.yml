@@ -58,6 +58,8 @@ jobs:
           trap 'kill "$server_pid"' EXIT
           python scripts/wait_for_server.py
           python tests/browser_auth.py
+          PYTHONPATH=. python tests/tactical_scenarios.py
+          PYTHONPATH=. python tests/browser_tactics.py
           ATLAS_PERF_ASSERT=1 python tests/browser_atlas_performance.py
           python tests/browser_campaign.py
           PYTHONPATH=. python tests/browser_fortress.py
@@ -78,6 +80,8 @@ jobs:
             /tmp/ruler-acceptance.json
             /tmp/long-campaign-acceptance.json
             /tmp/dynasty-acceptance.json
+            /tmp/tactical-acceptance.json
+            /tmp/tactical-browser-evidence
             /tmp/ruler-combined-acceptance.json
             /tmp/court-acceptance.json
             /tmp/court-browser-evidence
