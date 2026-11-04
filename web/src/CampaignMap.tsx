@@ -18,11 +18,11 @@ const purposes:Record<string,string>={march:'Переместиться',conquer
 const phases:Record<string,string>={active:'Исполняется',issued:'Приказ в пути',awaiting:'Требуется решение',completed:'Выполнено',failed:'Сорвано',recalled:'Отозвано'};
 
 export default function CampaignMap({active,campaign,onHelp,onTime,state:s,catalog,selected,select,armyId,selectArmy,busy,send,council,army:advancedArmy,civil,office}:Props){
- const [panel,setPanel]=useState(false);const [quality]=useGraphics();
- const panelState=useRef({active,panel,picking:false});
- useEffect(()=>{const close=(e:Event)=>{const current=panelState.current;if(!current.active)return;if(current.picking){e.preventDefault();setPicking(false);setPanel(true)}else if(current.panel){e.preventDefault();setPanel(false)}};window.addEventListener('campaign-back',close);return()=>window.removeEventListener('campaign-back',close)},[]);
+ const [panel,setPanel]=useState(false),[query,setQuery]=useState('');const [quality]=useGraphics();
+ const panelState=useRef({active,panel,picking:false,query});
+ useEffect(()=>{const close=(e:Event)=>{const current=panelState.current;if(!current.active)return;if(current.query){e.preventDefault();setQuery('')}else if(current.picking){e.preventDefault();setPicking(false);setPanel(true)}else if(current.panel){e.preventDefault();setPanel(false)}};window.addEventListener('campaign-back',close);return()=>window.removeEventListener('campaign-back',close)},[]);
  const [focus,setFocus]=useState<'place'|'army'>(()=>read('map-object:'+campaign)==='army'?'army':'place'),[section,setSection]=useState('overview'),[picking,setPicking]=useState(false),[focusToken,setFocusToken]=useState(0);
- panelState.current={active,panel,picking};
+ panelState.current={active,panel,picking,query};
  const [orderTarget,setOrderTarget]=useState(selected),[purpose,setPurpose]=useState('march'),[funds,setFunds]=useState('0'),[assault,setAssault]=useState(false),[requisition,setRequisition]=useState(false);
  const [troop,setTroop]=useState('militia'),[recruits,setRecruits]=useState('10'),[warehouse,setWarehouse]=useState(s.capital),[grain,setGrain]=useState('800');
  const [review,setReview]=useState<{revision:number;key:string}|null>(null);
@@ -59,7 +59,7 @@ export default function CampaignMap({active,campaign,onHelp,onTime,state:s,catal
   <div className="campaign-attention">{s.agendas.length>0&&<button className="map-council-call" disabled={busy} onClick={()=>council(s.agendas[0].id)}>Совет: {s.agendas[0].title}<small>Ждут ответа: {s.agendas.length}</small></button>}{letters>0&&<button className="map-council-call" onClick={()=>office('diplomacy')}>Посольства ждут ответа · {letters}</button>}{s.statecraft&&<button onClick={()=>office('orders')}>{decisions?`Дела требуют решения · ${decisions}`:'Поручения и донесения'}<small>{s.statecraft.tasks.filter(t=>!['completed','cancelled','returned'].includes(t.status)).length} в работе</small></button>}</div>
   <CampaignCoach campaign={campaign} state={s} openCity={()=>{choosePlace(s.capital);setSection('recruit');setFocusToken(x=>x+1)}} onTime={onTime} onCouncil={()=>{if(s.agendas.length)council(s.agendas[0].id)}}/>
   <div className="campaign-map-layout"><div className="campaign-map-surface" ref={mapRef}>
-   <CanvasMap campaign={campaign} planned={s.pending_edicts.filter(e=>e.formation).map(e=>({province:e.province,count:size(e.formation!.troops)}))} plannedRoute={draft?[draft.location,...draft.route]:[]} quality={quality} onHelp={onHelp} state={s} catalog={catalog} selected={selected} select={choosePlace} selectArmy={chooseArmy} selectedArmy={focus==='army'?armyId:undefined} armyNames={names} focusToken={focusToken}/>
+   <CanvasMap query={query} setQuery={setQuery} active={active} campaign={campaign} planned={s.pending_edicts.filter(e=>e.formation).map(e=>({province:e.province,count:size(e.formation!.troops)}))} plannedRoute={draft?[draft.location,...draft.route]:[]} quality={quality} onHelp={onHelp} state={s} catalog={catalog} selected={selected} select={choosePlace} selectArmy={chooseArmy} selectedArmy={focus==='army'?armyId:undefined} armyNames={names} focusToken={focusToken}/>
 
    <div className="campaign-armies" aria-label="Выбрать походную армию">{armies.map(unit=><button key={unit.id} aria-pressed={focus==='army'&&armyId===unit.id} onClick={()=>chooseArmy(unit.id)}><strong>{names[unit.id]}</strong><span>{size(unit.troops)} воинов · {place(unit.location)}{unit.travel?' · в пути':''}</span></button>)}</div>
   </div>

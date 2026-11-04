@@ -50,7 +50,7 @@ export default function RulerApp({initialSave,catalog,onNew,onResume,onMenu}:{in
  const personName=(id:string|null)=>id?s.people[id]?.name||'Старший отряда':'Старший отряда';
  const ruler=s.people[s.ruler_id],adminPlace=p.controlled?selected:s.capital;
  const disabled=busy||!!s.ending;
- const date=(day:number)=>new Date(Date.UTC(1299,2,1)+day*86400000).toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
+ const date=(day:number,compact=false)=>new Date(Date.UTC(1299,2,1)+day*86400000).toLocaleDateString('ru-RU',{day:'numeric',month:compact?'short':'long',year:'numeric',timeZone:'UTC'});
  const atCourt=(who:RulerPerson)=>who.location===s.court_location&&!who.travel;
  const available=Object.values(s.people).filter(x=>x.faction==='ottoman'&&x.status==='active'&&atCourt(x)&&!armies.some(y=>[y.commander,y.deputy].includes(x.id))&&x.id!==s.ruler_id);
  const appointees=Object.values(s.people).filter(x=>x.id!==s.ruler_id&&x.faction==='ottoman'&&x.status==='active'&&!x.travel&&!armies.some(a=>[a.commander,a.deputy].includes(x.id)));
@@ -90,7 +90,7 @@ export default function RulerApp({initialSave,catalog,onNew,onResume,onMenu}:{in
  if(s.prologue_pending)return <Prologue busy={busy} error={error} onDone={()=>send('begin_reign')}/>;
  if(showFilm)return <AccessionFilm state={s} onClose={closeFilm}/>;
  return <div className={`app ruler-app strategy-shell ${tab==='map'?'strategy-active':'strategy-window'}`}  ref={topRef}>
-  <header className="header"><button disabled={busy} aria-label="Открыть меню кампании" onClick={()=>setConfirm('menu')}>Меню</button><div className="brand"><span className="seal">◈</span><div><span className="eyebrow">Летопись правления</span><strong>{date(s.day)}</strong></div></div><div className="ruler"><span>{s.ruler}</span><small>{place(ruler.location)} · {statusNames[s.ruler_status]}</small></div></header>
+  <header className="header"><button disabled={busy} aria-label="Открыть меню кампании" onClick={()=>setConfirm('menu')}>Меню</button><div className="brand"><strong title={date(s.day)}>{date(s.day,true).replace(/\s*г\.$/,'')}</strong></div><div id="campaign-map-search"/><div className="ruler"><span>{s.ruler}</span><small>{place(ruler.location)} · {statusNames[s.ruler_status]}</small></div></header>
   <div className="ruler-overview" aria-label="Краткое положение державы"><span>Казна <b>{s.gold} монет</b></span><span>Походные войска <b>{armies.reduce((n,a)=>n+total(a.troops),0)}</b></span></div>
    {<CampaignMap active={tab==='map'} campaign={save.id} onTime={()=>setConfirm('time')} onHelp={()=>setConfirm('help')} state={s} catalog={catalog} selected={selected} select={setSelected} armyId={armyId} selectArmy={id=>{setArmyId(id);remember('army:'+save.id,id)}} busy={disabled} send={send} council={openAgenda} army={()=>{setArmySection('forces');navigate('army')}} civil={(section,id)=>{setSelected(id);setCivilSection(section);navigate('state')}} office={showOffice}/>}
   <main className="content" aria-busy={busy}>{tab!=='map'&&<button className="close-section" onClick={()=>navigate('map')}>Закрыть окно · к карте</button>}

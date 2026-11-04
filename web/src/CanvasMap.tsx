@@ -1,4 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
+import {createPortal} from 'react-dom';
 import type {Catalog} from './types';
 import type {AtlasState} from './Atlas';
 import {project} from './atlas-geometry';
@@ -8,7 +9,7 @@ import type {Hit,Quality} from './map-scene';
 import {metric} from './diagnostics';
 import {read,remember} from './CampaignMedia';
 
-type Props={state:AtlasState;catalog:Catalog;selected:string;select:(id:string)=>void;selectArmy:(id:string)=>void;selectedArmy?:string;armyNames:Record<string,string>;focusToken:number;campaign:string;plannedRoute?:string[];planned?:{province:string;count:number}[];quality:Quality;onHelp:()=>void};
+type Props={query:string;setQuery:(value:string)=>void;active:boolean;state:AtlasState;catalog:Catalog;selected:string;select:(id:string)=>void;selectArmy:(id:string)=>void;selectedArmy?:string;armyNames:Record<string,string>;focusToken:number;campaign:string;plannedRoute?:string[];planned?:{province:string;count:number}[];quality:Quality;onHelp:()=>void};
 let geography:Geography|undefined;
 const load=(signal:AbortSignal)=>{
  if(geography)return Promise.resolve(geography);
@@ -16,11 +17,14 @@ const load=(signal:AbortSignal)=>{
  return Promise.all(['/mediterranean-geography.json','/map-sites.json'].map(path=>fetch(path+'?v='+version,{signal}).then(r=>{if(!r.ok)throw Error('Карта не загрузилась');return r.json()}))).then(([geo,sites])=>{geography={...geo,...sites};return geography!});
 };
 export default function CanvasMap(props:Props){
- const {state,catalog,selected,select,selectArmy,selectedArmy,armyNames,campaign,quality,onHelp}=props;
+ const {query,setQuery,state,catalog,selected,select,selectArmy,selectedArmy,armyNames,campaign,quality,onHelp}=props;
  const root=useRef<HTMLDivElement>(null),canvas=useRef<HTMLCanvasElement>(null),camera=useRef<Viewport>({x:0,y:0,width:60,height:40});
  const priorSelected=useRef(selected);
  const draw=useRef<()=>void>(()=>{}),schedule=useRef<()=>void>(()=>{}),focus=useRef<(id:string)=>void>(()=>{}),moved=useRef(false),suppress=useRef(false);
- const [hits,setHits]=useState<Hit[]>([]),[query,setQuery]=useState(''),[political,setPolitical]=useState(false),[failure,setFailure]=useState(''),[attempt,setAttempt]=useState(0);
+ const [hits,setHits]=useState<Hit[]>([]),[political,setPolitical]=useState(false),[failure,setFailure]=useState(''),[attempt,setAttempt]=useState(0);
+ const [searchHost,setSearchHost]=useState<HTMLElement|null>(null);
+ useEffect(()=>{setSearchHost(document.getElementById('campaign-map-search'))},[]);
+ useEffect(()=>{if(!props.active)setQuery('')},[props.active]);
  const latest=useRef(props);latest.current=props;
  useEffect(()=>{
   const controller=new AbortController(),abort=()=>controller.abort(),leave=(event:PageTransitionEvent)=>{if(!event.persisted)abort()};window.addEventListener('beforeunload',abort);window.addEventListener('pagehide',leave);
@@ -86,7 +90,7 @@ export default function CanvasMap(props:Props){
   <canvas ref={canvas} aria-label="Карта державы"/>
   <div className="map-hit-layer">{hits.map(hit=><button key={hit.kind+hit.id} data-testid={hit.kind==='place'?'place-'+hit.id:undefined} data-map-army={hit.kind==='army'?hit.id:undefined} aria-label={hit.kind==='army'?`Армия: ${armyNames[hit.id]}`:catalog.places.find(p=>p.id===hit.id)?.name} aria-pressed={hit.kind==='army'?hit.id===selectedArmy:hit.id===selected} style={{left:hit.x-24,top:hit.y-24,zIndex:hit.id===selected||hit.id===selectedArmy?3:1}} onClick={e=>{if(e.detail&&suppress.current)return;hit.kind==='army'?selectArmy(hit.id):select(hit.id)}}/>)}</div>
   <div className="map-hud map-tools"><button onClick={()=>choose(state.capital)}>Столица</button><button onClick={()=>{const el=root.current!;camera.current={x:-3400,y:1150-3600*el.clientHeight/el.clientWidth,width:7200,height:7200*el.clientHeight/el.clientWidth};remember('camera:'+campaign,JSON.stringify(camera.current));draw.current()}}>Весь мир</button><button aria-pressed={political} onClick={()=>setPolitical(x=>!x)}>Границы</button><button onClick={onHelp}>Советник</button></div>
-  <div className="map-hud map-search"><input aria-label="Поиск поселения" placeholder="Найти город…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<div className="map-search-results">{catalog.places.filter(p=>p.name.toLocaleLowerCase('ru').includes(query.toLocaleLowerCase('ru'))).slice(0,12).map(p=><button key={p.id} data-search-place={p.id} onClick={()=>choose(p.id)}>{p.name}</button>)}</div>}</div>
+  {searchHost&&props.active&&createPortal(<div className="map-search"><input type="search" aria-label="Поиск поселения" placeholder="Найти город…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<div className="map-search-results">{catalog.places.filter(p=>p.name.toLocaleLowerCase('ru').includes(query.trim().toLocaleLowerCase('ru'))).slice(0,12).map(p=><button key={p.id} data-search-place={p.id} onClick={()=>choose(p.id)}>{p.name}</button>)}</div>}</div>,searchHost)}
   {failure&&<div className="map-hud map-failure" role="alert">{failure}<button onClick={()=>setAttempt(x=>x+1)}>Повторить загрузку карты</button></div>}
  </div>;
 }
