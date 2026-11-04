@@ -23,6 +23,8 @@ export default function CampaignMap({state:s,catalog,selected,select,armyId,sele
  const place=(id:string)=>catalog.places.find(x=>x.id===id)?.name||id;
  const person=(id:string|null)=>s.people[id||'']?.name||'Старший отряда';
  const names=Object.fromEntries(armies.map(x=>[x.id,person(x.commander)]));
+ const letters=s.statecraft?.offers.filter(o=>o.b==='ottoman'&&o.status==='arrived').length||0;
+ const decisions=(s.statecraft?.cases.filter(c=>c.status==='open').length||0)+(s.statecraft?.tasks.filter(t=>['awaiting','held'].includes(t.status)).length||0);
  const blocked=busy||!!s.ending||s.ruler_status==='dead';
  const n=integer(recruits,1,40),allocation=integer(funds,0,Math.min(5000,s.gold)),food=integer(grain,1,10000);
  const payload={army:armyId,target:orderTarget,purpose,funds:allocation,allow_assault:purpose==='conquer'&&assault,allow_requisition:requisition};
@@ -46,7 +48,7 @@ export default function CampaignMap({state:s,catalog,selected,select,armyId,sele
  return <section className="campaign-map" data-testid="campaign-command-map">
   <div className="campaign-map-heading"><div><span className="eyebrow">Карта кампании</span><h1>Атлас державы</h1></div></div>
   <p className="map-instruction">{picking?'Нажмите на город назначения. Приказ будет отправлен после проверки.':'Выберите город для управления или знамя армии для приказа.'}</p>
-  <div className="campaign-attention">{s.agendas.length>0&&<button className="map-council-call" disabled={busy} onClick={()=>council(s.agendas[0].id)}>Совет: {s.agendas[0].title}<small>Ждут ответа: {s.agendas.length}</small></button>}{s.statecraft&&<button onClick={()=>office('orders')}>Поручения и донесения<small>{s.statecraft.tasks.filter(t=>!['completed','cancelled','returned'].includes(t.status)).length} в работе</small></button>}</div>
+  <div className="campaign-attention">{s.agendas.length>0&&<button className="map-council-call" disabled={busy} onClick={()=>council(s.agendas[0].id)}>Совет: {s.agendas[0].title}<small>Ждут ответа: {s.agendas.length}</small></button>}{letters>0&&<button className="map-council-call" onClick={()=>office('diplomacy')}>Посольства ждут ответа · {letters}</button>}{s.statecraft&&<button onClick={()=>office('orders')}>{decisions?`Дела требуют решения · ${decisions}`:'Поручения и донесения'}<small>{s.statecraft.tasks.filter(t=>!['completed','cancelled','returned'].includes(t.status)).length} в работе</small></button>}</div>
   <div className="campaign-map-layout"><div className="campaign-map-surface" ref={mapRef}>
    <Atlas commandMode inspect={()=>{inspector.current?.scrollIntoView({block:'start'});inspector.current?.focus({preventScroll:true})}} selectionLabel={focus==='army'&&a?`Армия: ${person(a.commander)}`:`Город: ${place(selected)}`} state={s} catalog={catalog} selected={selected} select={choosePlace} selectArmy={chooseArmy} selectedArmy={focus==='army'?armyId:undefined} armyNames={names} focusToken={focusToken}/>
    <div className="campaign-armies" aria-label="Выбрать походную армию">{armies.map(unit=><button key={unit.id} aria-pressed={focus==='army'&&armyId===unit.id} onClick={()=>chooseArmy(unit.id)}><strong>{names[unit.id]}</strong><span>{size(unit.troops)} воинов · {place(unit.location)}{unit.travel?' · в пути':''}</span></button>)}</div>
