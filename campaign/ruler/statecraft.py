@@ -181,13 +181,15 @@ def _plots(s):
         if x['operation']=='information':learn(s,site,'Донесение связного');x['status']='completed';record(s,'Доставлены сведения из '+name(site)+'. Они отражают день наблюдения, а не намерения противника.','delivery')
         elif x['operation']=='revolt':
             contract=state['subjects'].get(target)
-            if contract and (contract['arrears']>0 or p.trust<35):
+            strained=contract and (contract['arrears']>0 or contract['tribute']>max(10,s.polities[target].income//2) or s.places[site].unrest>=65)
+            if strained:
                 lord=contract['lord'];del state['subjects'][target];diplomacy.money(s,target,x['cost']);diplomacy.declare(s,target,lord,defensive=True);x['status']='completed'
                 record(s,FACTIONS[target]+' объявило об отказе от присяги. Средства переданы существующему двору; новые армии не созданы.','intrigue')
             else:x['status']='failed';record(s,'Правитель не принял предложение разорвать присягу. Верность нельзя купить одним письмом.','intrigue')
         else:
             # A ruler can change diplomatic allegiance, not donate an entire army for free.
-            if p.trust<30 and s.polities[target].arrears>0 and target not in state['subjects']:
+            # Trust is toward the player; distrust cannot explain accepting their protection.
+            if p.trust>=45 and s.polities[target].arrears>0 and target not in state['subjects']:
                 diplomacy.propose(s,target,'ottoman','submit');x['status']='completed';record(s,'Через связного получено обещание направить предложение о покровительстве. Договор ещё не заключён.','intrigue')
             else:x['status']='failed';record(s,'Попытка склонить правителя не удалась; прежние обязательства оказались прочнее предложения.','intrigue')
         if roll(s,'agent-exposure:'+x['id'])<.25:

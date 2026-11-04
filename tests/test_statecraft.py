@@ -320,3 +320,11 @@ def test_peace_physically_withdraws_armies_instead_of_trapping_them():
     assert a.travel and a.travel['civilian'] and a.travel['retreat']
     assert a.location=='bursa' and a.size>0
     validate(s)
+
+@pytest.mark.parametrize('trust,expected',[(20,False),(55,True)])
+def test_protection_intrigue_requires_trust_in_patron_and_actual_distress(trust,expected):
+    s=realm();pid=dip.data(s)['rulers']['germiyan'];s.people[pid].trust=trust;s.polities['germiyan'].arrears=40
+    s=act(s,'intrigue',{'target':'germiyan','person':pid,'operation':'defection'})
+    plot=next(iter(dip.data(s)['plots'].values()));s.day=plot['ready'];units=deepcopy(s.armies);statecraft._plots(s)
+    assert bool([o for o in dip.data(s)['offers'].values() if o['kind']=='submit' and o['a']=='germiyan'])==expected
+    assert s.armies==units and plot['status']==('completed' if expected else 'failed')
