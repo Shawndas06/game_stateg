@@ -35,6 +35,8 @@ def _scout(s,fid,realm,places,armies):
         p=s.places[pid]
         field=sum(effective_power(s,a) for a in s.armies.values() if a.size and a.location==pid and a.faction!=fid)
         realm.intelligence[pid]={'day':s.day,'controller':p.controller,'guards':count(p.garrison),'defense':sum(c.count*TROOPS[c.troop]['power'] for c in p.garrison),'walls':p.walls,'field':round(field)}
+        if s.rules_version>=5:
+            realm.intelligence[pid]['field_by']={f:round(sum(effective_power(s,a) for a in s.armies.values() if a.size and a.location==pid and a.faction==f)) for f in {a.faction for a in s.armies.values() if a.location==pid and a.size}}
 
 
 def _pay(s,fid,realm,places,armies):
@@ -90,6 +92,7 @@ def _plan(s,fid,r,places,armies):
 
 
 def _politics(s,fid,r,places,armies):
+    if s.rules_version>=5:return
     if s.day<365 or s.day-r.last_war<720 or r.arrears or not armies:return
     neighbors={s.places[n].controller for p in places for n in ADJACENCY[p.id]}-{fid}
     if any(war(s,fid,n) for n in neighbors):return
@@ -112,12 +115,15 @@ def tick(s):
         if c['left']>0:continue
         if c['path']:c['location']=c['path'].pop(0)
         p=s.places[c['location']]
-        if (p.controller!=c['faction'] and not any(a.faction==c['faction'] and a.size and a.location==p.id for a in s.armies.values())) or any(a.size and a.location==p.id and war(s,a.faction,c['faction']) for a in s.armies.values()):
+        from campaign.ruler.core import war
+        permitted_trade=c.get('trade') and not war(s,c['faction'],p.controller)
+        if (not permitted_trade and p.controller!=c['faction'] and not any(a.faction==c['faction'] and a.size and a.location==p.id for a in s.armies.values())) or any(a.size and a.location==p.id and war(s,a.faction,c['faction']) for a in s.armies.values()):
             p.grain+=c['grain'];s.foreign_cargo.remove(c);continue
         if c['path']:c['left']=duration(p.id,c['path'][0]);continue
         a=s.armies.get(c['army'])
         if a and a.location==p.id and a.faction==c['faction']:a.grain+=c['grain']
         else:p.grain+=c['grain']
+        if c.get('trade') and c['faction']=='ottoman':record(s,f'{name(p.id)}: торговый груз100пайков принят на склад.','delivery')
         s.foreign_cargo.remove(c)
     for p in s.places.values():
         if p.controller!='ottoman' and p.id not in s.sieges:

@@ -78,6 +78,9 @@ def aftermath(s,b,won):
 def finish(s,won):
     from campaign.ruler import military
     b=s.flags.pop('battle')
+    if s.rules_version>=5:
+        from campaign.ruler.diplomacy import field_result
+        field_result(s,[s.armies[aid] for aid in dict.fromkeys(u['army'] for u in b['units'] if u['side']!=won)])
     for aid in dict.fromkeys(u['army'] for u in b['units']):
         a=s.armies[aid];side=next(u['side'] for u in b['units'] if u['army']==aid)
         military._risk(s,a,1,'field')

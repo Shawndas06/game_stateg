@@ -6,7 +6,7 @@ from campaign.content import PLACE_INDEX, TROOPS
 from campaign.engine import require, relation_key
 from campaign.ruler.models import Cohort, RulerState
 from campaign.ruler.core import *
-from campaign.ruler import world
+from campaign.ruler import world, knowledge
 
 INSTITUTIONS={
  'scribes':{'name':'Служба писцов','cost':70,'days':60,'upkeep':3,'requires':[]},
@@ -18,7 +18,7 @@ INSTITUTIONS={
 
 def institution_help(s, iid):
     """Public prerequisites and command validation share the same explanation."""
-    item=INSTITUTIONS[iid];missing=[x for x in item['requires'] if s.institutions.get(x,{}).get('status')!='active']
+    item=INSTITUTIONS[iid];missing=[x for x in (item['requires'] if not(s.rules_version>=5 and iid=='builders') else []) if s.institutions.get(x,{}).get('status')!='active']
     reasons=[]
     for x in missing:
         current=s.institutions.get(x)
@@ -27,7 +27,7 @@ def institution_help(s, iid):
         candidates=[p.name for p in s.people.values() if p.faction=='ottoman' and p.status=='active' and p.skills['stewardship']>=35]
         reasons.append(f'В столице {name(s.capital)} нужен опытный распорядитель. Подойдут: {", ".join(candidates)}. Верните одного из них в столицу и дождитесь прибытия.' if candidates else 'Среди действующих служителей сейчас нет подходящего распорядителя. Дождитесь возвращения опытного человека на службу; без исполнителя учреждение не начнёт работу.')
     if s.gold<item['cost']:reasons.append(f'Нужно {item["cost"]} монет; в казне {s.gold}. Не хватает {item["cost"]-s.gold}. Проверьте счета и ожидаемые поступления.')
-    return {'reasons':reasons,'next_institution':missing[0] if missing and missing[0] not in s.institutions else None}
+    return {'reasons':reasons,'requires':[] if s.rules_version>=5 and iid=='builders' else list(item['requires']),'next_institution':missing[0] if missing and missing[0] not in s.institutions else None}
 
 
 def construction_options(s,p,include_pending=True):
@@ -43,11 +43,29 @@ def construction_options(s,p,include_pending=True):
         if kind=='repair' and (not p.fortress_level or p.walls>=p.max_walls):reasons.append('Повреждённых крепостных стен здесь нет. Ремонт не требуется.')
         if kind=='fortress':
             if p.fortress_level:reasons.append('В этом владении крепость уже есть. Для новой выберите неукреплённое поселение.')
-            if s.institutions.get('builders',{}).get('status')!='active':reasons.append('Нужна действующая строительная служба. Порядок подготовки: Служба писцов → Земельный учёт → Строительная служба. Каждая должна завершить подготовку.')
+            if s.institutions.get('builders',{}).get('status')!='active' and not (s.rules_version>=5 and knowledge.available(s,'ottoman',p.id,'stonework')):reasons.append('Пригласите мастера каменного строительства в это поселение через «Дела правления → Мастера» или учредите строительную службу.' if s.rules_version>=5 else 'Нужна действующая строительная служба. Порядок подготовки: Служба писцов → Земельный учёт → Строительная служба. Каждая должна завершить подготовку.')
+            if s.rules_version>=5 and s.institutions.get('builders',{}).get('status')!='active' and knowledge.available(s,'ottoman',p.id,'stonework') and all(knowledge.busy(s,m.id) for m in knowledge.available(s,'ottoman',p.id,'stonework')):reasons.append('Прибывшие каменщики заняты. Завершите или отмените прежнюю работу.')
             if p.reserve<20:reasons.append(f'Нужны 20 свободных работников; здесь доступно {p.reserve}. Выберите другое поселение или верните людей из военной службы.')
         if s.gold<cost:reasons.append(f'Нужно {cost} монет; в казне {s.gold}. Не хватает {cost-s.gold}.')
         result.append({'id':kind,'name':title,'cost':cost,'days':days,'reasons':reasons})
     return result
+
+
+
+def _construction_tick(s,p,fed):
+    if not p.construction or p.owner!=p.controller:return
+    master=s.people.get(p.construction.get('master'))
+    if s.rules_version>=5 and (not fed or master and (master.status!='active' or master.location!=p.id or master.travel)):
+        if not p.construction.get('paused'):record(s,name(p.id)+': строительству недостаёт продовольствия или мастера.','obstruction')
+        p.construction['paused']=True;return
+    p.construction.pop('paused',None);p.construction['work']-=1
+    if p.construction['work']>0:return
+    building=p.construction['building'];p.reserve+=p.construction['workers']
+    if building=='fortress':p.fortress_level=1;p.walls=p.max_walls=60;p.buildings.append('new_fortress')
+    elif building=='repair':p.walls=p.max_walls
+    else:p.buildings.append(building)
+    p.construction=None
+    if p.controller=='ottoman':record(s,f'{name(p.id)}: строительные работы завершены.','building')
 
 
 def obligation(s: RulerState,kind: str,who: str,due: int,amount: int=0,province: str | None=None,scope: str='state') -> str:
@@ -99,7 +117,12 @@ def budget(s: RulerState) -> dict:
     fortress_upkeep=sum(3 for p in own if 'new_fortress' in p.buildings)
     institutions=sum(INSTITUTIONS[k]['upkeep'] for k,v in s.institutions.items() if k in INSTITUTIONS and v['status']=='active')
     wages=ceil(total/10)
-    return {'gross':gross,'grants':grants,'income':gross-grants,'wages':wages,'administration':local,'institutions':institutions,'expense':wages+local+institutions+fortress_upkeep,'net':gross-grants-wages-local-institutions-fortress_upkeep,'period_days':30,'reserved':sum(e['escrow'] for e in s.edicts)+sum(a.funds for a in s.armies.values() if a.faction=='ottoman')+sum(c['mandate']['funds'] for c in s.couriers if c['kind']=='order')}
+    extra=0
+    if s.rules_version>=5:
+        from campaign.ruler.diplomacy import data
+        d=data(s);extra=sum(m['wage'] for pid,m in d['specialists'].items() if m['employer']=='ottoman' and s.people[pid].status=='active')+sum(c['tribute']+c['arrears'] for f,c in d['subjects'].items() if f=='ottoman')
+    pending=sum(o['payment'] for o in s.flags.get('statecraft',{}).get('offers',{}).values())
+    return {'gross':gross,'grants':grants,'income':gross-grants,'wages':wages,'administration':local,'institutions':institutions,'statecraft_due':extra,'expense':wages+local+institutions+fortress_upkeep+extra,'net':gross-grants-wages-local-institutions-fortress_upkeep-extra,'period_days':30,'reserved':pending+sum(e['escrow'] for e in s.edicts)+sum(a.funds for a in s.armies.values() if a.faction=='ottoman')+sum(c['mandate']['funds'] for c in s.couriers if c['kind']=='order')}
 
 
 def command(s: RulerState,kind: str,d: dict) -> bool:
@@ -109,6 +132,7 @@ def command(s: RulerState,kind: str,d: dict) -> bool:
         require(pid in s.people and s.people[pid].faction=='ottoman' and s.people[pid].status=='active' and not s.people[pid].travel,'Этот человек сейчас не может принять назначение')
         require(role in ['governor','treasurer','judge','regent'],'Неизвестная должность')
         require(pid!=s.ruler_id and not any(pid in [a.commander,a.deputy] for a in s.armies.values()),'Человек уже находится при войске или является правителем')
+        if s.rules_version>=5:require(not knowledge.busy(s,pid),'Этот человек ведёт работы. Сначала завершите или отмените их')
         if role=='governor':owned(s,target,True)
         else:target=s.capital
         require(not any(a['person']==pid or a['role']==role and a['province']==target for a in s.appointments),'Назначение на эту должность уже в пути')
@@ -200,15 +224,21 @@ def command(s: RulerState,kind: str,d: dict) -> bool:
         option=next(x for x in construction_options(s,p,include_pending=not d.get('_delivered')) if x['id']==kind)
         require(not option['reasons'],' '.join(option['reasons']))
         if kind=='fortress':
-            require(not p.fortress_level and s.institutions.get('builders',{}).get('status')=='active','Нужны неукреплённое поселение и действующая строительная служба')
+            require(not p.fortress_level and (s.institutions.get('builders',{}).get('status')=='active' or s.rules_version>=5 and knowledge.available(s,'ottoman',p.id,'stonework')),'Нужны неукреплённое поселение и действующая строительная служба')
             require(p.reserve>=20,'Нужны двадцать свободных работников');spend(s,250);p.reserve-=20
             p.construction={'building':kind,'work':360,'workers':20}
+            if s.rules_version>=5 and s.institutions.get('builders',{}).get('status')!='active':
+                masters=[m for m in knowledge.available(s,'ottoman',p.id,'stonework') if not knowledge.busy(s,m.id)]
+                require(masters,'Мастер занят: освободите его от другой работы');p.construction['master']=masters[0].id
         elif kind=='repair':
             require(p.fortress_level and p.walls<p.max_walls,'Стены не нуждаются в ремонте');spend(s,(p.max_walls-p.walls)*2);p.construction={'building':kind,'work':60,'workers':0}
         else:
             require('granary' not in p.buildings,'Зернохранилище уже есть');spend(s,60);p.construction={'building':kind,'work':60,'workers':0}
         record(s,f'{name(p.id)}: выделены средства на строительные работы.','building')
     elif kind=='diplomacy':
+        if s.rules_version>=5:
+            from campaign.ruler.diplomacy import command as diplomacy_command
+            return diplomacy_command(s,'negotiate',d)
         target=str(d.get('target',''));proposal=d.get('proposal');key=relation_key('ottoman',target)
         require(key in s.relations and target!='ottoman','Нет дипломатического адресата')
         require(target in (world.contacts(s) if s.rules_version>=4 else ['byzantine','germiyan']),'В этой главе установлены связи с Византией и Гермияном')
@@ -364,14 +394,7 @@ def tick(s: RulerState) -> None:
                 if s.day>=tr['ready']:
                     p.garrison.append(Cohort(tr['id'],tr['troop'],tr['count'],tr['origin'],training=10));p.training.remove(tr)
                     if p.controller=='ottoman':record(s,f'{name(p.id)}: подготовлены {tr["count"]} воинов. Они находятся в гарнизоне.','recruitment')
-            if p.construction and p.owner==p.controller:
-                p.construction['work']-=1
-                if p.construction['work']<=0:
-                    b=p.construction['building'];p.reserve+=p.construction['workers']
-                    if b=='fortress':p.fortress_level=1;p.walls=p.max_walls=60;p.buildings.append('new_fortress')
-                    elif b=='repair':p.walls=p.max_walls
-                    else:p.buildings.append(b)
-                    p.construction=None;record(s,f'{name(p.id)}: строительные работы завершены.','building')
+            _construction_tick(s,p,p.controller!='ottoman' or received>=consumed)
         if p.audit and s.day>=p.audit['ready']:
             if s.flags.get('sabotage_transport') and p.id=='karacahisar':
                 s.flags['sabotage_proven']=True
@@ -514,12 +537,12 @@ def _month(s: RulerState) -> None:
         if a.faction=='ottoman':
             used=min(a.funds,allocation.get('army:'+a.id,0));a.funds-=used;funded+=used
             if a.mission:a.mission['spent']+=used
-    available=s.gold+income;expense=max(0,b['expense']-funded);s.gold=max(0,available-expense);s.arrears+=max(0,expense-available)
+    available=s.gold+income;expense=max(0,b['expense']-b.get('statecraft_due',0)-funded);s.gold=max(0,available-expense);s.arrears+=max(0,expense-available)
     paid=min(s.gold,s.arrears);s.gold-=paid;s.arrears-=paid
     if s.arrears:
         for a in s.armies.values():
             if a.faction=='ottoman':a.morale=max(10,a.morale-5)
-    s.flags['last_accounts']={'day':s.day,'income':income,'expense':b['expense']}
+    s.flags['last_accounts']={'day':s.day,'income':income,'expense':b['expense']-b.get('statecraft_due',0)}
     record(s,f'Месячная ведомость: поступило {income}, из общей казны израсходовано {expense}, из походных средств {funded}, свободно {s.gold}, задолженность {s.arrears}.','accounts','Хранитель казны')
 
 

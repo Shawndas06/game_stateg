@@ -10,7 +10,7 @@ def load_state(data):
 
 
 def new_campaign(seed,scenario='legacy',campaign_mode='chapter'):
-    if scenario=='ruler_v1':return ruler.new_campaign(seed,extended=campaign_mode=='long')
+    if scenario=='ruler_v1':return ruler.new_campaign(seed,extended=campaign_mode in ['long','realm'],living=campaign_mode=='realm')
     if scenario=='legacy':return legacy.new_campaign(seed)
     raise legacy.RuleError('Неизвестный сценарий')
 

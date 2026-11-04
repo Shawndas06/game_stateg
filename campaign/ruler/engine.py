@@ -7,10 +7,10 @@ from campaign.content import FACTIONS, PLACES, PLACE_KINDS, TROOPS
 from campaign.engine import RuleError, require, relation_key
 from campaign.ruler.models import Army, Cohort, Person, Place, RulerState
 from campaign.ruler.core import *
-from campaign.ruler import military, civil, story, world, chronicle, tactics
+from campaign.ruler import military, civil, story, world, chronicle, tactics, statecraft
 
 
-def new_campaign(seed: int, extended: bool=False) -> RulerState:
+def new_campaign(seed: int, extended: bool=False, living: bool=False) -> RulerState:
     s=RulerState(seed)
     for pid,_,_,_,owner,guards,walls,_ in PLACES:
         sponsor='konur' if pid=='karacahisar' else 'crown'
@@ -35,6 +35,7 @@ def new_campaign(seed: int, extended: bool=False) -> RulerState:
     record(s,'Весна 1299 года. Две крепости и поселения требуют охраны, содержания и признанного порядка. Совет ждёт первого распоряжения.','opening')
     if extended:
         world.enable(s);s.flags['prologue_unread']=True
+    if living:statecraft.enable(s)
     story.schedule(s);validate(s);return s
 
 
@@ -49,7 +50,8 @@ def apply_command(state: RulerState,kind: str,payload: dict) -> RulerState:
     s=deepcopy(state);s.outbox=[]
     dead=s.people[s.ruler_id].status=='dead'
     require(not dead or kind in ['decide','ransom','consult'],'Сначала решите вопрос преемственности')
-    if tactics.command(s,kind,payload):pass
+    if statecraft.command(s,kind,payload):pass
+    elif tactics.command(s,kind,payload):pass
     elif kind=='begin_reign':
         require(s.rules_version>=4,'Пролог относится к большой кампании')
         s.flags['prologue_unread']=False
@@ -67,21 +69,25 @@ def apply_command(state: RulerState,kind: str,payload: dict) -> RulerState:
         require(type(payload.get('until_event',True)) is bool,'Режим ожидания должен быть логическим значением')
         days=payload.get('days',90);require(type(days) is int and 1<=days<=360,'Можно передать от одного до 360 дней')
         require(s.people[s.ruler_id].status!='dead','Требуется решение о наследовании')
+        wait=payload.get('wait_for');require(wait is None or s.rules_version>=5,'Ожидание конкретного дела относится к живому государству')
+        if wait and statecraft.waiting(s,wait,initial=True):s.revision+=1;validate(s);return s
         before_agendas={a['id'] for a in s.agendas}
         for _ in range(days):
-            before=s.archive_seq;s.day+=1;civil.tick(s);civil.reconcile_obligations(s);world.tick(s);military.tick(s)
+            before=s.archive_seq;s.day+=1;civil.tick(s);civil.reconcile_obligations(s);world.tick(s);statecraft.tick(s);military.tick(s)
             _personal_events(s);story.schedule(s)
             if not any(p.controller=='ottoman' for p in s.places.values()):
                 s.ending='Все владения утрачены. Первый опыт правления завершился распадом бейлика.';record(s,s.ending,'defeat')
             if s.ending or s.people[s.ruler_id].status=='dead' or s.flags.get('battle'):break
-            if payload.get('until_event',True):
+            if wait and statecraft.waiting(s,wait):break
+            if payload.get('until_event',True) or wait:
                 new=[r for r in s.reports if r['seq']>before]
-                if any(a['id'] not in before_agendas for a in s.agendas) or any(r['kind'] in ['battle','capture','death','wound','broken_promise','obstruction','delivery','mission_complete','audit','appointment','recruitment','building','institution','acknowledgement','agreement','illness','release','capital_loss','service','chapter','accomplishment','relationship'] for r in new):break
+                if any(a['id'] not in before_agendas for a in s.agendas) or any(r['kind'] in ['battle','capture','death','wound','broken_promise','obstruction','delivery','mission_complete','audit','appointment','recruitment','building','institution','acknowledgement','agreement','illness','release','capital_loss','service','chapter','accomplishment','relationship','new_offer','new_case','master','intrigue','siege_report'] for r in new):break
             # Personal or delegated active warfare advances at most one week per request.
             active=any(a.faction=='ottoman' and (a.travel or a.mission and a.mission['status']=='active') for a in s.armies.values())
-            if active and s.day%7==0:break
+            if active and not wait and s.day%7==0:break
     elif not military.command(s,kind,payload) and not civil.command(s,kind,payload):raise RuleError('Неизвестное распоряжение')
     civil.reconcile_obligations(s);military.cleanup(s);military.repair_leadership(s);_personal_events(s);story.schedule(s)
+    if s.rules_version>=5:statecraft.knowledge.cleanup(s)
     s.revision+=1;validate(s);return s
 
 
@@ -93,6 +99,7 @@ def _personal_events(s: RulerState) -> None:
 
 
 def validate(s: RulerState) -> None:
+    statecraft.validate(s)
     battle=s.flags.get('battle')
     if battle:
         assert 0<=battle['round']<8 and battle['phase'] in ['deploy','combat']
@@ -136,7 +143,7 @@ def view(s: RulerState) -> dict:
     for pid,p in s.places.items():
         k=s.knowledge.get(pid);mine=p.controller=='ottoman'
         public_places[pid]={'id':pid,'owner':k['owner'] if k else PLACE_INDEX[pid][4],'controller':k['controller'] if k else PLACE_INDEX[pid][4],'garrison':troops(p.garrison) if mine and loc==pid else k['garrison'] if k else None,'walls':p.walls if mine and loc==pid else k['walls'] if k else None,'fortress_level':p.fortress_level if mine else int(PLACE_INDEX[pid][6]>0),'max_walls':p.max_walls if mine else None,'grain':p.grain if mine and loc==pid else k.get('grain') if k else None,'reserve':p.reserve if mine else None,'governor':p.governor if mine else None,'tax':p.tax if mine else None,'grant':deepcopy(p.grant) if mine else None,'training':[{'troop':t['troop'],'count':t['count'],'ready':t['ready']} for t in p.training] if mine else [],'construction':deepcopy(p.construction) if mine else None,'buildings':list(p.buildings) if mine else [],'known_day':s.day if mine and loc==pid else k['day'] if k else None,'source':'Личное присутствие' if mine and loc==pid else k['source'] if k else 'Картографический справочник; гарнизон не проверен','controlled':mine,'construction_options':civil.construction_options(s,p) if mine else []}
-    people={p.id:{'id':p.id,'name':p.name,'age':now['year']-p.born,'approximate_age':p.approximate_birth,'historical':p.historical,'faction':p.faction,'location':p.location,'role':p.role,'status':p.status,'travel':{'target':p.travel.get('target')} if p.travel else None,'reputation':('Опытный военачальник' if p.skills['command']>=50 else 'Опытный распорядитель' if p.skills['stewardship']>=50 else 'Опыт ещё складывается'),'service':dict(p.experience),'history':deepcopy(p.history)} for p in s.people.values() if p.faction=='ottoman' or p.role=='envoy'}
+    people={p.id:{'id':p.id,'name':p.name,'age':now['year']-p.born,'approximate_age':p.approximate_birth,'historical':p.historical,'faction':p.faction,'location':p.location,'role':p.role,'status':p.status,'travel':{'target':p.travel.get('target')} if p.travel else None,'reputation':('Опытный военачальник' if p.skills['command']>=50 else 'Опытный распорядитель' if p.skills['stewardship']>=50 else 'Опыт ещё складывается'),'service':dict(p.experience),'history':deepcopy(p.history)} for p in s.people.values() if p.faction=='ottoman' or p.role=='envoy' or any(p.id in [a.commander,a.deputy] for a in s.armies.values() if a.faction=='ottoman')}
     armies={a.id:{'id':a.id,'faction':a.faction,'location':a.location,'troops':troops(a.cohorts),'commander':a.commander,'deputy':a.deputy,'acting_officer':a.deputy_officer,'grain':a.grain,'morale_state':'Войско держит строй' if a.morale>=65 else 'Войско утомлено и требует внимания','engines':a.engines,'funds':a.funds,'travel':{'target':a.travel['path'][0],'days':a.travel['left']} if a.travel else None,'mission':{k:v for k,v in a.mission.items() if k not in ['spent']} if a.mission else None,'order':{'kind':'move','target':a.travel['path'][0]} if a.travel else None,'cohorts':[{'troop':c.troop,'count':c.count,'origin':c.origin,'sponsor':c.sponsor,'service':c.service} for c in a.cohorts]} for a in s.armies.values() if a.faction=='ottoman'}
     agendas=[{'id':a['id'],'scene':a['scene'],'opened':a['opened'],'deadline':a['deadline'],'title':story.SCENES[a['scene']][0]} for a in s.agendas]
     last=s.flags.get('last_council',{})
@@ -144,4 +151,4 @@ def view(s: RulerState) -> dict:
     if current is None:
         current=next((a for a in s.agendas if a['id']==last.get('agenda')),None)
         if current is None and last.get('topic')!='military':current=next(iter(s.agendas),None)
-    return {'battle':tactics.public(s),'tactical_mode':bool(s.flags.get('tactical_mode')),'scenario':s.scenario,'schema_version':s.schema_version,'rules_version':s.rules_version,'revision':s.revision,'day':s.day,'calendar':now,'capital':s.capital,'ruler':ruler.name,'ruler_id':s.ruler_id,'ruler_status':ruler.status,'court_location':loc,'regent':s.regent,'gold':s.gold,'trade_access':{'available':not s.flags.get('merchants_offended',False),'review_day':s.flags.get('reconciliation_ready')},'arrears':s.arrears,'budget':civil.budget(s),'provinces':public_places,'people':people,'armies':armies,'sieges':{pid:{'province':pid,'armies':list(v['armies']),'faction':v['faction']} for pid,v in s.sieges.items() if any(s.armies[aid].faction=='ottoman' for aid in v['armies']) or s.places[pid].controller=='ottoman'},'agendas':agendas,'council':story.council(s,current,last.get('topic','state'),last.get('army')),'obligations':[dict(o,text=civil.obligation_text(s,o)) for o in s.obligations.values()],'reports':deepcopy(s.reports),'transports':[{k:deepcopy(v) for k,v in c.items() if k not in ['ambushed','escorts','escort_join']}|{'escort_count':sum(x['count'] for x in c.get('escorts',[]))} for c in list(s.transports.values()) if c['status'] not in ['completed','cancelled','seized'] or c['id'] in list(s.transports)[-6:]],'appointments':[{k:deepcopy(v) for k,v in x.items() if k not in ['path','left']} for x in s.appointments],'institutions':[{**v,'id':k,**civil.INSTITUTIONS[k]} for k,v in s.institutions.items()],'available_institutions':[dict(v,id=k,**civil.institution_help(s,k)) for k,v in civil.INSTITUTIONS.items() if k not in s.institutions],'relations':{k:dict(v) for k,v in s.relations.items() if 'ottoman' in k.split(':')},'pending_edicts':[{'id':e['id'],'kind':e['kind'],'province':e['province'],'issued':e['issued'],'escrow':e['escrow'],'held':e.get('held',False)} for e in s.edicts],'pending_orders':[{'id':c['id'],'army':c['army'],'target':c['mandate']['target'],'purpose':c['mandate']['purpose'],'issued':c['mandate']['issued']} for c in s.couriers if c['kind']=='order'],'campaign_mode':'long' if s.rules_version>=4 else 'chapter','continuation_available':s.rules_version==3 and (not s.ending or bool(s.flags.get('crisis_resolved'))),'diplomatic_contacts':world.contacts(s) if s.rules_version>=4 else ['byzantine','germiyan'],'chapter':chronicle.status(s) if s.rules_version>=4 else {'number':1,'name':'Утвердить власть','goal':'Получить опору, исполнить распоряжения и разрешить первый кризис бейлика','complete':s.ending is not None},'ending':s.ending,'prologue_pending':bool(s.flags.get('prologue_unread') and s.day==0 and 'founding' not in s.shown), 'accession':deepcopy(s.flags.get('accession')), 'accomplishments':deepcopy(s.flags.get('accomplishments',[])),'archive_cursor':s.archive_seq}
+    return {'statecraft':statecraft.public(s),'battle':tactics.public(s),'tactical_mode':bool(s.flags.get('tactical_mode')),'scenario':s.scenario,'schema_version':s.schema_version,'rules_version':s.rules_version,'revision':s.revision,'day':s.day,'calendar':now,'capital':s.capital,'ruler':ruler.name,'ruler_id':s.ruler_id,'ruler_status':ruler.status,'court_location':loc,'regent':s.regent,'gold':s.gold,'trade_access':{'available':not s.flags.get('merchants_offended',False),'review_day':s.flags.get('reconciliation_ready')},'arrears':s.arrears,'budget':civil.budget(s),'provinces':public_places,'people':people,'armies':armies,'sieges':{pid:{'province':pid,'armies':list(v['armies']),'faction':v['faction']} for pid,v in s.sieges.items() if any(s.armies[aid].faction=='ottoman' for aid in v['armies']) or s.places[pid].controller=='ottoman'},'agendas':agendas,'council':story.council(s,current,last.get('topic','state'),last.get('army')),'obligations':[dict(o,text=civil.obligation_text(s,o)) for o in s.obligations.values()],'reports':deepcopy(s.reports),'transports':[{k:deepcopy(v) for k,v in c.items() if k not in ['ambushed','escorts','escort_join']}|{'escort_count':sum(x['count'] for x in c.get('escorts',[]))} for c in list(s.transports.values()) if c['status'] not in ['completed','cancelled','seized'] or c['id'] in list(s.transports)[-6:]],'appointments':[{k:deepcopy(v) for k,v in x.items() if k not in ['path','left']} for x in s.appointments],'institutions':[{**v,'id':k,**civil.INSTITUTIONS[k]} for k,v in s.institutions.items()],'available_institutions':[dict(v,id=k,**civil.institution_help(s,k)) for k,v in civil.INSTITUTIONS.items() if k not in s.institutions],'relations':{k:dict(v,status='war' if war(s,*k.split(':')) else 'peace') for k,v in s.relations.items() if 'ottoman' in k.split(':')},'pending_edicts':[{'id':e['id'],'kind':e['kind'],'province':e['province'],'issued':e['issued'],'escrow':e['escrow'],'held':e.get('held',False)} for e in s.edicts],'pending_orders':[{'id':c['id'],'army':c['army'],'target':c['mandate']['target'],'purpose':c['mandate']['purpose'],'issued':c['mandate']['issued']} for c in s.couriers if c['kind']=='order'],'campaign_mode':'realm' if s.rules_version>=5 else 'long' if s.rules_version>=4 else 'chapter','continuation_available':s.rules_version==3 and (not s.ending or bool(s.flags.get('crisis_resolved'))),'diplomatic_contacts':world.contacts(s) if s.rules_version>=4 else ['byzantine','germiyan'],'chapter':chronicle.status(s) if s.rules_version>=4 else {'number':1,'name':'Утвердить власть','goal':'Получить опору, исполнить распоряжения и разрешить первый кризис бейлика','complete':s.ending is not None},'ending':s.ending,'prologue_pending':bool(s.flags.get('prologue_unread') and s.day==0 and 'founding' not in s.shown), 'accession':deepcopy(s.flags.get('accession')), 'accomplishments':deepcopy(s.flags.get('accomplishments',[])),'archive_cursor':s.archive_seq}

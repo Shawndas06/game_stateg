@@ -111,6 +111,9 @@ def ruler_location(s: RulerState) -> str:
 
 
 def war(s: RulerState, a: str, b: str) -> bool:
+    if s.rules_version>=5:
+        from campaign.ruler.diplomacy import root
+        a,b=root(s,a),root(s,b)
     return a != b and s.relations.get(':'.join(sorted([a,b])),{}).get('status') == 'war'
 
 
@@ -126,6 +129,9 @@ def route(s: RulerState, start: str, target: str, faction: str = 'ottoman', area
             if route_kind(current,n) != 'land' and not for_current: continue
             controller=s.places[n].controller
             access=s.relations.get(':'.join(sorted([faction,controller])),{}).get('access_until',0)>s.day and not war(s,faction,controller)
+            if s.rules_version>=5:
+                from campaign.ruler.diplomacy import access as treaty_access
+                access=access or treaty_access(s,faction,controller)
             allowed=controller==faction or access or (war(s,faction,controller) if military else not war(s,faction,controller))
             if n==target and hostile_end: allowed=True
             if not allowed: continue
@@ -176,3 +182,6 @@ def free_officer(s: RulerState, pid: str, location: str, excluding: str | None =
     require(pid in s.people and s.people[pid].faction=='ottoman' and s.people[pid].status=='active' and s.people[pid].health>30,'Этот человек сейчас не может принять командование')
     require(s.people[pid].location==location and not s.people[pid].travel,'Командующий должен прибыть к войску')
     require(not any(a.id!=excluding and a.size and pid in [a.commander,a.deputy] for a in s.armies.values()),'Этот человек уже находится при другой армии')
+    if s.rules_version>=5:
+        from campaign.ruler.knowledge import busy
+        require(not busy(s,pid),'Этот человек руководит работами; сначала освободите его от прежнего поручения')

@@ -89,7 +89,14 @@ def run(browser_type, width, url, out):
     assert decided['gold']==gold-25,'The first choice must actually pay once'
     page.get_by_role('button',name='Дальше: ваши владения',exact=False).click();stage('map')
     page.get_by_label('Поиск поселения',exact=True).fill('Сёгют')
-    page.locator('[data-search-place="sogut"]').click()
+    try:
+        expect(page.get_by_label('Поиск поселения',exact=True)).to_have_value('Сёгют')
+        expect(page.locator('[data-search-place="sogut"]')).to_be_visible()
+        page.locator('[data-search-place="sogut"]').click()
+    except Exception:
+        page.screenshot(path=str(out/f'{browser_type.name}-{width}-search-failure.png'),full_page=True)
+        (out/f'{browser_type.name}-{width}-search-failure.txt').write_text(str({'errors':errors,'inputs':page.locator('input').evaluate_all('(xs)=>xs.map(x=>({label:x.getAttribute("aria-label"),value:x.value}))'),'body':page.locator('body').inner_text()}))
+        raise
     expect(page.locator('.ruler-place-card h2')).to_have_text('Сёгют')
     page.get_by_role('button',name='Дальше: как устроены войска',exact=False).click();stage('army')
     expect(page.get_by_role('tab',name='Мои армии',exact=True)).to_have_attribute('aria-selected','true')
