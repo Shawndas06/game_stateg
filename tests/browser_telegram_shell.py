@@ -30,7 +30,7 @@ def run(bt,width,url,out):
     page.get_by_role('button',name='Открыть меню кампании',exact=True).click();page.get_by_role('button',name='Главное меню',exact=True).click();resume_menu(page)
     expect(page.get_by_test_id('prologue')).to_have_count(0)
     assert page.request.get(url+'/api/campaigns/latest').json()['state']['revision']==before['revision']
-    page.evaluate('Telegram.WebApp.isVersionAtLeast=()=>false;Telegram.WebApp.lockOrientation=()=>{throw Error("Unsupported orientation must not be called")}')
+    page.evaluate('()=>{Telegram.WebApp.isVersionAtLeast=()=>false;Telegram.WebApp.lockOrientation=()=>{throw Error("Unsupported orientation must not be called")}}')
     page.get_by_role('button',name='Открыть меню кампании',exact=True).click()
     expect(page.get_by_role('button',name='Закрепить / освободить текущее положение экрана',exact=True)).to_be_disabled()
     page.get_by_role('button',name='Продолжить',exact=True).click()
