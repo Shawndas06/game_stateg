@@ -62,7 +62,7 @@ def run(browser_type, width, url, out):
     page.get_by_role('button',name='? Как играть',exact=True).click()
     expect(page.get_by_role('dialog')).to_be_visible()
     page.keyboard.press('Shift+Tab');expect(page.get_by_role('button',name='Вернуться к игре',exact=True)).to_be_focused()
-    page.keyboard.press('Tab');expect(page.get_by_text('Почему после приказа ничего не произошло?',exact=True)).to_be_focused()
+    page.keyboard.press('Tab');expect(page.get_by_role('button',name='Переключить на отдельные разделы',exact=True)).to_be_focused()
     page.keyboard.press('Escape');expect(page.get_by_role('dialog')).to_have_count(0)
     page.get_by_role('button',name='? Как играть',exact=True).click()
     page.get_by_role('button',name='Пройти обучение заново',exact=True).click();stage('council')

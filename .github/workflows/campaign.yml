@@ -58,6 +58,7 @@ jobs:
           trap 'kill "$server_pid"' EXIT
           python scripts/wait_for_server.py
           python tests/browser_auth.py
+          PYTHONPATH=. python tests/browser_strategy.py
           RULER_UX_SCREENSHOTS=/tmp/ruler-ux-evidence PYTHONPATH=. python tests/browser_ruler_ux.py
           PYTHONPATH=. python tests/browser_statecraft.py
           PYTHONPATH=. python tests/statecraft_scenarios.py
@@ -95,6 +96,7 @@ jobs:
             /tmp/statecraft-browser-evidence
             /tmp/statecraft-acceptance.json
             /tmp/statecraft-sieges.json
+            /tmp/strategy-browser-evidence
             /tmp/campaign-browser-server.log
           if-no-files-found: ignore
   container-build:

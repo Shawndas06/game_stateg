@@ -62,6 +62,8 @@ def run(bt,url,uid):
     page.reload()
     expect(page.get_by_role('button',name='? Как играть',exact=True)).to_be_visible()
     page.get_by_role('button',name='Пропустить обучение',exact=True).click()
+    expect(page.get_by_test_id('campaign-command-map')).to_be_visible()
+    page.get_by_role('button',name='Двор',exact=True).click()
     expect(page.get_by_text('Что делать сейчас',exact=True)).to_be_visible()
     assert not errors,errors
     context.close();browser.close()

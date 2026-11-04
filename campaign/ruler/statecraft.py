@@ -84,7 +84,11 @@ def _plan(s,d,execute=False):
     if add:military.command(trial,'transfer',{'army':a.id,'direction':'to_army','troops':add})
     mission={k:v for k,v in d.items() if k!='troops'}
     military.command(trial,'mission',mission)
-    p=trial.places[a.location];path=route(trial,a.location,str(d['target']),a.faction,military=True)
+    p=trial.places[a.location]
+    from campaign.ruler.core import war
+    area=d.get('area') or None
+    if d.get('purpose')=='march':area=[pid for pid in (area or trial.places) if not war(trial,a.faction,trial.places[pid].controller)]
+    path=route(trial,a.location,str(d['target']),a.faction,area,hostile_end=d.get('purpose')!='march',military=True)
     warnings=[]
     if p.controller==a.faction and count(p.garrison)<15:warnings.append(f'{name(p.id)}: останется {count(p.garrison)} воинов. Охрана ворот и складов ослаблена.')
     food=a.grain//max(1,a.size)

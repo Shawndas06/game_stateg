@@ -103,14 +103,21 @@ def command(s: RulerState, kind: str, d: dict) -> bool:
         target=str(d.get('target',s.capital if kind=='recall' else ''))
         require(target in s.places,'Выберите существующую цель')
         purpose='return' if kind=='recall' else str(d.get('purpose','defend'))
-        require(purpose in ['conquer','defend','relieve','cover','intercept','return'],'Неизвестная задача')
+        require(purpose in ['conquer','defend','relieve','cover','intercept','return','march'],'Неизвестная задача')
+        if purpose=='march':
+            require(not war(s,a.faction,s.places[target].controller),'Для наступления выберите завоевание; мирный переход не разрешает нападение')
+            require(not d.get('allow_assault',False),'Мирный переход не разрешает штурм; выберите задачу завоевания')
         area=d.get('area',[])
         require(isinstance(area,list) and all(isinstance(x,str) and x in s.places for x in area),'Укажите допустимые владения района')
         if not area:
-            path=route(s,a.location,target,a.faction,military=True)
+            peaceful=[pid for pid in s.places if not war(s,a.faction,s.places[pid].controller)] if purpose=='march' else None
+            path=route(s,a.location,target,a.faction,peaceful,hostile_end=purpose!='march',military=True)
             require(path is not None,'Нет доступного маршрута; необходимы право прохода или перевозка')
             area=list(dict.fromkeys([a.location]+path+[n for p in path for n in ADJACENCY[p] if s.places[n].controller==a.faction]))
         require(a.location in area and target in area,'Армия и цель должны находиться в разрешённом районе')
+        if purpose=='march':
+            peaceful=[pid for pid in area if not war(s,a.faction,s.places[pid].controller)]
+            require(route(s,a.location,target,a.faction,peaceful,hostile_end=False,military=True) is not None,'Для мирного перехода нужен доступный путь по своим или разрешённым договором землям')
         if purpose=='conquer':require(war(s,a.faction,s.places[target].controller),'Правитель должен сначала разрешить войну с владельцем цели')
         require(purpose not in ['defend','cover','return'] or s.places[target].controller==a.faction,'Для этой задачи нужно своё владение')
         days=d.get('days',180)
@@ -148,7 +155,7 @@ def command(s: RulerState, kind: str, d: dict) -> bool:
 
 
 def purpose_label(kind: str) -> str:
-    return {'conquer':'завоевание','defend':'оборона','cover':'охрана дороги','relieve':'помощь осаждённым','intercept':'перехват','return':'возвращение'}[kind]
+    return {'conquer':'завоевание','defend':'оборона','cover':'охрана дороги','relieve':'помощь осаждённым','intercept':'перехват','return':'возвращение','march':'переход'}[kind]
 
 
 def deliver_order(s: RulerState,a: Army,m: dict) -> None:
@@ -402,7 +409,10 @@ def tick(s: RulerState) -> None:
             record(s,f'Поручение выполнено: {purpose_label(m["purpose"])} у {name(target)}.','mission_complete');continue
         if m['purpose']=='conquer' and not war(s,a.faction,s.places[target].controller):
             m['status']='awaiting';record(s,'Поход остановлен после изменения отношений; новая война не разрешена.','obstruction');continue
-        path=route(s,a.location,target,a.faction,m['area'],military=True)
+        area=m['area']
+        if m['purpose']=='march':
+            area=[pid for pid in area if not war(s,a.faction,s.places[pid].controller)]
+        path=route(s,a.location,target,a.faction,area,hostile_end=m['purpose']!='march',military=True)
         if path is None:
             m['status']='awaiting';record(s,f'Армия не нашла разрешённого пути к {name(target)}.','obstruction');continue
         if path:

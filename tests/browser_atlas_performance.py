@@ -13,10 +13,11 @@ def run(bt,width,url):
     browser=bt.launch();context=browser.new_context(viewport={'width':width,'height':844},is_mobile=True,has_touch=True)
     page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
     page.goto(url);page.get_by_role('button',name='Стать правителем',exact=False).click()
-    page.get_by_role('button',name='Пропустить пролог',exact=True).click();page.get_by_role('button',name='Пропустить обучение',exact=True).click()
+    page.get_by_role('button',name='Пропустить пролог',exact=True).click()
     cdp=context.new_cdp_session(page) if bt.name=='chromium' else None
     if cdp:cdp.send('Emulation.setCPUThrottlingRate',{'rate':4});cdp.send('Performance.enable')
-    started=time.perf_counter();page.get_by_role('button',name='Атлас',exact=True).click();page.locator('.map-load-state').wait_for(state='hidden')
+    # Opening now happens when teaching is dismissed, before any atlas nav click.
+    started=time.perf_counter();page.get_by_role('button',name='Пропустить обучение',exact=True).click();page.get_by_test_id('campaign-command-map').wait_for();page.locator('.map-load-state').wait_for(state='hidden')
     page.locator('.illustrated-map').scroll_into_view_if_needed()
     opened=round((time.perf_counter()-started)*1000)
     readings=[]

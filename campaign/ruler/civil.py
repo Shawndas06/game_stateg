@@ -103,15 +103,19 @@ def obligation_text(s: RulerState,o: dict) -> str:
     return f'сохранить выданные права в {name(o["province"])}'
 
 
+def assessment(s, p):
+    """An assessment is a forecast, not a claim that the collector has paid."""
+    factor={'relief':.65,'customary':1,'extraordinary':1.35}[p.tax]
+    gross=max(0,int((8 if not p.fortress_level else 16)*p.prosperity/65*factor*(.5 if p.owner!='ottoman' else 1)))
+    granted=gross//4 if p.grant and s.people[p.grant['beneficiary']].status!='dead' else 0
+    return {'gross':gross,'granted':granted,'treasury':gross-granted,'period_days':30}
+
+
 def budget(s: RulerState) -> dict:
     own=[p for p in s.places.values() if p.controller=='ottoman']
     gross=grants=local=0
     for p in own:
-        factor={'relief':.65,'customary':1,'extraordinary':1.35}[p.tax]
-        tax=int((8 if not p.fortress_level else 16)*p.prosperity/65*factor*(.5 if p.owner!='ottoman' else 1))
-        tax=max(0,tax)
-        grant=tax//4 if p.grant and p.grant['beneficiary'] in s.people and s.people[p.grant['beneficiary']].status!='dead' else 0
-        gross+=tax;grants+=grant;local+=3
+        row=assessment(s,p);gross+=row['gross'];grants+=row['granted'];local+=3
     # Count payroll from actual Ottoman containers, not present ownership of origins.
     total=sum(c.count*TROOPS[c.troop]['upkeep'] for p in own for c in p.garrison)+sum(c.count*TROOPS[c.troop]['upkeep'] for a in s.armies.values() if a.faction=='ottoman' for c in a.cohorts)+sum(x['count']*TROOPS[x['troop']]['upkeep'] for c in s.transports.values() for x in c.get('escorts',[]))
     fortress_upkeep=sum(3 for p in own if 'new_fortress' in p.buildings)
