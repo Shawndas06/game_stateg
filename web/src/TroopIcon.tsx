@@ -1,0 +1,2 @@
+const shapes:Record<string,string>={militia:'M6 3v18m0-16h10l-2 4H6m5 2 7 10m-7 0 7-10',archers:'M6 3c15 0 15 18 0 18L12 12ZM3 12h18m-3-3 3 3-3 3',cavalry:'M7 21v-6l-3-3 6-9 5 2 5 10v6M10 3l1 5-3 4m3 3h9M14 8h.01'};
+export default function TroopIcon({troop}:{troop:string}){return <svg aria-hidden="true" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={shapes[troop]||shapes.militia}/></svg>}

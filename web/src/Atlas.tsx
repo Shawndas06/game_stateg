@@ -62,6 +62,7 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
   const svg = useRef<SVGSVGElement>(null);
   const pointers = useRef(new Map<number, Point>());
   const moved = useRef(false);
+  const gestureStart = useRef<Point>([0,0]);
   const cameraFrame = useRef<number | null>(null);
   const cameraDelta = useRef({x:0,y:0,zoom:1});
   useEffect(()=>()=>{if(cameraFrame.current!==null)cancelAnimationFrame(cameraFrame.current)},[]);
@@ -78,6 +79,12 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
   const pins = useMemo(() => detailed ? layoutPlaces(visible, view, width, height) : [], [visible,detailed,view.x,view.y,view.width,view.height,width,height]);
   const results = catalog.places.filter(p => (kind==='all'||(kind==='village' ? state.provinces[p.id].fortress_level===0 : state.provinces[p.id].fortress_level>0)) && p.name.toLocaleLowerCase('ru').includes(query.toLocaleLowerCase('ru')));
 
+  // Fullscreen changes both marker layout and hit targets: measure before paint.
+  useLayoutEffect(()=>{
+    const box=area.current?.getBoundingClientRect();
+    if(box?.width&&box.height)setSize(old=>old.width===box.width&&old.height===box.height?old:{width:box.width,height:box.height});
+  },[fullScreen]);
+
   useEffect(() => {
     const controller = new AbortController();
     setLoadError(false);
@@ -89,9 +96,10 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
   }, [attempt]);
   useEffect(() => {
     if (!area.current) return;
-    const observer = new ResizeObserver(entries => {
-      const {width, height} = entries[0].contentRect;
-      if (width && height) setSize({width, height});
+    const observer = new ResizeObserver(() => {
+      // A queued notification may describe the pre-fullscreen rectangle.
+      const {width,height}=area.current!.getBoundingClientRect();
+      if (width && height) setSize(old=>old.width===width&&old.height===height?old:{width,height});
     });
     observer.observe(area.current);
     return () => observer.disconnect();
@@ -158,8 +166,10 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
     if (!old) return;
     const next: Point = [e.clientX, e.clientY];
     if (pointers.current.size === 1) {
-      const dx = next[0] - old[0], dy = next[1] - old[1];
-      if (Math.abs(dx) + Math.abs(dy) > 2) moved.current = true;
+      const origin=moved.current?old:gestureStart.current;
+      const dx=next[0]-origin[0],dy=next[1]-origin[1];
+      if(!moved.current&&Math.hypot(dx,dy)<6){pointers.current.set(e.pointerId,next);return}
+      moved.current=true;
       queueCamera(-dx*view.width/width,-dy*view.height/height);
     } else {
       moved.current = true;
@@ -178,11 +188,13 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
   function focusPlace(pid: string, scale = 18) {
     const p = catalog.places.find(p=>p.id===pid)!;
     const [x,y] = project(p.lon,p.lat);
+    previousSelection.current=pid;
     setZoom(baseWidth / scale); setPan([x-baseCenter[0],y-baseCenter[1]]); select(pid);
     requestAnimationFrame(()=>area.current?.scrollIntoView({block:'center'}));
   }
   function focusSelected() {focusPlace(selectedPlace.id)}
-  const choose = (pid: string) => {if (!moved.current) select(pid)};
+  const selectMarker = (pid:string) => {previousSelection.current=pid;select(pid)};
+  const choose = (pid: string) => {if (!moved.current) selectMarker(pid)};
   const previousSelection = useRef(selected);
   useEffect(()=>{
     if (previousSelection.current === selected) return;
@@ -197,7 +209,7 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
     {(query || kind!=='all') && <div className="atlas-search-results" aria-label="Результаты поиска"><small>Найдено: {results.length}</small>{results.map(p=><button key={p.id} data-search-place={p.id} onClick={()=>{focusPlace(p.id);setQuery('');setKind('all')}}>{p.name}<small>{catalog.factions[state.provinces[p.id].controller]}</small></button>)}</div>}
     <div ref={area} className={`illustrated-map-canvas ${world ? 'world-map-canvas' : ''}`}>
       <svg ref={svg} className="illustrated-map" aria-label="Стратегическая карта Средиземноморья" data-detail={detailed ? 'fortresses' : 'overview'} viewBox={`0 0 ${width} ${height}`} onPointerDown={e => {
-        if (!pointers.current.size) moved.current = false;
+        if (!pointers.current.size){moved.current=false;gestureStart.current=[e.clientX,e.clientY]}
         pointers.current.set(e.pointerId, [e.clientX, e.clientY]);
         // Keep target clicks on their marker; capture only background drags.
         const marker = (e.target as Element).closest('[data-place]');
@@ -250,7 +262,7 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
           const place = state.provinces[p.id], color = colorFor(place.controller);
           const active = p.id === selected, besieged = !!state.sieges[p.id];
           const stationed = Object.values(state.armies).filter(a => a.location === p.id && troopCount(a.troops) > 0);
-          return <g key={p.id} data-place={p.id} data-testid={`place-${p.id}`} className={`illustrated-place ${active ? 'is-selected' : ''}`} role="button" tabIndex={0} aria-label={`Выбрать ${p.name}`} transform={`translate(${p.position.join(' ')})`} onClick={() => choose(p.id)} onKeyDown={e => {if (e.key === 'Enter' || e.key === ' ') {e.preventDefault(); select(p.id)}}}>
+          return <g key={p.id} data-place={p.id} data-testid={`place-${p.id}`} className={`illustrated-place ${active ? 'is-selected' : ''}`} role="button" tabIndex={0} aria-label={`Выбрать ${p.name}`} transform={`translate(${p.position.join(' ')})`} onClick={() => choose(p.id)} onKeyDown={e => {if (e.key === 'Enter' || e.key === ' ') {e.preventDefault(); selectMarker(p.id)}}}>
             <rect className="place-hit-target" x="-46" y="-36" width="92" height="68" rx="10" fill="transparent"/>
             {active && <ellipse cy="2" rx="26" ry="14" fill="#eee0a3" stroke="#aa7836" strokeWidth="1.5"/>}
             {besieged && <ellipse cy="2" rx="29" ry="17" fill="none" stroke="#9e4834" strokeWidth="1.6" strokeDasharray="4 3"/>}

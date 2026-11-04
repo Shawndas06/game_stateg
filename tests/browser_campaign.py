@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright,expect
 
 url = os.environ.get("BROWSER_TEST_URL", "http://127.0.0.1:8000")
 if urlparse(url).hostname not in {"127.0.0.1", "localhost"}:
@@ -39,8 +39,10 @@ def run(browser_type, width, height):
             city=marker.get_attribute('data-place')
             box=marker.locator('.place-hit-target').bounding_box()
             assert box and box['width']>=44 and box['height']>=44
+            camera=page.locator('[data-coastline]').evaluate('(el)=>el.parentElement.getAttribute("transform")')
             marker.locator('.place-hit-target').click()
-            assert page.locator('.place-card h2').inner_text().startswith(names[city])
+            expect(page.locator('.place-card h2')).to_contain_text(names[city])
+            assert page.locator('[data-coastline]').evaluate('(el)=>el.parentElement.getAttribute("transform")')==camera,'Selecting an on-screen marker must not move its neighbours'
         page.get_by_role('button',name='Приблизить карту',exact=True).click()
     page.get_by_role('button',name='Весь мир',exact=False).click()
     assert page.locator('.original-world-map').count()==0

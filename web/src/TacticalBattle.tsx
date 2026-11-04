@@ -1,3 +1,4 @@
+import TroopIcon from './TroopIcon';
 import {useState} from 'react';
 import type {FieldBattle} from './ruler-types';
 import './tactics.css';
@@ -11,7 +12,7 @@ export default function TacticalBattle({battle,place,busy,error,send}:{battle:Fi
  const [selected,setSelected]=useState(own[0]?.id||''),[retreat,setRetreat]=useState(false);
  const unit=own.find(u=>u.id===selected)||own[0];
  const act=(kind:string,payload:Record<string,unknown>={})=>send(kind,{battle:battle.id,...payload});
- function line(side:string,lane:string){return battle.units.filter(u=>u.side===side&&u.lane===lane&&u.count>0).map(u=><button key={u.id} className={'field-unit '+(side===battle.player_side?'friendly':'enemy')} disabled={busy||side!==battle.player_side} aria-label={`${u.name}, ${u.commander}, ${u.count} воинов`} aria-pressed={unit?.id===u.id} onClick={()=>setSelected(u.id)}><span aria-hidden="true">{u.troop==='cavalry'?'♞':u.troop==='archers'?'➶':'⚑'}</span><strong>{u.name}</strong><b>{u.count}</b><small>из {u.initial}</small></button>)}
+ function line(side:string,lane:string){return battle.units.filter(u=>u.side===side&&u.lane===lane&&u.count>0).map(u=><button key={u.id} className={'field-unit '+(side===battle.player_side?'friendly':'enemy')} disabled={busy||side!==battle.player_side} aria-label={`${u.name}, ${u.commander}, ${u.count} воинов`} aria-pressed={unit?.id===u.id} onClick={()=>setSelected(u.id)}><span aria-hidden="true"><TroopIcon troop={u.troop}/></span><strong>{u.name}</strong><b>{u.count}</b><small>из {u.initial}</small></button>)}
  const enemy=battle.player_side==='attack'?'defend':'attack';
  return <main className="tactical-screen" aria-busy={busy}>
   <header><span className="eyebrow">Полевое сражение · {place}</span><h1>{battle.phase==='deploy'?'Расставьте войска':`Этап ${battle.round} из 8`}</h1><p>{terrain[battle.terrain]}</p><small>{battle.player_side==='attack'?'Ваше войско наступает.':'Ваше войско обороняется.'} Схема поля условная. Календарь остановлен; каждый этап — короткий отрезок одного сражения.</small></header>

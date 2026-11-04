@@ -58,3 +58,6 @@
 .atlas-navigation{font-size:13px}.atlas-navigation select{font-size:14px}
 .atlas-map-heading .eyebrow{font-size:10px}.map-heading-button{font-size:13px}
 .atlas-fullscreen .atlas-home{flex-shrink:0}
+/* Selection must never resize the fullscreen canvas under the user's finger. */
+.atlas-home>span{flex-basis:100%;min-width:0;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.atlas-home>button{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

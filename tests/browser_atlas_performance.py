@@ -31,7 +31,7 @@ def run(bt,width,url):
           if(PerformanceObserver.supportedEntryTypes.includes('longtask'))new PerformanceObserver(list=>{if(atlasSample.active)atlasSample.long.push(...list.getEntries().map(e=>e.duration))}).observe({type:'longtask'});
           let last=performance.now();function frame(now){if(!atlasSample.active)return;atlasSample.frames.push(now-last);last=now;requestAnimationFrame(frame)}requestAnimationFrame(frame);
         }''')
-        # The local raster snapshot uses a blob URL, not a server/network request.
+        # Count actual network traffic, excluding local browser data/blob URLs.
         requests=[];on_request=lambda request:requests.append(request) if request.url.startswith(('http:','https:')) else None;page.on('request',on_request)
         before={m['name']:m['value'] for m in cdp.send('Performance.getMetrics')['metrics']} if cdp else {}
         box=page.locator('.illustrated-map').bounding_box();x=box['x']+box['width']*.3;y=box['y']+box['height']*.45
@@ -61,6 +61,17 @@ def run(bt,width,url):
     page.get_by_test_id('place-bursa').locator('.place-hit-target').click();expect(page.locator('.ruler-place-card h2')).to_have_text('Бурса')
     page.get_by_role('button',name='Моя столица',exact=False).click()
     expect(page.get_by_test_id('place-sogut')).to_be_in_viewport()
+    camera=lambda:page.locator('[data-coastline]').evaluate('(el)=>el.parentElement.getAttribute("transform")')
+    before=camera();box=page.get_by_test_id('place-sogut').locator('.place-hit-target').bounding_box()
+    x=box['x']+box['width']/2;y=box['y']+box['height']/2
+    page.mouse.move(x,y);page.mouse.down();page.mouse.move(x+3,y+1);page.mouse.up()
+    page.evaluate('()=>new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(ok)))')
+    assert camera()==before,'Small tap jitter must not pan the map'
+    page.mouse.move(x,y);page.mouse.down()
+    for n in range(1,21):page.mouse.move(x+n,y)
+    page.mouse.up()
+    page.wait_for_function('(before)=>document.querySelector("[data-coastline]").parentElement.getAttribute("transform")!==before',arg=before)
+    assert 'is-selected' in page.get_by_test_id('place-sogut').get_attribute('class'),'A slow drag must not select another place'
     page.get_by_role('button',name='Приблизить карту',exact=True).click();page.get_by_role('button',name='Отдалить карту',exact=True).click()
     assert not errors,errors
     context.close();browser.close();return readings
