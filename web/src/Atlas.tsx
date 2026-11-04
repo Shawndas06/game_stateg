@@ -223,7 +223,7 @@ export default function Atlas({state, catalog, selected, select, selectArmy, sel
         if (!pointers.current.size){moved.current=false;gestureStart.current=[e.clientX,e.clientY]}
         pointers.current.set(e.pointerId, [e.clientX, e.clientY]);
         // Keep target clicks on their marker; capture only background drags.
-        const marker = (e.target as Element).closest('[data-place]');
+        const marker = (e.target as Element).closest('[data-place],[data-map-army]');
         (marker || e.currentTarget).setPointerCapture(e.pointerId);
       }} onPointerMove={pointerMove} onPointerUp={endPointer} onPointerCancel={endPointer}>
         <defs>
@@ -286,7 +286,7 @@ export default function Atlas({state, catalog, selected, select, selectArmy, sel
             <text className="place-name" y="28" textAnchor="middle" fill={active ? '#fff1c8' : '#4f4933'} pointerEvents="none">{p.id === state.capital ? '★ ' : ''}{p.name}</text>
           </g>;
         })}
-        {selectArmy&&pins.flatMap(p=>Object.values(state.armies).filter(a=>a.location===p.id&&troopCount(a.troops)>0).map((a,i)=><g key={'army-'+a.id} className="atlas-army" data-map-army={a.id} role="button" tabIndex={0} aria-label={'Выбрать армию: '+(armyNames[a.id]||a.id)} aria-pressed={selectedArmy===a.id} transform={`translate(${p.position[0]+i*48} ${p.position[1]-66})`} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();selectArmy(a.id)}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectArmy(a.id)}}}><rect x="-24" y="-22" width="48" height="44" rx="6" fill="transparent"/><path d="M-17-16H18L14 13H-17Z" fill={selectedArmy===a.id?'#ac7a32':colorFor(a.faction)} stroke="#fff3cf" strokeWidth="2"/><text y="4" textAnchor="middle" fill="#fff9e8" fontSize="12" pointerEvents="none">{troopCount(a.troops)}</text></g>))}
+        {selectArmy&&pins.flatMap(p=>Object.values(state.armies).filter(a=>a.location===p.id&&troopCount(a.troops)>0).map((a,i)=><g key={'army-'+a.id} className="atlas-army" data-map-army={a.id} role="button" tabIndex={0} aria-label={'Выбрать армию: '+(armyNames[a.id]||a.id)} aria-pressed={selectedArmy===a.id} transform={`translate(${p.position[0]+i*48} ${p.position[1]-66})`} onClick={e=>{e.stopPropagation();if(!moved.current)selectArmy(a.id)}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectArmy(a.id)}}}><rect x="-24" y="-22" width="48" height="44" rx="6" fill="transparent"/><path d="M-17-16H18L14 13H-17Z" fill={selectedArmy===a.id?'#ac7a32':colorFor(a.faction)} stroke="#fff3cf" strokeWidth="2"/><text y="4" textAnchor="middle" fill="#fff9e8" fontSize="12" pointerEvents="none">{troopCount(a.troops)}</text></g>))}
         <Compass x={43} y={width < 500 ? 90 : height - 53}/>
         <path d={`M8 35V8H35M${width - 35} 8H${width - 8}V35M8 ${height - 35}V${height - 8}H35M${width - 35} ${height - 8}H${width - 8}V${height - 35}`} fill="none" stroke="#9f8551" strokeWidth="1" opacity=".7" pointerEvents="none"/>
       </svg>

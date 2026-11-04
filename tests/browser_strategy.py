@@ -35,6 +35,19 @@ def run(bt,width,url,out):
     label=page.locator('[data-place=sogut] .place-name')
     assert label.evaluate('(el)=>{const r=el.getBoundingClientRect();const n=document.querySelector(".bottom-nav").getBoundingClientRect();const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return r.y>=0&&r.bottom<=n.top&&hit?.closest("[data-place]")?.getAttribute("data-place")==="sogut"}'),'Capital label must be visible and tappable above navigation on first map'
 
+    if bt.name=='chromium' and width==390:
+        # Native touch sequence starts on a new interactive army flag. Both
+        # fingers must still reach the shared map gesture handler.
+        page.locator('.illustrated-map').scroll_into_view_if_needed();cdp=ctx.new_cdp_session(page)
+        def zoom():return float(re.search(r'scale\(([^)]+)\)',page.locator('[data-coastline]').evaluate('(el)=>el.parentElement.getAttribute("transform")')).group(1))
+        flag=page.locator('[data-map-army="ottoman-1"]').bounding_box();x=flag['x']+flag['width']/2;y=flag['y']+flag['height']/2;initial_zoom=zoom();revision=state()['revision']
+        cdp.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':x,'y':y,'id':1},{'x':x+65,'y':y,'id':2}]})
+        for delta in [10,20,30]:cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':x-delta,'y':y,'id':1},{'x':x+65+delta,'y':y,'id':2}]})
+        cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
+        page.evaluate('()=>new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(ok)))')
+        assert zoom()>initial_zoom*1.4,'Pinch beginning on an army flag must zoom instead of panning'
+        assert state()['revision']==revision
+        page.get_by_role('button',name='Моя столица',exact=False).click()
     n=act(re.compile('^Совет: Первый совет'));assert n['day']==0
     gold=n['gold'];n=act('На местные запасы и учёт · 25 монет') if page.get_by_role('button',name='На местные запасы и учёт · 25 монет',exact=True).count() else None
     if n is None:
