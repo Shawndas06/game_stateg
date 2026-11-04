@@ -37,6 +37,11 @@ def run(bt,width,url,out):
     field=page.get_by_label('Число новобранцев на карте',exact=True);field.fill('');expect(page.get_by_role('button',name='Начать набор в городе',exact=True)).to_be_disabled()
     field.fill('3');gold=state()['gold'];guards=sum(state()['provinces']['sogut']['garrison'].values());n=act('Начать набор в городе');assert n['gold']==gold-6
     page.get_by_role('tab',name='Стройка',exact=True).click();gold=n['gold'];n=act('Зернохранилище · 60 монет');assert n['gold']==gold-60
+    # A map HUD may remain behind the sheet, but must not paint over its work cards.
+    assert page.evaluate('''() => { const search=document.querySelector('.map-search'), panel=document.querySelector('.campaign-inspector');
+      const a=search.getBoundingClientRect(), b=panel.getBoundingClientRect();
+      const x=Math.max(a.left,b.left)+2,y=Math.max(a.top,b.top)+2;
+      return x>=Math.min(a.right,b.right)||y>=Math.min(a.bottom,b.bottom)||!!document.elementFromPoint(x,y)?.closest('.campaign-inspector'); }''')
     page.screenshot(path=str(out/f'{bt.name}-{width}-construction.png'));close()
     # Settings are presentation only; each level must retain the same controls.
     for quality in ['medium','high','low']:
