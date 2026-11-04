@@ -7,6 +7,9 @@
 .illustrated-map-canvas{height:570px;position:relative;overflow:hidden;background:#d6c59c}
 .illustrated-map{display:block;width:100%;height:100%;touch-action:none;user-select:none;cursor:grab}
 .illustrated-map:active{cursor:grabbing}
+.illustrated-map{will-change:transform;transform-origin:center;contain:layout paint}
+.atlas-home{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px;background:#f5edda}
+.atlas-home button{min-height:46px;font-size:15px}.atlas-home span{font-size:13px;color:#425745}
 .illustrated-place{cursor:pointer;outline:none}
 .illustrated-place:hover .place-name{text-decoration:underline;text-underline-offset:3px}
 .illustrated-place:focus-visible .place-hit-target{fill:#f8e5a3;fill-opacity:.35;stroke:#765820;stroke-width:2;stroke-dasharray:4 3}
@@ -47,3 +50,11 @@
 .atlas-search-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:0 12px 12px;max-height:260px;overflow:auto;background:#eee2bf}.atlas-search-results>small{grid-column:1/-1}.atlas-search-results button{min-height:48px;text-align:left;font-size:12px;background:#f8efd6;border:1px solid #cbb98e;color:#4b5941;padding:8px}.atlas-search-results small{display:block;font-size:9px;margin-top:3px}
 .atlas-fullscreen .atlas-search,.atlas-fullscreen .atlas-navigation{flex-shrink:0}.atlas-fullscreen .atlas-search-results{max-height:140px;flex-shrink:0}
 @media(max-width:420px){.world-map-canvas{height:540px}.illustrated-map-tools{gap:4px;right:8px}.illustrated-map-tools button{width:38px;min-height:44px}.atlas-navigation{padding:6px 10px}}
+/* Controls use words, with a separate row that never covers settlement labels. */
+.illustrated-map-tools{left:8px;right:8px;bottom:8px;flex-wrap:wrap;justify-content:flex-end}
+.illustrated-map-tools button{width:auto;min-width:44px;min-height:44px;padding:6px 10px;font-size:13px}
+.map-corner-caption{display:none}.atlas-search input,.atlas-search select{font-size:15px}
+.atlas-search-results button{font-size:15px}.atlas-search-results small{font-size:12px}
+.atlas-navigation{font-size:13px}.atlas-navigation select{font-size:14px}
+.atlas-map-heading .eyebrow{font-size:10px}.map-heading-button{font-size:13px}
+.atlas-fullscreen .atlas-home{flex-shrink:0}

@@ -1,4 +1,4 @@
-import {useEffect, useId, useMemo, useRef, useState} from 'react';
+import {useEffect, useLayoutEffect, useId, useMemo, useRef, useState} from 'react';
 import type {Catalog} from './types';
 export type AtlasState={calendar:{year:number};capital:string;provinces:Record<string,{controller:string;fortress_level:number}>;armies:Record<string,{id:string;faction:string;location:string;troops:Record<string,number>;order:{target:string}|null}>;sieges:Record<string,unknown>};
 import {layoutPlaces, landSampler, polygonPath, project, screenPoint} from './atlas-geometry';
@@ -48,7 +48,7 @@ function Compass({x, y}: {x: number; y: number}) {
 export default function Atlas({state, catalog, selected, select}: {state: AtlasState; catalog: Catalog; selected: string; select: (id: string) => void}) {
   const [world, setWorld] = useState(false);
   const [zoom, setZoom] = useState(3);
-  const [pan, setPan] = useState<Point>([0, 0]);
+  const [pan, setPan] = useState<Point>(()=>{const p=catalog.places.find(p=>p.id===state.capital)!;const [x,y]=project(p.lon,p.lat);return [x-794,y-226.5]});
   const [size, setSize] = useState({width: 350, height: 520});
   const [geography, setGeography] = useState<Geography | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -119,7 +119,7 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
   const isLand = useMemo(() => geography ? landSampler(geography) : null, [geography]);
 
   const terrain = useMemo(() => {
-    if (!isLand) return [];
+    if (!isLand || width < 700) return [];
     const result: {lon: number; lat: number; kind: number; scale: number}[] = [];
     const step = view.width > 150 ? 1.3 : .14;
     const west = view.x / 20 - 10, north = 50 - view.y / 23;
@@ -132,8 +132,15 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
       result.push({lon, lat, kind: mountain ? n % 3 : 3, scale: .6 + (n % 5) * .12});
     }
     return result;
-  }, [isLand, Math.floor((view.x/20-10)/(view.width>150?1.3:.14)), Math.ceil((50-view.y/23)/(view.width>150?1.3:.14)), view.width > 150]);
+  }, [isLand, width < 700, Math.floor((view.x/20-10)/(view.width>150?1.3:.14)), Math.ceil((50-view.y/23)/(view.width>150?1.3:.14)), view.width > 150]);
 
+  // Gesture frames move one composited surface, without React/layout/path updates.
+  function paintCamera() {
+    cameraFrame.current=null;
+    const d=cameraDelta.current;
+    if(svg.current)svg.current.style.transform=`translate3d(${-d.x*width/view.width*d.zoom}px,${-d.y*height/view.height*d.zoom}px,0) scale(${d.zoom})`;
+  }
+  useLayoutEffect(()=>{if(svg.current)svg.current.style.transform=''},[pan,zoom]);
   function flushCamera() {
     if(cameraFrame.current!==null)cancelAnimationFrame(cameraFrame.current);
     cameraFrame.current=null;
@@ -142,8 +149,8 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
     if(delta.zoom!==1)setZoom(z=>Math.max(.8,Math.min(world?80:6,z*delta.zoom)));
   }
   function queueCamera(x=0,y=0,scale=1) {
-    cameraDelta.current.x+=x;cameraDelta.current.y+=y;cameraDelta.current.zoom*=scale;
-    if(cameraFrame.current===null)cameraFrame.current=requestAnimationFrame(flushCamera);
+    cameraDelta.current.x+=x;cameraDelta.current.y+=y;cameraDelta.current.zoom=Math.max(.8/zoom,Math.min((world?80:6)/zoom,cameraDelta.current.zoom*scale));
+    if(cameraFrame.current===null)cameraFrame.current=requestAnimationFrame(paintCamera);
   }
   function reset(toWorld = world, overview = false) {if(cameraFrame.current!==null)cancelAnimationFrame(cameraFrame.current);cameraFrame.current=null;cameraDelta.current={x:0,y:0,zoom:1};setWorld(toWorld); setRegion(''); setZoom(toWorld || overview ? 1 : 3); setPan([0, 0]); pointers.current.clear(); moved.current = false}
   function pointerMove(e: React.PointerEvent<SVGSVGElement | HTMLDivElement>) {
@@ -172,6 +179,7 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
     const p = catalog.places.find(p=>p.id===pid)!;
     const [x,y] = project(p.lon,p.lat);
     setZoom(baseWidth / scale); setPan([x-baseCenter[0],y-baseCenter[1]]); select(pid);
+    requestAnimationFrame(()=>area.current?.scrollIntoView({block:'center'}));
   }
   function focusSelected() {focusPlace(selectedPlace.id)}
   const choose = (pid: string) => {if (!moved.current) select(pid)};
@@ -179,14 +187,14 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
   useEffect(()=>{
     if (previousSelection.current === selected) return;
     previousSelection.current = selected;
-    const p=catalog.places.find(p=>p.id===selected)!;
-    const [x,y]=toScreen(p.lon,p.lat);
-    if(x<20||x>width-20||y<30||y>height-90) focusPlace(selected);
+    focusPlace(selected);
   },[selected]);
 
   return <section className={`illustrated-atlas ${fullScreen ? 'atlas-fullscreen' : ''}`} aria-label="Карта кампании">
-    <header className="atlas-map-heading"><div><span className="eyebrow">{world ? 'Средиземноморье' : 'Вифиния · кампания'}</span><strong>{world ? 'Карта известного мира' : 'На подступах к Бурсе'}</strong></div><button className="map-heading-button" onClick={() => reset(!world)}>{world ? 'К кампании' : 'Весь мир'} <span aria-hidden="true">↗</span></button></header>
-    <div className="atlas-navigation"><label>Регион<select aria-label="Регион карты" value={region} onChange={e=>{const r=catalog.regions.find(r=>r.id===e.target.value);setRegion(e.target.value);if(r){const [x,y]=project(r.lon,r.lat);setPan([x-baseCenter[0],y-baseCenter[1]]);setZoom(baseWidth/(r.width*20))}}}><option value="">Выбрать регион…</option>{catalog.regions.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label><span>{visible.length} в окне · {catalog.places.length} всего</span></div>
+    <header className="atlas-map-heading"><div><span className="eyebrow">{world ? 'Средиземноморье' : 'Вифиния · кампания'}</span><strong>{world ? 'Карта известного мира' : 'На подступах к Бурсе'}</strong></div><button className="map-heading-button" onClick={() => reset(!world)}>{world ? 'К кампании' : 'Весь мир'}</button></header>
+    <div className="atlas-home"><button className="primary" onClick={()=>focusPlace(state.capital)}>Моя столица · {catalog.places.find(p=>p.id===state.capital)?.name}</button><span>Выбрано: {selectedPlace.name}</span></div><div className="atlas-navigation"><label>Регион<select aria-label="Регион карты" value={region} onChange={e=>{const r=catalog.regions.find(r=>r.id===e.target.value);setRegion(e.target.value);if(r){const [x,y]=project(r.lon,r.lat);setPan([x-baseCenter[0],y-baseCenter[1]]);setZoom(baseWidth/(r.width*20))}}}><option value="">Выбрать регион…</option>{catalog.regions.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label><span>{visible.length} в окне · {catalog.places.length} всего</span></div>
+    <div className="atlas-search"><input aria-label="Поиск поселения" placeholder="Найти город или поселение…" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="Тип поселения" value={kind} onChange={e=>setKind(e.target.value)}><option value="all">Все места</option><option value="fortress">Укреплённые</option><option value="village">Поселения</option></select></div>
+    {(query || kind!=='all') && <div className="atlas-search-results" aria-label="Результаты поиска"><small>Найдено: {results.length}</small>{results.map(p=><button key={p.id} data-search-place={p.id} onClick={()=>{focusPlace(p.id);setQuery('');setKind('all')}}>{p.name}<small>{catalog.factions[state.provinces[p.id].controller]}</small></button>)}</div>}
     <div ref={area} className={`illustrated-map-canvas ${world ? 'world-map-canvas' : ''}`}>
       <svg ref={svg} className="illustrated-map" aria-label="Стратегическая карта Средиземноморья" data-detail={detailed ? 'fortresses' : 'overview'} viewBox={`0 0 ${width} ${height}`} onPointerDown={e => {
         if (!pointers.current.size) moved.current = false;
@@ -261,15 +269,14 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
       {!geography && <div className="map-load-state" role="status">{loadError ? <><p>Не удалось загрузить карту</p><button onClick={() => setAttempt(n => n + 1)}>Повторить</button></> : 'Разворачиваем карту…'}</div>}
       <div className="illustrated-map-tools">
         <button aria-label="Приблизить карту" onClick={() => setZoom(z => Math.min(world ? 80 : 6, z * 1.3))}>+</button><button aria-label="Отдалить карту" onClick={() => setZoom(z => Math.max(.8, z / 1.3))}>−</button>
-        <button aria-label="Показать выбранную крепость" onClick={focusSelected}>⌖</button>
-        {world && <button aria-label="Показать всю карту" onClick={()=>reset(true)}>▱</button>}
-        <button aria-label="Вернуть карту" onClick={() => reset()}>↺</button>
-        <button aria-label={fullScreen ? 'Свернуть карту' : 'Развернуть карту'} onClick={() => setFullScreen(v => !v)}>{fullScreen ? '⊡' : '⛶'}</button>
+        <button aria-label="Показать выбранную крепость" onClick={focusSelected}>Выбранный город</button>
+        {world && <button aria-label="Показать всю карту" onClick={()=>reset(true)}>Вся карта</button>}
+        <button aria-label="Вернуть карту" onClick={() => reset()}>Обзор</button>
+        <button aria-label={fullScreen ? 'Свернуть карту' : 'Развернуть карту'} onClick={() => setFullScreen(v => !v)}>{fullScreen ? 'Свернуть' : 'Во весь экран'}</button>
       </div>
       {<div className="map-corner-caption"><span>Кампания {state.calendar.year} года</span><small>{detailed ? 'Двигайте карту · увеличивайте двумя пальцами' : 'Нажмите на область для приближения'}</small></div>}
     </div>
     <footer className="illustrated-map-legend"><span><i style={{background: factionColor.ottoman}}/>Османы</span><span><i style={{background: factionColor.byzantine}}/>Византия</span><span className="siege-key">◌ Осада</span>{<button aria-pressed={layers} onClick={() => setLayers(v => !v)}>{layers ? 'Скрыть дороги' : 'Показать дороги'}</button>}</footer>
-    <div className="atlas-search"><input aria-label="Поиск поселения" placeholder="Найти город или поселение…" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="Тип поселения" value={kind} onChange={e=>setKind(e.target.value)}><option value="all">Все места</option><option value="fortress">Укреплённые</option><option value="village">Поселения</option></select></div>
-    {(query || kind!=='all') && <div className="atlas-search-results" aria-label="Результаты поиска"><small>Найдено: {results.length}</small>{results.map(p=><button key={p.id} data-search-place={p.id} onClick={()=>{focusPlace(p.id);setQuery('');setKind('all')}}>{p.name}<small>{catalog.factions[state.provinces[p.id].controller]}</small></button>)}</div>}
+
   </section>;
 }

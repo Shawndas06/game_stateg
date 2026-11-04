@@ -5,6 +5,7 @@ python scripts/build_media.py --model /path/to/ru_RU-denis-medium.onnx
 """
 import argparse
 import json
+import re
 import subprocess
 import tempfile
 import wave
@@ -39,7 +40,16 @@ def main():
         temp=Path(folder);durations={}
         for key,line in lines.items():
             wav=temp/(key+'.wav')
-            with wave.open(str(wav),'wb') as out:voice.synthesize_wav(line['text'],out,SynthesisConfig(length_scale=1.08))
+            spoken=line.get('speech',line['text'])
+            accents={'Осман':'Осма́н','Османа':'Осма́на','Орхан':'Орха́н','Орхану':'Орха́ну','Орхана':'Орха́на','бейлик':'бейли́к','бейлика':'бейли́ка','войска':'войска́','войско':'во́йско','Сёгют':'[[sʲɵɡʲˈut]]'}
+            spoken=re.sub(r'\b('+'|'.join(accents)+r')\b',lambda m:accents[m.group()],spoken)
+            with wave.open(str(wav),'wb') as out:
+                first=True
+                for chunk in voice.synthesize(spoken,SynthesisConfig(length_scale=1.1)):
+                    if first:
+                        out.setparams((chunk.sample_channels,chunk.sample_width,chunk.sample_rate,0,'NONE','not compressed'));first=False
+                    else:out.writeframes(b'\0'*(round(chunk.sample_rate*.32)*chunk.sample_width*chunk.sample_channels))
+                    out.writeframes(chunk.audio_int16_bytes)
             with wave.open(str(wav),'rb') as data:durations[key]=round(data.getnframes()/data.getframerate(),3)
             ffmpeg('-i',wav,'-af','loudnorm=I=-18:TP=-2:LRA=7','-c:a','libmp3lame','-b:a','64k',MEDIA/'voice'/(key+'.mp3'))
             print('voice',key,durations[key],flush=True)

@@ -21,3 +21,23 @@
 .ruler-app .ruler-council,#latest-ruler-reports{scroll-margin-top:105px}.play-guide>button+button{margin-top:8px}.ruler-app .council-speech .section-hint{font:12px/1.8 Manrope,system-ui,sans-serif}
 @media(max-width:360px){.ruler-app .button-grid{flex-direction:column}.ruler-app .button-grid button{flex:0 0 auto;min-height:46px}}
 .ruler-app .ruler-deed{border-left:4px solid #b28a45;background:#faf6e7}.ruler-deed h2{font-size:20px}.ruler-deed p{font-size:12px}.ruler-app .person-memory{border-left:2px solid #bba56d;padding-left:12px;background:#f5f3e7;padding-block:9px}
+/* First-play guidance and readable controls; preserve native keyboard semantics. */
+.advisor-explanation{margin:12px 0;padding:16px;background:#f1ecdd;border:1px solid #cec4a9;border-left:4px solid #8b6a36;border-radius:12px;color:#263f33}
+.advisor-explanation p{font-size:15px;line-height:1.65;margin:10px 0}.advisor-explanation strong{font-size:15px}
+.building-option{padding:18px 0;border-bottom:1px solid var(--line);scroll-margin-top:110px}
+.building-option h3{font-size:18px}.building-option>button{min-height:48px;font-size:15px}
+.play-guide p,.adviser p{font-size:15px;line-height:1.65}
+.play-guide button,.adviser button,.voice-controls button,.ruler-toolbar .help-button{font-size:15px;min-height:46px;padding:10px 14px}
+.ruler-app summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:46px}
+.ruler-app summary::-webkit-details-marker{display:none}
+.ruler-app summary::after{content:'Открыть';font:12px system-ui,sans-serif;color:#47624e;flex-shrink:0}
+.ruler-app details[open]>summary::after{content:'Скрыть'}
+.ruler-app input[type=checkbox]{appearance:none;width:46px;height:28px;border-radius:20px;background:#b9bdad;border:2px solid #7c8a75;position:relative;flex-shrink:0}
+.ruler-app input[type=checkbox]::after{content:'';position:absolute;width:20px;height:20px;top:2px;left:2px;border-radius:50%;background:#fffdf3;transition:transform .15s}
+.ruler-app input[type=checkbox]:checked{background:#355e46}.ruler-app input[type=checkbox]:checked::after{transform:translateX(18px)}
+.ruler-app input[type=checkbox]:focus-visible{outline:3px solid #ac8037;outline-offset:3px}
+.ruler-app .council-jump{font-size:16px;min-height:48px;border:1px solid #40634b;background:#e4ebdd;color:#24452f}
+.ruler-app .bottom-nav button{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:12px}
+.ruler-app .council-speech>summary::after{content:'Открыть';font:12px system-ui,sans-serif}
+.ruler-app .council-speech[open]>summary::after{content:'Скрыть'}
+.ruler-app .task-tabs button{font-size:14px}

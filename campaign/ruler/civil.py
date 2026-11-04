@@ -16,6 +16,40 @@ INSTITUTIONS={
 }
 
 
+def institution_help(s, iid):
+    """Public prerequisites and command validation share the same explanation."""
+    item=INSTITUTIONS[iid];missing=[x for x in item['requires'] if s.institutions.get(x,{}).get('status')!='active']
+    reasons=[]
+    for x in missing:
+        current=s.institutions.get(x)
+        reasons.append(f'Дождитесь готовности службы «{INSTITUTIONS[x]["name"]}»: осталось {max(0,current["ready"]-s.day)} дней. Нажмите «Продолжить время».' if current else f'Сначала учредите «{INSTITUTIONS[x]["name"]}» в этом разделе и дождитесь завершения подготовки.')
+    if not any(p.faction=='ottoman' and p.status=='active' and p.location==s.capital and not p.travel and p.skills['stewardship']>=35 for p in s.people.values()):
+        candidates=[p.name for p in s.people.values() if p.faction=='ottoman' and p.status=='active' and p.skills['stewardship']>=35]
+        reasons.append(f'В столице {name(s.capital)} нужен опытный распорядитель. Подойдут: {", ".join(candidates)}. Верните одного из них в столицу и дождитесь прибытия.' if candidates else 'Среди действующих служителей сейчас нет подходящего распорядителя. Дождитесь возвращения опытного человека на службу; без исполнителя учреждение не начнёт работу.')
+    if s.gold<item['cost']:reasons.append(f'Нужно {item["cost"]} монет; в казне {s.gold}. Не хватает {item["cost"]-s.gold}. Проверьте счета и ожидаемые поступления.')
+    return {'reasons':reasons,'next_institution':missing[0] if missing and missing[0] not in s.institutions else None}
+
+
+def construction_options(s,p,include_pending=True):
+    result=[]
+    for kind,title,cost,days in [('granary','Зернохранилище',60,60),('fortress','Новая крепость',250,360),('repair','Ремонт стен',(p.max_walls-p.walls)*2,60)]:
+        reasons=[]
+        if include_pending and any(e['kind']=='construction' and e['province']==p.id for e in s.edicts):
+            reasons.append('Строительное распоряжение уже в пути. Средства выделены. Продолжите время и дождитесь прибытия гонца; повторно платить не нужно.')
+        if p.owner!='ottoman':reasons.append('Сначала решите на совете вопрос об управлении завоёванным владением.')
+        if p.id in s.sieges:reasons.append('Владение в осаде. Сначала снимите осаду; начать работы сейчас нельзя.')
+        if p.construction:reasons.append(f'Здесь уже идут работы: осталось {p.construction["work"]} дней при наличии работников. Продолжите время и дождитесь донесения.')
+        if kind=='granary' and 'granary' in p.buildings:reasons.append('Зернохранилище уже построено. Выберите другое владение.')
+        if kind=='repair' and (not p.fortress_level or p.walls>=p.max_walls):reasons.append('Повреждённых крепостных стен здесь нет. Ремонт не требуется.')
+        if kind=='fortress':
+            if p.fortress_level:reasons.append('В этом владении крепость уже есть. Для новой выберите неукреплённое поселение.')
+            if s.institutions.get('builders',{}).get('status')!='active':reasons.append('Нужна действующая строительная служба. Порядок подготовки: Служба писцов → Земельный учёт → Строительная служба. Каждая должна завершить подготовку.')
+            if p.reserve<20:reasons.append(f'Нужны 20 свободных работников; здесь доступно {p.reserve}. Выберите другое поселение или верните людей из военной службы.')
+        if s.gold<cost:reasons.append(f'Нужно {cost} монет; в казне {s.gold}. Не хватает {cost-s.gold}.')
+        result.append({'id':kind,'name':title,'cost':cost,'days':days,'reasons':reasons})
+    return result
+
+
 def obligation(s: RulerState,kind: str,who: str,due: int,amount: int=0,province: str | None=None,scope: str='state') -> str:
     require(kind in ['debt','reward','protection','charter'],'Неизвестный вид обязательства')
     require(kind in ['debt','reward'] or province in s.places,'Для этого обязательства нужно владение')
@@ -156,14 +190,15 @@ def command(s: RulerState,kind: str,d: dict) -> bool:
         iid=str(d.get('institution',''));require(iid in INSTITUTIONS,'Неизвестное учреждение')
         require(iid not in s.institutions,'Учреждение уже создаётся или действует')
         item=INSTITUTIONS[iid]
-        require(all(s.institutions.get(x,{}).get('status')=='active' for x in item['requires']),'Сначала подготовьте необходимые службы')
-        require(any(p.status=='active' and p.location==s.capital and p.skills['stewardship']>=35 for p in s.people.values()),'В столице нужен служитель, способный организовать работу')
+        help=institution_help(s,iid)
+        require(not help['reasons'],' '.join(help['reasons']))
         spend(s,item['cost']);s.institutions[iid]={'status':'preparing','ready':s.day+item['days']}
         record(s,f'Начато учреждение: {item["name"]}. Выделены средства, готовятся люди и учёт.','institution')
     elif kind=='construction':
         p=owned(s,str(d.get('province','')),True);kind=d.get('building')
-        require(p.id not in s.sieges and p.construction is None,'Нужны безопасное владение и свободная очередь')
         require(kind in ['granary','fortress','repair'],'Неизвестная работа')
+        option=next(x for x in construction_options(s,p,include_pending=not d.get('_delivered')) if x['id']==kind)
+        require(not option['reasons'],' '.join(option['reasons']))
         if kind=='fortress':
             require(not p.fortress_level and s.institutions.get('builders',{}).get('status')=='active','Нужны неукреплённое поселение и действующая строительная служба')
             require(p.reserve>=20,'Нужны двадцать свободных работников');spend(s,250);p.reserve-=20

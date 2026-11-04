@@ -64,7 +64,9 @@ def run(browser_type, width, url, out):
         if speech.get_attribute('open') is None:speech.locator('summary').click()
         expect(speech.locator('p')).to_be_visible();assert len(speech.locator('p').inner_text())>20
     page.get_by_role('button',name='Перейти к решению',exact=False).click()
-    act(lambda:page.locator('[data-choice="stewardship"]').click())
+    gold=state()['gold']
+    decided=act(lambda:page.locator('[data-choice="stewardship"]').click())
+    assert decided['gold']==gold-25,'The first choice must actually pay once'
     page.get_by_role('button',name='Дальше: ваши владения',exact=False).click();stage('map')
     page.get_by_label('Поиск поселения',exact=True).fill('Сёгют')
     page.locator('[data-search-place="sogut"]').click()
@@ -111,15 +113,24 @@ def run(browser_type, width, url, out):
     after=act(lambda:page.get_by_role('button',name='Начать подготовку',exact=True).click())
     assert after['provinces']['sogut']['training'][0]['count']==2
     nav('Держава')
-    for title,heading in [('Назначения','Назначения и местные правила'),('Строительство','Службы и учреждения'),('Дипломатия','Соседние государства'),('Казна','Счета казны'),('Торговля','Запасы и торговые сделки')]:
+    for title,heading in [('Назначения','Назначения и местные правила'),('Строительство','Строительство и службы'),('Дипломатия','Соседние государства'),('Казна','Счета казны'),('Торговля','Запасы и торговые сделки')]:
         page.get_by_role('tab',name=title,exact=True).click()
         expect(page.get_by_role('heading',name=heading,exact=True)).to_be_visible()
         assert page.get_by_role('tabpanel').count()==1
         if title=='Строительство':
+            page.get_by_role('button',name='Подготовить службы для крепости',exact=True).click()
+            expect(page.locator('#institution-builders')).to_contain_text('Земельный учёт')
+            expect(page.locator('#institution-builders button').last).to_be_disabled()
+            page.locator('#institution-builders').get_by_role('button',name='Показать нужную службу').click()
+            expect(page.locator('#institution-land_register')).to_be_in_viewport()
+            expect(page.locator('#institution-land_register')).to_contain_text('Служба писцов')
             page.get_by_label('Владение для строительства',exact=True).select_option('domanic')
             expect(page.get_by_label('Владение для строительства',exact=True)).to_have_value('domanic')
-            ordered=act(lambda:page.get_by_role('button',name='Зернохранилище · 60 ◈',exact=True).click())
+            ordered=act(lambda:page.get_by_role('button',name='Зернохранилище · 60 монет',exact=True).click())
             assert any(e['kind']=='construction' and e['province']=='domanic' for e in ordered['pending_edicts'])
+            expect(page.locator('[data-building=granary]')).to_contain_text('уже в пути')
+            expect(page.locator('[data-building=granary] button')).to_be_disabled()
+            page.screenshot(path=str(out/f'{browser_type.name}-{width}-building.png'),full_page=True)
     page.get_by_label('Место торговой сделки',exact=True).select_option('sogut')
     expect(page.get_by_label('Торговый груз',exact=True)).to_have_value('400')
     matrix('Торговый груз',['Заказать продовольствие','Согласовать проезд'],['','0','-100','100.5','150','2100'],['100','2000'])
