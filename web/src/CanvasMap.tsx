@@ -3,14 +3,18 @@ import type {Catalog} from './types';
 import type {AtlasState} from './Atlas';
 import {project} from './atlas-geometry';
 import type {Geography,Point,Viewport} from './atlas-geometry';
-import {at,factionColor,hitIndex,paths,profiles,settlement,zoomAt} from './map-scene';
+import {coastClearances,groundScale,at,factionColor,hitIndex,paths,profiles,settlement,zoomAt} from './map-scene';
 import type {Hit,Quality} from './map-scene';
 import {metric} from './diagnostics';
 import {read,remember} from './CampaignMedia';
 
 type Props={state:AtlasState;catalog:Catalog;selected:string;select:(id:string)=>void;selectArmy:(id:string)=>void;selectedArmy?:string;armyNames:Record<string,string>;focusToken:number;campaign:string;plannedRoute?:string[];planned?:{province:string;count:number}[];quality:Quality;onHelp:()=>void};
 let geography:Geography|undefined;
-const load=(signal:AbortSignal)=>geography?Promise.resolve(geography):fetch('/mediterranean-geography.json?v='+encodeURIComponent(document.querySelector('meta[name=build]')?.getAttribute('content')||'development'),{signal}).then(r=>{if(!r.ok)throw Error('Карта не загрузилась');return r.json()}).then(data=>{geography=data;return data as Geography});
+const load=(signal:AbortSignal)=>{
+ if(geography)return Promise.resolve(geography);
+ const version=encodeURIComponent(document.querySelector('meta[name=build]')?.getAttribute('content')||'development');
+ return Promise.all(['/mediterranean-geography.json','/map-sites.json'].map(path=>fetch(path+'?v='+version,{signal}).then(r=>{if(!r.ok)throw Error('Карта не загрузилась');return r.json()}))).then(([geo,sites])=>{geography={...geo,...sites};return geography!});
+};
 export default function CanvasMap(props:Props){
  const {state,catalog,selected,select,selectArmy,selectedArmy,armyNames,campaign,quality,onHelp}=props;
  const root=useRef<HTMLDivElement>(null),canvas=useRef<HTMLCanvasElement>(null),camera=useRef<Viewport>({x:0,y:0,width:60,height:40});
@@ -19,10 +23,10 @@ export default function CanvasMap(props:Props){
  const [hits,setHits]=useState<Hit[]>([]),[query,setQuery]=useState(''),[political,setPolitical]=useState(false),[failure,setFailure]=useState(''),[attempt,setAttempt]=useState(0);
  const latest=useRef(props);latest.current=props;
  useEffect(()=>{
-  const controller=new AbortController(),leave=(event:PageTransitionEvent)=>{if(!event.persisted)controller.abort()};window.addEventListener('pagehide',leave);
+  const controller=new AbortController(),abort=()=>controller.abort(),leave=(event:PageTransitionEvent)=>{if(!event.persisted)abort()};window.addEventListener('beforeunload',abort);window.addEventListener('pagehide',leave);
   const area=root.current!,surface=canvas.current!,ctx=surface.getContext('2d')!;let live=true,frame=0,w=1,h=1,geo:ReturnType<typeof paths>|null=null;
-  let terrain:HTMLCanvasElement|null=null,terrainView:Viewport|null=null;
-  const symbols=new Map<string,HTMLCanvasElement>(),points=catalog.places.map(p=>({...p,point:project(p.lon,p.lat)}));
+  let terrain:HTMLCanvasElement|null=null,terrainView:Viewport|null=null;let clearances:number[]=[],refineFocus:string|null=null;
+  const symbols=new Map<string,HTMLCanvasElement>(),points=catalog.places.map((p,index)=>({...p,index,point:project(p.lon,p.lat)}));
   let lookup=hitIndex([]),active=false,dragged=false,lastFrame=0;const frames:number[]=[];const fingers=new Map<number,Point>();let last:Point=[0,0],start:Point=[0,0],distance=0;
   const persist=()=>remember('camera:'+campaign,JSON.stringify(camera.current));
   function paint(){
@@ -45,10 +49,12 @@ export default function CanvasMap(props:Props){
     const chosen=place.id===p.selected;const cell=`${Math.floor(x/56)},${Math.floor(y/48)}`;const detailed=v.width<260;const label=chosen||detailed&&!occupied.has(cell);occupied.add(cell);
     if(political){ctx.globalAlpha=.2;ctx.fillStyle=factionColor(province.controller);ctx.beginPath();ctx.arc(x,y,34,0,7);ctx.fill();ctx.globalAlpha=1}
     if(chosen){ctx.strokeStyle='#bc8739';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(x,y+6,25,12,0,0,7);ctx.stroke()}
-    if(detailed||chosen){const key=`${province.fortress_level>0}:${place.port}`;if(!symbols.has(key))symbols.set(key,settlement(province.fortress_level>0,place.port,quality));ctx.drawImage(symbols.get(key)!,x-32,y-43,64,64)}else{ctx.fillStyle=factionColor(province.controller);ctx.fillRect(x-3,y-3,6,6)}
+    if(detailed||chosen){const key=`${province.fortress_level>0}:${place.port}`;if(!symbols.has(key))symbols.set(key,settlement(province.fortress_level>0,place.port,quality));const scale=groundScale(clearances[place.index]??0,v.width/w);if(scale>=.12)ctx.drawImage(symbols.get(key)!,x-32*scale,y-49*scale,64*scale,64*scale)}else{ctx.fillStyle=factionColor(province.controller);ctx.fillRect(x-3,y-3,6,6)}
     ctx.fillStyle=factionColor(province.controller);ctx.fillRect(x+14,y-39,11,7);ctx.strokeStyle='#655a40';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+14,y-39);ctx.lineTo(x+14,y-22);ctx.stroke();
     if(p.state.sieges[place.id]){ctx.strokeStyle='#a14535';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,28,0,7);ctx.stroke()}
-    if(label){const text=(place.id===p.state.capital?'★ ':'')+place.name;ctx.font='14px Georgia';const width=ctx.measureText(text).width+10;ctx.fillStyle=chosen?'#234936':'#f3e6c8';ctx.fillRect(x-width/2,y+19,width,22);ctx.fillStyle=chosen?'#fff9e9':'#413f2c';ctx.textAlign='center';ctx.fillText(text,x,y+35)}
+    ctx.fillStyle=factionColor(province.controller);ctx.beginPath();ctx.arc(x,y,2.5,0,7);ctx.fill();
+    if(place.port&&!label){ctx.font='13px sans-serif';ctx.fillStyle='#245c70';ctx.textAlign='center';ctx.fillText('⚓',x,y-7)}
+    if(label){const text=(place.id===p.state.capital?'★ ':'')+place.name+(place.port?' ⚓':'');ctx.font='14px Georgia';const width=ctx.measureText(text).width+10;ctx.fillStyle=chosen?'#234936':'#f3e6c8';ctx.fillRect(x-width/2,y+19,width,22);ctx.fillStyle=chosen?'#fff9e9':'#413f2c';ctx.textAlign='center';ctx.fillText(text,x,y+35)}
     visible.push({id:place.id,kind:'place',x,y});
    }
    for(const army of Object.values(p.state.armies)){if(army.faction!=='ottoman')continue;const place=indexed.get(army.location);if(!place)continue;const [x,y0]=at(place.point,v,w,h),y=y0-45;if(x<-24||x>w+24||y<-24||y>h+24)continue;const n=Object.values(army.troops).reduce((a,b)=>a+b,0);if(!n)continue;ctx.fillStyle=army.id===p.selectedArmy?'#a87532':'#244d39';ctx.fillRect(x-23,y-18,46,28);ctx.fillStyle='#fff9e8';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(String(n),x,y+1);visible.push({id:army.id,kind:'army',x,y});
@@ -59,18 +65,18 @@ export default function CanvasMap(props:Props){
    lookup=hitIndex(visible);if(!active)setHits(visible);
   }
   const queue=()=>{if(live&&!frame&&!document.hidden)frame=requestAnimationFrame(paint)};schedule.current=queue;draw.current=paint;
-  const center=(id:string)=>{const point=points.find(p=>p.id===id)?.point;if(!point)return;camera.current={x:point[0]-w/32,y:point[1]-h/32,width:w/16,height:h/16};persist();queue()};focus.current=center;
+  const center=(id:string)=>{const site=points.find(p=>p.id===id);if(!site)return;const width=Math.max(.6,w*Math.min(1/16,(clearances[site.index]??Infinity)/8)),height=width*h/w;camera.current={x:site.point[0]-width/2,y:site.point[1]-height/2,width,height};if(!clearances.length)refineFocus=id;persist();queue()};focus.current=center;
   function resize(){const box=area.getBoundingClientRect();w=Math.max(1,box.width);h=Math.max(1,box.height);camera.current.height=camera.current.width*h/w;queue()}
   const observer=new ResizeObserver(resize);observer.observe(area);resize();
-  try{const saved=JSON.parse(read('camera:'+campaign)||'null');if(saved&&['x','y','width','height'].every(k=>Number.isFinite(saved[k]))&&saved.width>=12&&saved.width<=7600)camera.current={...saved,height:saved.width*h/w};else center(state.capital)}catch{center(state.capital)}
-  load(controller.signal).then(data=>{if(live){geo=paths(data,quality);setFailure('');queue()}}).catch(()=>{if(live&&!controller.signal.aborted)setFailure('Карта не загрузилась. Проверьте соединение и повторите.')});
+  try{const saved=JSON.parse(read('camera:'+campaign)||'null');if(saved&&['x','y','width','height'].every(k=>Number.isFinite(saved[k]))&&saved.width>=.6&&saved.width<=7600)camera.current={...saved,height:saved.width*h/w};else center(state.capital)}catch{center(state.capital)}
+  load(controller.signal).then(data=>{if(live){clearances=coastClearances(data,points.map(p=>p.point));geo=paths(data,quality);for(const key of ['land','lakes'] as const){const combined=new Path2D();for(const path of geo[key])combined.addPath(path);geo[key]=[combined]}if(refineFocus){const id=refineFocus;refineFocus=null;center(id)}setFailure('');queue()}}).catch(()=>{if(live&&!controller.signal.aborted)setFailure('Карта не загрузилась. Проверьте соединение и повторите.')});
   const position=(e:PointerEvent):Point=>{const b=area.getBoundingClientRect();return [e.clientX-b.x,e.clientY-b.y]};
   const down=(e:PointerEvent)=>{if((e.target as HTMLElement).closest('.map-hud'))return;if(!fingers.size){moved.current=false;dragged=false;lastFrame=0;frames.length=0;start=position(e)}fingers.set(e.pointerId,position(e));active=true;area.setPointerCapture(e.pointerId);const a=[...fingers.values()];last=a.length>1?[(a[0][0]+a[1][0])/2,(a[0][1]+a[1][1])/2]:a[0];distance=a.length>1?Math.hypot(a[1][0]-a[0][0],a[1][1]-a[0][1]):0;};
   const move=(e:PointerEvent)=>{if(!fingers.has(e.pointerId))return;fingers.set(e.pointerId,position(e));const a=[...fingers.values()],mid:Point=a.length>1?[(a[0][0]+a[1][0])/2,(a[0][1]+a[1][1])/2]:a[0];if(a.length>1){const d=Math.hypot(a[1][0]-a[0][0],a[1][1]-a[0][1]);if(distance>0)camera.current=zoomAt(camera.current,distance/Math.max(1,d),mid,w,h);distance=d;moved.current=true}else if(Math.hypot(mid[0]-start[0],mid[1]-start[1])>6)moved.current=true;if(moved.current){camera.current.x-=(mid[0]-last[0])*camera.current.width/w;camera.current.y-=(mid[1]-last[1])*camera.current.height/h;dragged=true;queue()}last=mid};
   const up=(e:PointerEvent)=>{if(!fingers.has(e.pointerId))return;const pos=position(e);fingers.delete(e.pointerId);if(area.hasPointerCapture(e.pointerId))area.releasePointerCapture(e.pointerId);if(fingers.size){last=[...fingers.values()][0];return}active=false;suppress.current=dragged||e.type==='pointercancel';if(!suppress.current){const hit=lookup(...pos);if(hit){suppress.current=true;if(hit.kind==='army')latest.current.selectArmy(hit.id);else latest.current.select(hit.id)}}persist();queue();if(dragged&&frames.length>=8){const sorted=[...frames].sort((a,b)=>a-b),p95=sorted[Math.min(sorted.length-1,Math.floor(sorted.length*.95))];metric({kind:'map_frame',duration_ms:p95});if(p95>50&&quality!=='low'&&read('map-auto')!=='off'){remember('map-quality',quality==='high'?'medium':'low');window.dispatchEvent(new Event('graphics-quality'))}}};
   const wheel=(e:WheelEvent)=>{if((e.target as HTMLElement).closest('.map-hud'))return;e.preventDefault();camera.current=zoomAt(camera.current,Math.exp(e.deltaY*.001),[e.offsetX,e.offsetY],w,h);persist();queue()};
   area.addEventListener('pointerdown',down);area.addEventListener('pointermove',move);area.addEventListener('pointerup',up);area.addEventListener('pointercancel',up);area.addEventListener('wheel',wheel,{passive:false});document.addEventListener('visibilitychange',queue);
-  return()=>{live=false;controller.abort();window.removeEventListener('pagehide',leave);cancelAnimationFrame(frame);observer.disconnect();area.removeEventListener('pointerdown',down);area.removeEventListener('pointermove',move);area.removeEventListener('pointerup',up);area.removeEventListener('pointercancel',up);area.removeEventListener('wheel',wheel);document.removeEventListener('visibilitychange',queue)};
+  return()=>{live=false;controller.abort();window.removeEventListener('beforeunload',abort);window.removeEventListener('pagehide',leave);cancelAnimationFrame(frame);observer.disconnect();area.removeEventListener('pointerdown',down);area.removeEventListener('pointermove',move);area.removeEventListener('pointerup',up);area.removeEventListener('pointercancel',up);area.removeEventListener('wheel',wheel);document.removeEventListener('visibilitychange',queue)};
  },[campaign,quality,political,attempt]);
  useEffect(()=>{if(priorSelected.current!==selected){priorSelected.current=selected;focus.current(selected)}else schedule.current()},[state,selected,selectedArmy,props.plannedRoute]);
  useEffect(()=>{if(props.focusToken)focus.current(selected)},[props.focusToken]);

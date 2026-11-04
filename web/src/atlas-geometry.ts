@@ -2,7 +2,7 @@ import type {Catalog} from './types';
 
 export type Point = [number, number];
 export type Polygon = Point[][];
-export type Geography = {land: Polygon[]; lakes: Polygon[]};
+export type Geography = {land: Polygon[]; lakes: Polygon[]; settlements?:Point[];precision_regions?:[number,number,number,number][]};
 export type Viewport = {x: number; y: number; width: number; height: number};
 
 export const project = (lon: number, lat: number): Point => [(lon + 10) * 20, (50 - lat) * 23];
@@ -34,34 +34,12 @@ export function onLand(lon: number, lat: number, geography: Geography): boolean 
 
 export type MapPlace = Catalog['places'][number] & {anchor: Point; position: Point};
 
-/** Keep touch targets and labels separate; leader lines preserve geographic truth. */
+/** Geographic anchors are immutable: label collisions must not move a city. */
 export function layoutPlaces(places: Catalog['places'], view: Viewport, width: number, height: number): MapPlace[] {
   const visible = places.map(p => {
     const anchor = screenPoint(project(p.lon, p.lat), view, width, height);
     return {...p, anchor, position: [...anchor] as Point};
   }).filter(p => p.anchor[0] > 15 && p.anchor[0] < width - 15 && p.anchor[1] > 30 && p.anchor[1] < height - 30);
-  for (let iteration = 0; iteration < 120; iteration++) {
-    for (let i = 0; i < visible.length; i++) {
-      const p = visible[i];
-      p.position[0] += (p.anchor[0] - p.position[0]) * .008;
-      p.position[1] += (p.anchor[1] - p.position[1]) * .008;
-      for (let j = i + 1; j < visible.length; j++) {
-        const q = visible[j];
-        const dx = q.position[0] - p.position[0], dy = q.position[1] - p.position[1];
-        const ox = 98 - Math.abs(dx), oy = 72 - Math.abs(dy);
-        if (ox <= 0 || oy <= 0) continue;
-        if (ox < oy) {
-          const shift = (ox + .5) * .51 * (dx >= 0 ? 1 : -1);
-          p.position[0] -= shift; q.position[0] += shift;
-        } else {
-          const shift = (oy + .5) * .51 * (dy >= 0 ? 1 : -1);
-          p.position[1] -= shift; q.position[1] += shift;
-        }
-      }
-      p.position[0] = Math.max(53, Math.min(width - 53, p.position[0]));
-      p.position[1] = Math.max(63, Math.min(height - 105, p.position[1]));
-    }
-  }
   return visible;
 }
 

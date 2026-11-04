@@ -8,17 +8,17 @@ FACTIONS = {"ottoman": "Османы", "byzantine": "Византия", "germiya
 # Military numbers and income are balance values, not historical population estimates.
 # The chapter starts in spring 1299, before the year's frontier conquests.
 PLACES = [
-    ("sogut", "Сёгют", 30.179, 39.792, "ottoman", 45, 30, False),
-    ("karacahisar", "Караджахисар", 30.561, 39.903, "ottoman", 30, 45, False),
+    ("sogut", "Сёгют", 30.1832, 40.0142, "ottoman", 45, 30, False),
+    ("karacahisar", "Караджахисар", 30.4474, 39.7328, "ottoman", 30, 45, False),
     ("bilecik", "Биледжик", 29.979, 40.143, "byzantine", 32, 40, False),
-    ("yarhisar", "Ярхисар", 29.651, 40.238, "byzantine", 25, 35, False),
+    ("yarhisar", "Ярхисар", 29.8708, 40.2167, "byzantine", 25, 35, False),
     ("inegol", "Инегёль", 29.513, 40.078, "byzantine", 35, 40, False),
     ("yenishehir", "Йенишехир", 29.651, 40.268, "byzantine", 30, 35, False),
-    ("koyunhisar", "Койунхисар", 30.094, 40.593, "byzantine", 40, 40, False),
+    ("koyunhisar", "Койунхисар", 29.4867, 40.2597, "byzantine", 40, 40, False),
     ("bursa", "Бурса", 29.061, 40.182, "byzantine", 110, 90, False),
     ("nicaea", "Никея", 29.721, 40.428, "byzantine", 95, 85, False),
     ("mudanya", "Муданья", 28.882, 40.375, "byzantine", 40, 45, True),
-    ("cius", "Киос", 29.088, 40.433, "byzantine", 45, 45, True),
+    ("cius", "Киос", 29.156389, 40.432468, "byzantine", 45, 45, True),
     ("nicomedia", "Никомедия", 29.916, 40.765, "byzantine", 100, 85, True),
     ("kutahya", "Кютахья", 29.983, 39.418, "germiyan", 70, 65, False),
 ]

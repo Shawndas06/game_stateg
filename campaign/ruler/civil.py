@@ -6,7 +6,7 @@ from campaign.content import PLACE_INDEX, TROOPS
 from campaign.engine import require, relation_key
 from campaign.ruler.models import Cohort, RulerState
 from campaign.ruler.core import *
-from campaign.ruler import world, knowledge
+from campaign.ruler import world, knowledge, maritime
 
 INSTITUTIONS={
  'scribes':{'name':'Служба писцов','cost':70,'days':60,'upkeep':3,'requires':[]},
@@ -27,12 +27,17 @@ def institution_help(s, iid):
         candidates=[p.name for p in s.people.values() if p.faction=='ottoman' and p.status=='active' and p.skills['stewardship']>=35]
         reasons.append(f'В столице {name(s.capital)} нужен опытный распорядитель. Подойдут: {", ".join(candidates)}. Верните одного из них в столицу и дождитесь прибытия.' if candidates else 'Среди действующих служителей сейчас нет подходящего распорядителя. Дождитесь возвращения опытного человека на службу; без исполнителя учреждение не начнёт работу.')
     if s.gold<item['cost']:reasons.append(f'Нужно {item["cost"]} монет; в казне {s.gold}. Не хватает {item["cost"]-s.gold}. Проверьте счета и ожидаемые поступления.')
+    if s.rules_version>=5 and iid=='shipping':
+        if not maritime.navigation(s):reasons.append('Сначала обучите кормчих: «Мастера → Судоходство». Нанятый мастер должен прибыть и завершить обучение местных людей.')
+        if not any(p.controller=='ottoman' and maritime.harbour(s,p.id) for p in s.places.values()):reasons.append('Нужен собственный оборудованный порт: выберите прибрежное владение с исторической пристанью → Стройка → Оборудованный порт. Дождитесь завершения работ.')
     return {'reasons':reasons,'requires':[] if s.rules_version>=5 and iid=='builders' else list(item['requires']),'next_institution':missing[0] if missing and missing[0] not in s.institutions else None}
 
 
 def construction_options(s,p,include_pending=True):
     result=[]
-    for kind,title,cost,days in [('granary','Зернохранилище',60,60),('fortress','Новая крепость',250,360),('repair','Ремонт стен',(p.max_walls-p.walls)*2,60)]:
+    works=[('granary','Зернохранилище',60,60),('fortress','Новая крепость',250,360),('repair','Ремонт стен',(p.max_walls-p.walls)*2,60)]
+    if s.rules_version>=5:works.append(('harbor','Оборудованный порт',maritime.PORT_COST,maritime.PORT_DAYS))
+    for kind,title,cost,days in works:
         reasons=[]
         if include_pending and any(e['kind']=='construction' and e['province']==p.id for e in s.edicts):
             reasons.append('Строительное распоряжение уже в пути. Средства выделены. Продолжите время и дождитесь прибытия гонца; повторно платить не нужно.')
@@ -41,6 +46,13 @@ def construction_options(s,p,include_pending=True):
         if p.construction:reasons.append(f'Здесь уже идут работы: осталось {p.construction["work"]} дней при наличии работников. Продолжите время и дождитесь донесения.')
         if kind=='granary' and 'granary' in p.buildings:reasons.append('Зернохранилище уже построено. Выберите другое владение.')
         if kind=='repair' and (not p.fortress_level or p.walls>=p.max_walls):reasons.append('Повреждённых крепостных стен здесь нет. Ремонт не требуется.')
+        if kind=='harbor':
+            if not maritime.landing(p.id):reasons.append('Здесь нет исторической морской или речной пристани. Выберите владение со знаком якоря; порт нельзя построить в сухопутной крепости.')
+            if 'harbor' in p.buildings:reasons.append('Причалы и склады этого порта уже оборудованы.')
+            if 'harbor_building' not in s.flags.get('statecraft',{}).get('skills',{}).get('ottoman',[]) and not knowledge.available(s,'ottoman',p.id,'harbor_building'):reasons.append('Пригласите знающего мастера устройства портов. Он может строить до обучения местных; собственная школа требует Судоходства, Плотницкого дела и Каменного строительства.')
+            if not any(not knowledge.busy(s,m.id) for m in knowledge.available(s,'ottoman',p.id,'harbor_building')):reasons.append('Отправьте свободного мастера устройства портов в это владение и дождитесь его прибытия.')
+            if p.reserve<maritime.PORT_WORKERS:reasons.append(f'Нужны {maritime.PORT_WORKERS} свободных местных работников; доступно {p.reserve}.')
+            if p.grain<maritime.PORT_WORKERS*7:reasons.append(f'Запасите хотя бы {maritime.PORT_WORKERS*7} пайков для работников на первую неделю.')
         if kind=='fortress':
             if p.fortress_level:reasons.append('В этом владении крепость уже есть. Для новой выберите неукреплённое поселение.')
             if s.institutions.get('builders',{}).get('status')!='active' and not (s.rules_version>=5 and knowledge.available(s,'ottoman',p.id,'stonework')):reasons.append('Пригласите мастера каменного строительства в это поселение через «Дела правления → Мастера» или учредите строительную службу.' if s.rules_version>=5 else 'Нужна действующая строительная служба. Порядок подготовки: Служба писцов → Земельный учёт → Строительная служба. Каждая должна завершить подготовку.')
@@ -106,7 +118,7 @@ def obligation_text(s: RulerState,o: dict) -> str:
 def assessment(s, p):
     """An assessment is a forecast, not a claim that the collector has paid."""
     factor={'relief':.65,'customary':1,'extraordinary':1.35}[p.tax]
-    gross=max(0,int((8 if not p.fortress_level else 16)*p.prosperity/65*factor*(.5 if p.owner!='ottoman' else 1)))
+    gross=max(0,int(((8 if not p.fortress_level else 16)+(6 if maritime.harbour(s,p.id) else 0))*p.prosperity/65*factor*(.5 if p.owner!='ottoman' else 1)))
     granted=gross//4 if p.grant and s.people[p.grant['beneficiary']].status!='dead' else 0
     return {'gross':gross,'granted':granted,'treasury':gross-granted,'period_days':30}
 
@@ -118,7 +130,7 @@ def budget(s: RulerState) -> dict:
         row=assessment(s,p);gross+=row['gross'];grants+=row['granted'];local+=3
     # Count payroll from actual Ottoman containers, not present ownership of origins.
     total=sum(c.count*TROOPS[c.troop]['upkeep'] for p in own for c in p.garrison)+sum(c.count*TROOPS[c.troop]['upkeep'] for a in s.armies.values() if a.faction=='ottoman' for c in a.cohorts)+sum(x['count']*TROOPS[x['troop']]['upkeep'] for c in s.transports.values() for x in c.get('escorts',[]))
-    fortress_upkeep=sum(3 for p in own if 'new_fortress' in p.buildings)
+    fortress_upkeep=sum(3*sum(b in p.buildings for b in ['new_fortress','harbor']) for p in own)
     institutions=sum(INSTITUTIONS[k]['upkeep'] for k,v in s.institutions.items() if k in INSTITUTIONS and v['status']=='active')
     wages=ceil(total/10)
     extra=0
@@ -220,14 +232,19 @@ def command(s: RulerState,kind: str,d: dict) -> bool:
         item=INSTITUTIONS[iid]
         help=institution_help(s,iid)
         require(not help['reasons'],' '.join(help['reasons']))
-        spend(s,item['cost']);s.institutions[iid]={'status':'preparing','ready':s.day+item['days']}
+        spend(s,item['cost']);s.institutions[iid]={'status':'preparing','ready':s.day+item['days'],**({'maritime':True} if s.rules_version>=5 and iid=='shipping' else {})}
         record(s,f'Начато учреждение: {item["name"]}. Выделены средства, готовятся люди и учёт.','institution')
     elif kind=='construction':
         p=owned(s,str(d.get('province','')),True);kind=d.get('building')
-        require(kind in ['granary','fortress','repair'],'Неизвестная работа')
+        require(kind in ['granary','fortress','repair','harbor'],'Неизвестная работа')
+        require(kind!='harbor' or s.rules_version>=5,'Портовое развитие доступно в сценарии живого государства; прежняя кампания сохраняет свои правила.')
         option=next(x for x in construction_options(s,p,include_pending=not d.get('_delivered')) if x['id']==kind)
         require(not option['reasons'],' '.join(option['reasons']))
-        if kind=='fortress':
+        if kind=='harbor':
+            master=next(m for m in knowledge.available(s,'ottoman',p.id,'harbor_building') if not knowledge.busy(s,m.id))
+            spend(s,maritime.PORT_COST);p.reserve-=maritime.PORT_WORKERS
+            p.construction={'building':kind,'work':maritime.PORT_DAYS,'workers':maritime.PORT_WORKERS,'master':master.id}
+        elif kind=='fortress':
             require(not p.fortress_level and (s.institutions.get('builders',{}).get('status')=='active' or s.rules_version>=5 and knowledge.available(s,'ottoman',p.id,'stonework')),'Нужны неукреплённое поселение и действующая строительная служба')
             require(p.reserve>=20,'Нужны двадцать свободных работников');spend(s,250);p.reserve-=20
             p.construction={'building':kind,'work':360,'workers':20}
@@ -432,6 +449,9 @@ def tick(s: RulerState) -> None:
 def _journey(s: RulerState,obj: dict,courier: bool=False,hostile_end: bool=False,safe_conduct: bool=False) -> bool:
     if not obj['path']:return True
     dest=obj['path'][0]
+    if s.rules_version>=5 and obj.get('kind') in ['purchase','transit','supply'] and not obj['left'] and route_kind(obj['location'],dest)!='land' and route(s,obj['location'],dest,area=[dest],hostile_end=hostile_end) is None:
+        if not obj.get('held'):record(s,'Груз остаётся у пристани: нет доступной перевозки. Проверьте службу перевозок, собственный оборудованный порт и отношения с владельцем места назначения.','obstruction')
+        obj['held']=True;return False
     if not safe_conduct and war(s,'ottoman',s.places[dest].controller) and not(hostile_end and len(obj['path'])==1):
         if not obj.get('held'):
             obj['held']=True;record(s,f'Движение у {name(obj["location"])} задержано: дорога к {name(dest)} закрыта войной.','obstruction')

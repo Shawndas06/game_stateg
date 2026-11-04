@@ -25,7 +25,8 @@ def run(bt,url,uid):
     context=browser.new_context(viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
     context.add_init_script('window.Telegram={WebApp:{initData:'+json.dumps(init_data(uid)) + ',ready(){},expand(){}}}')
     context.route('https://telegram.org/js/**',lambda route:route.fulfill(status=200,body='/* mock SDK injected before application */',content_type='application/javascript'))
-    page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page=context.new_page();errors=[];failed_resources=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.on('requestfailed',lambda r:failed_resources.append({'url':r.url.split('?')[0],'reason':r.failure}) if 'geography.json' in r.url or 'map-sites.json' in r.url else None)
     auth_calls=[]
     def auth(route):
         auth_calls.append(1)
@@ -74,7 +75,7 @@ def run(bt,url,uid):
     expect(page.get_by_role('alert')).to_be_visible();page.get_by_role('button',name='Начать кампанию',exact=True).click()
     expect(page.get_by_test_id('prologue')).to_be_visible()
     assert replays and replays[-1]==created[0],'Retry with an existing save created another campaign'
-    assert not errors,errors
+    assert not errors,{'pageerrors':errors,'failed_map_requests':failed_resources}
     context.close();browser.close()
     print(bt.name+': failed login -> retry, blocked cookies, lost create -> resume, 401 command -> same-ID retry, reload PASS',flush=True)
 

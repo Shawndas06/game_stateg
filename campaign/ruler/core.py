@@ -121,12 +121,17 @@ def route(s: RulerState, start: str, target: str, faction: str = 'ottoman', area
     if start == target: return []
     queue=deque([(start,[])]);seen={start}
     for_current = s.institutions.get('shipping',{}).get('status') == 'active'
+    if faction=='ottoman' and s.rules_version>=5:
+        from campaign.ruler import maritime
+        if for_current and s.institutions['shipping'].get('maritime'):
+            for_current=any(p.controller=='ottoman' and maritime.harbour(s,p.id) for p in s.places.values())
     if faction!='ottoman' and s.rules_version>=4:for_current=s.polities.get(faction).shipping if faction in s.polities else False
     while queue:
         current, path = queue.popleft()
         for n in ADJACENCY[current]:
             if n in seen or area is not None and n not in area: continue
-            if route_kind(current,n) != 'land' and not for_current: continue
+            kind=route_kind(current,n)
+            if kind!='land' and not for_current and not(kind=='ferry' and faction=='ottoman' and s.rules_version>=5 and maritime.navigation(s)):continue
             controller=s.places[n].controller
             access=s.relations.get(':'.join(sorted([faction,controller])),{}).get('access_until',0)>s.day and not war(s,faction,controller)
             if s.rules_version>=5:

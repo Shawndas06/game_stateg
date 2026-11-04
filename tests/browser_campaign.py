@@ -22,6 +22,8 @@ def run(browser_type, width, height):
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.goto(url, wait_until="domcontentloaded")
+    if os.environ.get('DEBUG_ATLAS'):
+        page.evaluate("""() => {window.atlasTouches=[];for(const type of ['pointerdown','click'])document.addEventListener(type,e=>window.atlasTouches.push({type,x:e.clientX,y:e.clientY,marker:e.target.closest?.('[data-place]')?.dataset.place,target:e.target.tagName}),true)}""")
     new_game(page,'legacy')
     page.get_by_role("heading", name="Первый диван").wait_for()
     # The third choice must be reachable even when it starts below the fold.
@@ -35,13 +37,22 @@ def run(browser_type, width, height):
     assert page.locator('[data-place]').count()>0
     # Hit every visible fortress at its actual rendered target, on both scales.
     names={city['id']:city['name'] for city in cities}
+    covered=set()
     for zoom in range(2):
         for marker in page.locator('[data-place]').all():
             city=marker.get_attribute('data-place')
             box=marker.locator('.place-hit-target').bounding_box()
             assert box and box['width']>=44 and box['height']>=44
             camera=page.locator('[data-coastline]').evaluate('(el)=>el.parentElement.getAttribute("transform")')
-            marker.locator('.place-hit-target').click()
+            target=marker.locator('.place-hit-target').bounding_box();assert target
+            point={'x':target['x']+target['width']/2,'y':target['y']+target['height']/2}
+            # Fixed map controls legitimately occupy part of the viewport. Do
+            # not move a historic town to evade them: verify it via search below.
+            if page.evaluate('p=>!!document.elementFromPoint(p.x,p.y)?.closest(".illustrated-map-tools")',point):
+                covered.add(city);continue
+            if os.environ.get('DEBUG_ATLAS'):print('TOUCH',city,target,page.evaluate('({width:innerWidth,height:innerHeight})'),flush=True)
+            page.touchscreen.tap(target['x']+target['width']/2,target['y']+target['height']/2)
+            if os.environ.get('DEBUG_ATLAS'):print('EVENTS',page.evaluate('window.atlasTouches.slice(-4)'),flush=True)
             expect(page.locator('.place-card h2')).to_contain_text(names[city])
             assert page.locator('[data-coastline]').evaluate('(el)=>el.parentElement.getAttribute("transform")')==camera,'Selecting an on-screen marker must not move its neighbours'
         page.get_by_role('button',name='Приблизить карту',exact=True).click()
@@ -52,14 +63,15 @@ def run(browser_type, width, height):
     expect(page.locator('[data-overview-place="constantinople"], [data-place="constantinople"]')).to_have_count(1)
     # Search crosses regional bounds and must expose each real settlement;
     # the same selected ID is read back through the province card.
-    check_cities=cities if width==390 and browser_type.name=='chromium' else [city for city in cities if city['id'] in ['sogut','bursa','constantinople','galata','chrysopolis','chalcedon','domanic','lisbon','cairo']]
+    check_cities=cities if width==390 and browser_type.name=='chromium' else [city for city in cities if city['id'] in covered|{'sogut','bursa','constantinople','galata','chrysopolis','chalcedon','domanic','lisbon','cairo'}]
     for index,city in enumerate(check_cities):
         if index%40==0:print(f'{browser_type.name} {width}: settlement {index+1}/{len(check_cities)}',flush=True)
         page.get_by_label('Поиск поселения',exact=True).fill(city['name'])
         result=page.locator(f'[data-search-place="{city["id"]}"]')
         result.first.click()
         marker=page.get_by_test_id('place-'+city['id'])
-        marker.locator('.place-hit-target').click()
+        target=marker.locator('.place-hit-target').bounding_box();assert target
+        page.touchscreen.tap(target['x']+target['width']/2,target['y']+target['height']/2)
         assert page.locator('.place-card h2').inner_text().startswith(city['name'])
     page.get_by_label('Поиск поселения',exact=True).fill('Доманич')
     page.locator('.atlas-search-results button').filter(has_text='Доманич').click()

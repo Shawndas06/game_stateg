@@ -127,7 +127,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if request.url.path.startswith("/api/"): response.headers["Cache-Control"] = "no-store"
         if request.url.path.startswith('/assets/'):
             response.headers['Cache-Control']='public, max-age=31536000, immutable'
-        elif request.url.path.endswith('-geography.json'):
+        elif request.url.path.endswith('-geography.json') or request.url.path=='/map-sites.json':
             response.headers['Cache-Control']='public, max-age=86400' if request.query_params.get('v') else 'no-cache'
         return response
 
@@ -232,6 +232,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/mediterranean-geography.json")
     def world_geography():
         return FileResponse(ROOT / "web" / "public" / "mediterranean-geography.json")
+
+    @app.get('/map-sites.json')
+    def coastline_protection():
+        return FileResponse(ROOT/'web'/'public'/'map-sites.json')
 
     @app.get("/bithynia-geography.json")
     def chapter_geography():
