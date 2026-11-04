@@ -115,14 +115,20 @@ def decide(s,scene,c,choice):
         elif choice=='customary':civil.command(s,'policy',{'province':p.id,'tax':'customary'})
         elif choice=='exaction':civil.command(s,'policy',{'province':p.id,'tax':'extraordinary'})
     elif scene=='war_pressure':
-        if choice=='tribute':
+        if choice=='tribute' and s.rules_version>=5:
+            from campaign.ruler.diplomacy import propose
+            propose(s,'ottoman',fid,'peace',payment=100)
+        elif choice=='tribute':
             spend(s,100)
             # Use the ordinary peace pipeline to reconcile occupations and sieges.
             s.couriers.append({'id':uid(s,'peace'),'kind':'diplomacy','target':fid,'ready':s.day+14,'payment':100,'guaranteed':True,'truce':720})
         elif choice=='negotiate':civil.command(s,'diplomacy',{'target':fid,'proposal':'peace'})
     elif scene=='alliance_offer':
         require(not war(s,'ottoman',fid),'Предложение устарело: отношения изменились')
-        if choice in ['subsidy','pact']:
+        if choice in ['subsidy','pact'] and s.rules_version>=5:
+            from campaign.ruler.diplomacy import propose
+            propose(s,'ottoman',fid,'alliance',payment=60 if choice=='subsidy' else 40)
+        elif choice in ['subsidy','pact']:
             if choice=='subsidy':
                 enemy=c['enemy'];rel=s.relations[relation_key(fid,enemy)]
                 require(war(s,'ottoman',enemy) and s.day>=rel.get('truce_until',0),'Положение изменилось: совместный поход сейчас не согласован')

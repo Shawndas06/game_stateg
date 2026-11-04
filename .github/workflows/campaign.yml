@@ -59,6 +59,9 @@ jobs:
           python scripts/wait_for_server.py
           python tests/browser_auth.py
           RULER_UX_SCREENSHOTS=/tmp/ruler-ux-evidence PYTHONPATH=. python tests/browser_ruler_ux.py
+          PYTHONPATH=. python tests/browser_statecraft.py
+          PYTHONPATH=. python tests/statecraft_scenarios.py
+          PYTHONPATH=. python tests/statecraft_sieges.py
           PYTHONPATH=. python tests/tactical_scenarios.py
           PYTHONPATH=. python tests/browser_tactics.py
           ATLAS_PERF_ASSERT=1 python tests/browser_atlas_performance.py
@@ -89,6 +92,9 @@ jobs:
             /tmp/atlas-performance.json
             /tmp/ruler-browser-evidence
             /tmp/ruler-ux-evidence
+            /tmp/statecraft-browser-evidence
+            /tmp/statecraft-acceptance.json
+            /tmp/statecraft-sieges.json
             /tmp/campaign-browser-server.log
           if-no-files-found: ignore
   container-build:

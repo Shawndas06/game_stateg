@@ -5,6 +5,7 @@ from dataclasses import asdict
 from campaign.content import ADJACENCY, PLACE_INDEX, TROOPS
 from campaign.engine import require, route_kind
 from campaign.ruler.models import Army, Cohort, RulerState
+from campaign.ruler import knowledge
 from campaign.ruler.core import *
 
 
@@ -42,6 +43,10 @@ def command(s: RulerState, kind: str, d: dict) -> bool:
         record(s,f'{name(p.id)}: {n} местных воинов отпущены со службы и вернулись к хозяйству.','demobilization')
     elif kind in ['transfer','split_army','merge_armies','lead','appoint_commander']:
         a=own_army(s,str(d.get('army','')))
+        if s.rules_version>=5 and kind in ['transfer','split_army','merge_armies']:
+            from campaign.ruler.diplomacy import data
+            leased={x['army'] for x in data(s)['loans'].values() if x['status'] in ['serving','returning']}
+            require(a.id not in leased and d.get('other') not in leased,'Вассальный контингент служит отдельным отрядом. Выдавайте ему поручения; для окончания службы верните его по договору')
         require(not a.travel and a.location==ruler_location(s),'Распределение войск и личное принятие командования требуют встречи с армией')
         require(a.location not in s.sieges,'Сначала закончите осаду или отведите войска')
         if kind=='transfer':
@@ -65,6 +70,10 @@ def command(s: RulerState, kind: str, d: dict) -> bool:
             require(b.id!=a.id and not b.travel and b.location==a.location,'Армии должны встретиться для соединения')
             require(not any(x.get('army')==b.id and x['kind']=='order' for x in s.couriers),'Сначала отзовите приказ, находящийся в пути к присоединяемой армии')
             a.cohorts.extend(b.cohorts);a.grain+=b.grain;a.funds+=b.funds
+            if s.rules_version>=5:
+                from campaign.ruler.diplomacy import data
+                a.engines+=b.engines
+                data(s)['engines'].setdefault(a.id,[]).extend(data(s)['engines'].pop(b.id,[]))
             if b.commander in s.people:s.people[b.commander].role='officer'
             b.cohorts=[];del s.armies[b.id]
             record(s,f'Армии соединены в {name(a.location)}: {a.size} воинов.','military')
@@ -249,6 +258,9 @@ def _battle(s: RulerState,pid: str,attackers: list[Army],defenders: list[Army],a
             if a.commander in s.people:
                 p=s.people[a.commander];p.experience['battle']=p.experience.get('battle',0)+1;p.skills['command']=min(90,p.skills['command']+1)
     losers=defenders if success else attackers
+    if s.rules_version>=5:
+        from campaign.ruler.diplomacy import field_result
+        field_result(s,losers)
     for a in losers:
         paths=[path for p in s.places.values() if p.controller==a.faction and p.id!=pid
                if (path:=route(s,pid,p.id,a.faction,hostile_end=False))]
@@ -327,7 +339,8 @@ def tick(s: RulerState) -> None:
                     occupy(s,pid,attackers)
                 else:
                     siege=s.sieges.setdefault(pid,{'province':pid,'faction':actor,'armies':[],'supplies':max(1,p.grain),'morale':90,'started':s.day})
-                    if siege['faction']==actor:
+                    from campaign.ruler.diplomacy import root
+                    if siege['faction']==actor or s.rules_version>=5 and root(s,siege['faction'])==root(s,actor):
                         for a in attackers:
                             if a.id not in siege['armies']:siege['armies'].append(a.id)
             if actor=='ottoman':observation(s,pid,'Походное донесение')
@@ -349,7 +362,7 @@ def tick(s: RulerState) -> None:
         if p.grain==0 and s.day%7==0:sg['morale']=max(0,sg['morale']-12)
         if s.day%7==0 and any(a.grain>0 for a in forces):
             skill=sum(s.people[a.commander].skills['siege']//25 if a.commander in s.people else 0 for a in forces)
-            p.walls=max(0,p.walls-2-skill-sum(a.engines*3 for a in forces))
+            p.walls=max(0,p.walls-2-skill-sum(knowledge.siege_bonus(s,a) if s.rules_version>=5 else a.engines*3 for a in forces))
         for a in forces:
             if a.mission and s.day>a.mission['deadline']:
                 a.mission['status']='awaiting'

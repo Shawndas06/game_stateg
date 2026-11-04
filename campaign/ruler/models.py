@@ -145,7 +145,7 @@ class RulerState:
 
     @classmethod
     def from_dict(cls, data: dict) -> RulerState:
-        if (data.get('schema_version'), data.get('rules_version'), data.get('content_version')) not in [(3, 3, 'ruler-chapter-1'), (4, 4, 'ruler-campaign-2')]:
+        if (data.get('schema_version'), data.get('rules_version'), data.get('content_version')) not in [(3, 3, 'ruler-chapter-1'), (4, 4, 'ruler-campaign-2'), (5, 5, 'ruler-statecraft-1')]:
             raise ValueError('Unsupported ruler scenario version')
         from copy import deepcopy
         values = deepcopy(data)

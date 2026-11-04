@@ -123,7 +123,10 @@ def decide(s: RulerState,d: dict) -> None:
         record(s,'Посланник '+('задержан.' if treatment=='detain' else 'казнён по распоряжению правителя.'),'envoy')
         s.flags['envoy_'+treatment]=s.flags.get('envoy_'+treatment,0)+1
         if scene in ['frontier_letter','border_proposal']:
-            s.relations[relation_key('ottoman','byzantine')]['status']='war'
+            if s.rules_version>=5:
+                from campaign.ruler.diplomacy import declare,root
+                if root(s,'byzantine')!=root(s,'ottoman'):declare(s,root(s,'byzantine'),'ottoman',defensive=True)
+            else:s.relations[relation_key('ottoman','byzantine')]['status']='war'
         if treatment=='execute':
             s.flags['execution_scene']=scene
             if scene in ['grain_offer','merchant_due']:s.flags['merchants_offended']=True
@@ -146,7 +149,13 @@ def decide(s: RulerState,d: dict) -> None:
             require(s.merchant['grain']>=250,'Нет предложенного запаса');spend(s,25);s.merchant['gold']+=25;s.merchant['grain']-=250;s.places[s.capital].grain+=250;s.flags['accounting_started']=True
     elif scene=='frontier_letter':
         if choice=='accept' and treatment not in ['detain','execute']:
-            spend(s,30);s.relations[relation_key('ottoman','byzantine')].update(status='peace',truce_until=s.day+180)
+            if s.rules_version>=5 and war(s,'ottoman','byzantine'):
+                from campaign.ruler.diplomacy import propose
+                o=propose(s,'ottoman','byzantine','peace',days=180,payment=30)
+                o.update(status='returning',answer=True)
+                record(s,'Предложенные наместником условия приняты. Ответ и платёж отправлены; дождитесь возвращения подтверждения.','diplomacy')
+            elif s.rules_version<5:spend(s,30);s.relations[relation_key('ottoman','byzantine')].update(status='peace',truce_until=s.day+180)
+            else:record(s,'Действующие мирные условия уже сохраняются; новый платёж не требуется.','diplomacy')
         elif choice=='counter':s.flags['negotiation']=s.day
     elif scene=='grain_offer':
         if choice=='buy':civil_command(s,'trade',{'mode':'purchase','province':s.capital,'amount':400})
@@ -260,6 +269,15 @@ def council(s: RulerState,agenda: dict | None=None,topic: str='state',army_id: s
             text=f'В делах совета {len(s.agendas)} вопросов. '
             text+=('Есть просроченные обязательства; первоначальные условия сохранены.' if any(o['status']=='broken' for o in obligations) else 'Обещания и полученные письма записаны с датами. Для далёких мест нужно дождаться донесения.')
             evidence=['archive','obligations']
+            if s.rules_version>=5:
+                cases=[c for c in s.flags['statecraft']['cases'].values() if c['status']=='open']
+                if cases:text+=' Неразобранные обращения: '+', '.join(c['title'] for c in cases[:3])+'.'
+        elif p.role=='master' and s.rules_version>=5:
+            from campaign.ruler.knowledge import TECH
+            d=s.flags['statecraft'];m=d['specialists'].get(p.id,{})
+            work=next((w for w in d['projects'].values() if w['master']==p.id and w['status'] in ['active','awaiting']),None)
+            text=(f'В {name(work["province"])} веду порученную работу: осталось {work["left"]} рабочих дней. '+work.get('obstacle','Нужны продовольствие и безопасное место.') if work else 'Могу обучать людей и вести работы по своим знаниям: '+', '.join(TECH[k]['name'] for k in m.get('knows',[]))+'. Для начала нужен отдельный приказ, работники и средства.')
+            evidence=['master:'+p.id]
         elif p.role in ['commander','deputy','officer','heir'] or p.id in ['konur','turgut']:
             own=next((x for x in s.armies.values() if p.id in [x.commander,x.deputy]),None)
             if own:
