@@ -126,16 +126,34 @@ def command(s,kind,d):
         s.flags.pop('battle');won='attack' if _battle(s,b['province'],*groups,automatic=True) else 'defend'
         aftermath(s,b,won)
     elif kind=='battle_step':
+        orders=d.get('orders',[])
+        require(isinstance(orders,list) and len(orders)<=len(b['units']),'Неверная ведомость приказов')
+        seen=set();prepared=[]
+        for item in orders:
+            require(isinstance(item,dict),'Неверный приказ отряду')
+            u=next((u for u in b['units'] if u['id']==item.get('unit')),None)
+            require(u is not None and u['side']==b['player_side'] and count(s,u)>0 and u['id'] not in seen,'Отряд недоступен или указан дважды')
+            key='lane' if b['phase']=='deploy' else 'order';value=item.get(key)
+            require(value in (LANES if key=='lane' else ORDERS),'Неизвестное распоряжение отряду')
+            seen.add(u['id']);prepared.append((u,key,value))
+        for u,key,value in prepared:u[key]=value
         b['phase']='combat';b['round']+=1
         alive=[u for u in b['units'] if count(s,u)>0]
         # Enemy orders depend on visible deployment, not hidden future player choices.
         for u in alive:
             if u['side']!=b['player_side']:
                 u['order']='advance'
-                if u['troop']=='cavalry':u['order']=min(('left','right'),key=lambda lane:sum(count(s,x) for x in alive if x['side']!=u['side'] and x['lane']==lane))
+                if u['troop']=='cavalry':
+                    u['order']='hold' if b['terrain']=='woods' else min(('left','right'),key=lambda lane:sum(count(s,x) for x in alive if x['side']!=u['side'] and x['lane']==lane))
+                elif u['lane']=='reserve':
+                    u['order']=min(('left','center','right'),key=lambda lane:sum(count(s,x) for x in alive if x['side']==u['side'] and x['lane']==lane))
+                elif u['side']=='defend' and b['terrain']=='hill':u['order']='hold'
+        movements=[]
         for u in alive:
+            prior=u['lane']
             if u['order'] in LANES:u['lane']=u['order']
             elif u['order']=='advance' and u['lane']=='reserve':u['lane']='center'
+            if prior!=u['lane']:movements.append(TROOPS[u['troop']]['name']+' — '+{'left':'левый фланг','center':'центр','right':'правый фланг','reserve':'резерв'}[u['lane']])
         damage={u['id']:0.0 for u in alive}
         for u in alive:
             if u['lane']=='reserve':continue
@@ -151,6 +169,9 @@ def command(s,kind,d):
             n=losses(cohorts,min(count(s,u),ceil(damage[u['id']])));a.cohorts[:]=[c for c in a.cohorts if c.count]
             fallen[u['side']]+=n
         message=f'Этап {b["round"]}: ваши потери {fallen[b["player_side"]]}, потери противника {fallen["defend" if b["player_side"]=="attack" else "attack"]}.'
+        if movements:message+=' Перемещения: '+ '; '.join(movements)+'.'
+        if b['terrain']=='woods' and any(u['troop']=='cavalry' and u['lane']!='reserve' for u in alive):message+=' Лес ограничивал действия конницы.'
+        if b['terrain']=='hill' and any(u['side']=='defend' and u['order']=='hold' and u['lane']!='reserve' for u in alive):message+=' Защитникам помогала позиция на высоте.'
         b['log'].append(message);record(s,message,'battle')
         remaining={side:sum(count(s,u) for u in b['units'] if u['side']==side) for side in ['attack','defend']}
         routed=[side for side in remaining if remaining[side]<=sum(u['initial'] for u in b['units'] if u['side']==side)*.4]

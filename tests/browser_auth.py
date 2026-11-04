@@ -8,6 +8,8 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 from playwright.sync_api import sync_playwright, expect
 
+from browser_navigation import new_game,resume_menu,nav
+
 TOKEN='test-only-telegram-bot'
 
 
@@ -37,16 +39,18 @@ def run(bt,url,uid):
     expect(page.get_by_role('button',name='Стать правителем',exact=False)).to_have_count(0)
     page.get_by_role('button',name='Повторить вход',exact=True).click()
     # Server commits creation, but connection is lost before browser receives it.
-    created=[]
+    created=[];replays=[]
     def lose_creation(route):
         if route.request.method=='POST' and not created:
             response=route.fetch();assert response.status==201;created.append(response.json()['id']);route.abort()
+        elif route.request.method=='POST':
+            response=route.fetch();replays.append(response.json()['id']);route.fulfill(response=response)
         else:route.continue_()
     page.route('**/api/campaigns',lose_creation)
-    page.get_by_role('button',name='Стать правителем',exact=False).click()
+    new_game(page,'long')
     expect(page.get_by_role('alert')).to_be_visible()
-    expect(page.get_by_role('button',name='Стать правителем',exact=False)).to_be_enabled()
-    page.get_by_role('button',name='Стать правителем',exact=False).click()
+    expect(page.get_by_role('button',name='Начать кампанию',exact=True)).to_be_enabled()
+    page.get_by_role('button',name='Начать кампанию',exact=True).click()
     expect(page.get_by_test_id('prologue')).to_be_visible()
     assert not context.cookies(),'Fixture must reject session cookies'
     # One rejected mutation is re-authenticated and retried with same receipt ID.
@@ -59,12 +63,17 @@ def run(bt,url,uid):
     page.get_by_role('button',name='Пропустить пролог',exact=True).click()
     expect(page.get_by_test_id('prologue')).to_have_count(0)
     assert len(commands)==2 and commands[0]['command_id']==commands[1]['command_id']
-    page.reload()
-    expect(page.get_by_role('button',name='? Как играть',exact=True)).to_be_visible()
+    page.reload();resume_menu(page)
+    expect(page.locator('.canvas-world')).to_be_visible()
     page.get_by_role('button',name='Пропустить обучение',exact=True).click()
     expect(page.get_by_test_id('campaign-command-map')).to_be_visible()
-    page.get_by_role('button',name='Двор',exact=True).click()
+    nav(page,'Двор')
     expect(page.get_by_text('Что делать сейчас',exact=True)).to_be_visible()
+    page.get_by_role('button',name='Открыть меню кампании',exact=True).click();page.get_by_role('button',name='Главное меню',exact=True).click()
+    created.clear();new_game(page,'realm')
+    expect(page.get_by_role('alert')).to_be_visible();page.get_by_role('button',name='Начать кампанию',exact=True).click()
+    expect(page.get_by_test_id('prologue')).to_be_visible()
+    assert replays and replays[-1]==created[0],'Retry with an existing save created another campaign'
     assert not errors,errors
     context.close();browser.close()
     print(bt.name+': failed login -> retry, blocked cookies, lost create -> resume, 401 command -> same-ID retry, reload PASS',flush=True)

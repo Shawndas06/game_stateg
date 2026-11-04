@@ -2,6 +2,8 @@
 
 Run a local server first, then: python tests/browser_campaign.py
 """
+from browser_navigation import new_game,resume_menu,nav as campaign_nav
+
 import os
 from pathlib import Path
 from urllib.parse import urlparse
@@ -20,8 +22,7 @@ def run(browser_type, width, height):
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.goto(url, wait_until="domcontentloaded")
-    page.get_by_text("Другие режимы",exact=True).click()
-    page.get_by_role("button", name="Начать историю").click()
+    new_game(page,'legacy')
     page.get_by_role("heading", name="Первый диван").wait_for()
     # The third choice must be reachable even when it starts below the fold.
     page.get_by_role("button", name="Начать с запасов и управления").scroll_into_view_if_needed()
@@ -76,7 +77,7 @@ def run(browser_type, width, height):
     for label in ("Совет", "Карта", "Держава", "Армии", "Развитие"):
         page.get_by_role("button", name=label, exact=True).click()
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), label
-    page.reload(wait_until="domcontentloaded")
+    page.reload(wait_until="domcontentloaded");resume_menu(page)
     page.get_by_role("button", name="Армии", exact=True).click()
     page.get_by_text("Текущий план: блокада.").wait_for()
     if os.environ.get("BROWSER_SCREENSHOTS"):

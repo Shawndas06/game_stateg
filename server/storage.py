@@ -6,7 +6,8 @@ import json
 import time
 from uuid import uuid4
 
-from sqlalchemy import BigInteger, JSON, Integer, String, UniqueConstraint, create_engine, select, update
+from sqlalchemy import BigInteger, JSON, Integer, String, UniqueConstraint, create_engine, select, update, delete
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from campaign.runtime import apply_command, new_campaign, view, load_state
@@ -45,6 +46,20 @@ class ArchiveRow(Base):
     entry: Mapped[dict] = mapped_column(JSON)
 
 
+class CreationRow(Base):
+    __tablename__ = "campaign_creations"
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    campaign: Mapped[str] = mapped_column(String(36))
+
+
+class DiagnosticRow(Base):
+    __tablename__ = "playtest_diagnostics"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    created_at: Mapped[int] = mapped_column(BigInteger, index=True)
+    report: Mapped[dict] = mapped_column(JSON)
+
+
 class MissingCampaign(Exception):
     pass
 
@@ -59,18 +74,45 @@ class Store:
         Base.metadata.create_all(self.engine)
         self.session = sessionmaker(self.engine, expire_on_commit=False)
 
+    def diagnostic(self, report: dict) -> None:
+        with self.session.begin() as db:
+            db.execute(delete(DiagnosticRow).where(DiagnosticRow.created_at < int(time.time())-30*86400))
+            # Global capacity bounds anonymous test reports on the free database.
+            ids=select(DiagnosticRow.id).order_by(DiagnosticRow.created_at.desc()).offset(999)
+            db.execute(delete(DiagnosticRow).where(DiagnosticRow.id.in_(ids)))
+            db.add(DiagnosticRow(id=str(uuid4()),created_at=int(time.time()),report=report))
+
     @staticmethod
     def response(row: CampaignRow) -> dict:
         return {"id": row.id, "state": view(load_state(deepcopy(row.snapshot)))}
 
-    def create(self, owner: str, seed: int, scenario: str = 'legacy', campaign_mode: str = 'chapter') -> dict:
+    def create(self, owner: str, seed: int, scenario: str = 'legacy', campaign_mode: str = 'chapter', creation_id: str | None = None) -> dict:
+        key=hashlib.sha256((owner+'\n'+creation_id).encode()).hexdigest() if creation_id else None
+        fingerprint=hashlib.sha256(json.dumps([scenario,campaign_mode]).encode()).hexdigest()
+        def previous(db):
+            receipt=db.get(CreationRow,key) if key else None
+            if not receipt:return None
+            if receipt.fingerprint!=fingerprint:raise VersionConflict('Идентификатор создания уже использован для другого сценария')
+            existing=db.get(CampaignRow,receipt.campaign)
+            if not existing or existing.owner!=owner:raise VersionConflict('Созданная партия недоступна')
+            return self.response(existing)
         s = new_campaign(seed, scenario, campaign_mode)
         entries = getattr(s, "outbox", [])[:]
         if hasattr(s, "outbox"): s.outbox = []
         row = CampaignRow(id=str(uuid4()), owner=owner, revision=0, created_at=time.time_ns(), snapshot=s.to_dict())
-        with self.session.begin() as db:
-            db.add(row)
-            self._archive(db, row.id, entries)
+        try:
+            with self.session.begin() as db:
+                old=previous(db)
+                if old:return old
+                db.add(row)
+                if key:db.add(CreationRow(key=key,fingerprint=fingerprint,campaign=row.id))
+                self._archive(db, row.id, entries)
+        except IntegrityError:
+            if not key:raise
+            with self.session() as db:
+                old=previous(db)
+                if old:return old
+            raise
         return self.response(row)
 
     def latest(self, owner: str) -> dict | None:

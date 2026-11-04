@@ -6,12 +6,16 @@ import logging
 from time import perf_counter
 from pathlib import Path
 import secrets
+import re
+import time
+from threading import Lock
 from typing import Literal
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, Query
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
@@ -35,11 +39,21 @@ class Settings:
         return cls(os.getenv("APP_ENV", "development"), os.getenv("DATABASE_URL", "sqlite:///saves/campaign-v1.db"), os.getenv("SESSION_SECRET", ""), os.getenv("TELEGRAM_BOT_TOKEN", ""), os.getenv("PUBLIC_URL") or os.getenv("RENDER_EXTERNAL_URL") or "http://127.0.0.1:8000")
 
 
+class TextCompression(GZipMiddleware):
+    async def __call__(self, scope, receive, send):
+        path=scope.get('path','')
+        if path.startswith('/api/') or path.endswith(('.json','.js','.css','.svg')):
+            await super().__call__(scope,receive,send)
+        else:
+            await self.app(scope,receive,send)
+
+
 class Login(BaseModel):
     init_data: str = Field(max_length=16000)
 
 
 class CreateCampaign(BaseModel):
+    creation_id: str | None = Field(default=None,pattern=r'^[a-zA-Z0-9_-]{8,64}$')
     scenario: Literal['legacy', 'ruler_v1'] = 'legacy'
     campaign_mode: Literal['chapter','long','realm'] = 'chapter'
 
@@ -47,8 +61,25 @@ class CreateCampaign(BaseModel):
 class Command(BaseModel):
     command_id: str = Field(pattern=r"^[a-zA-Z0-9_-]{8,64}$")
     revision: int = Field(ge=0, strict=True)
-    kind: Literal["choose", "recruit", "mobilize", "move", "retreat", "siege_mode", "build", "equip", "research", "pause_research", "reform", "diplomacy", "integrate", "end_turn", "found_fortress", "repair_walls", "decide", "consult", "advance", "raise", "form_army", "transfer", "split_army", "merge_armies", "lead", "appoint_commander", "mission", "recall", "provision", "requisition", "appoint", "policy", "grant", "revoke_grant", "audit", "fulfil", "trade", "transport_order", "institution", "construction", "ransom", "release_envoy", "demobilize", "trade_reparation", "continue_campaign", "summon", "begin_reign", "statecraft_enable", "plan_order", "execute_plan", "cancel_building", "negotiate", "treaty_reply", "break_treaty", "vassal_levy", "levy_return", "hire_master", "move_master", "learn_craft", "commission_engine", "improve_road", "cancel_project", "support_claim", "siege_operation", "governance_policy", "intrigue", "resolve_case", "tactical_mode", "battle_deploy", "battle_step", "battle_delegate", "battle_retreat"]
+    kind: Literal["choose", "recruit", "mobilize", "move", "retreat", "siege_mode", "build", "equip", "research", "pause_research", "reform", "diplomacy", "integrate", "end_turn", "found_fortress", "repair_walls", "decide", "consult", "advance", "raise", "form_army", "transfer", "split_army", "merge_armies", "lead", "appoint_commander", "mission", "recall", "provision", "requisition", "appoint", "policy", "grant", "revoke_grant", "audit", "fulfil", "trade", "transport_order", "institution", "construction", "ransom", "release_envoy", "demobilize", "trade_reparation", "continue_campaign", "summon", "begin_reign", "statecraft_enable", "plan_order", "execute_plan", "plan_gather", "execute_gather", "cancel_building", "negotiate", "treaty_reply", "break_treaty", "vassal_levy", "levy_return", "hire_master", "move_master", "learn_craft", "commission_engine", "improve_road", "cancel_project", "support_claim", "siege_operation", "governance_policy", "intrigue", "resolve_case", "tactical_mode", "battle_deploy", "battle_step", "battle_delegate", "battle_retreat"]
     payload: dict = Field(default_factory=dict)
+
+
+class Metric(BaseModel):
+    model_config = {"extra": "forbid"}
+    kind: Literal['manual','command','http_error','map_frame']
+    duration_ms: int = Field(ge=0,le=300000,strict=True)
+    status: int | None = Field(default=None,ge=100,le=599)
+    request_id: str | None = Field(default=None,pattern=r'^[a-f0-9]{16}$')
+
+
+class Diagnostic(BaseModel):
+    model_config = {"extra": "forbid"}
+    build: str = Field(pattern=r'^[a-zA-Z0-9_-]{1,64}$')
+    quality: Literal['low','medium','high']
+    width: int = Field(ge=100,le=10000,strict=True)
+    height: int = Field(ge=100,le=10000,strict=True)
+    events: list[Metric] = Field(min_length=1,max_length=20)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -72,6 +103,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     secret = secret or secrets.token_urlsafe(48)
     store = Store(cfg.database_url)
     app = FastAPI(title="Османская кампания", docs_url="/api/docs" if cfg.mode != "production" else None, redoc_url=None)
+    app.add_middleware(TextCompression,minimum_size=1000,compresslevel=4)
     app.state.store = store
     app.state.settings = cfg
 
@@ -93,6 +125,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "same-origin"
         if request.url.path.startswith("/api/"): response.headers["Cache-Control"] = "no-store"
+        if request.url.path.startswith('/assets/'):
+            response.headers['Cache-Control']='public, max-age=31536000, immutable'
+        elif request.url.path.endswith('-geography.json'):
+            response.headers['Cache-Control']='public, max-age=86400' if request.query_params.get('v') else 'no-cache'
         return response
 
     def user(request: Request) -> str:
@@ -124,10 +160,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def configuration():
         return {"demo_available": cfg.mode != "production", "telegram_ready": bool(cfg.bot_token), "chapter": "Утвердить власть", "scenarios": ["ruler_v1", "legacy"]}
 
+    limits={}; limit_lock=Lock()
+
+    @app.get('/api/release')
+    def release():
+        index=ROOT/'web'/'dist'/'index.html'
+        match=re.search(r'<meta name="build" content="([a-zA-Z0-9_-]+)"',index.read_text()) if index.exists() else None
+        return {'build':match.group(1) if match else 'development','channel':'telegram-playtest'}
+
+    @app.post('/api/diagnostics',status_code=202)
+    def diagnostics(body: Diagnostic, uid: str = Depends(user)):
+        now=int(time.time())
+        with limit_lock:
+            for key in list(limits):
+                if limits[key][0]<now-3600:del limits[key]
+            since,count=limits.get(uid,(now,0))
+            if count>=20 or len(limits)>=10000 and uid not in limits:raise HTTPException(429,'Лимит технических отчётов за час')
+            limits[uid]=(since,count+1)
+        store.diagnostic(body.model_dump(exclude_none=True))
+        return {'accepted':True,'retention_days':30}
+
     @app.get("/api/health")
     def health():
         with store.engine.connect() as db: db.execute(text("SELECT 1"))
-        return {"status": "ok", "rules_version": 2, "available_rules_versions": [2, 3, 4]}
+        return {"status": "ok", "rules_version": 2, "available_rules_versions": [2, 3, 4, 5]}
 
     @app.get("/api/catalog")
     def content(): return catalog()
@@ -140,7 +196,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def campaigns(uid: str = Depends(user)): return store.list_campaigns(uid)
 
     @app.post("/api/campaigns", status_code=201)
-    def create(body: CreateCampaign = CreateCampaign(), uid: str = Depends(user)): return store.create(uid, secrets.randbits(53), body.scenario, body.campaign_mode)
+    def create(body: CreateCampaign = CreateCampaign(), uid: str = Depends(user)):
+        try:return store.create(uid, secrets.randbits(53), body.scenario, body.campaign_mode,body.creation_id)
+        except VersionConflict as exc:raise HTTPException(409,str(exc))
 
     @app.get("/api/campaigns/{campaign}")
     def get(campaign: str, uid: str = Depends(user)):

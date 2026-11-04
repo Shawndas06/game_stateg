@@ -5,6 +5,8 @@ inspection; also plays a fresh campaign through actual UI from start to ending.
 """
 from __future__ import annotations
 
+from browser_navigation import new_game,resume_menu,nav as campaign_nav
+
 import json
 import os
 from pathlib import Path
@@ -34,11 +36,11 @@ def no_overflow(page):
 def run(browser_type,width,url,out):
     browser=browser_type.launch();context=browser.new_context(viewport={'width':width,'height':844 if width==390 else 740},is_mobile=True,has_touch=True)
     page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-    page.goto(url);page.get_by_text('Другие режимы',exact=True).click();page.get_by_role('button',name='Первая глава · учебная партия',exact=False).click();page.get_by_role('heading',name='Первый совет',exact=True).wait_for()
+    page.goto(url);new_game(page,'chapter');campaign_nav(page,'Двор');page.get_by_role('heading',name='Первый совет',exact=True).wait_for()
     assert page.locator('[data-speaker]').count()==5
     assert page.locator('.ruler-decisions small').count()==0
     def nav(title):
-        page.get_by_role('button',name=title,exact=True).click();no_overflow(page)
+        campaign_nav(page,title);no_overflow(page)
         if title=='Атлас':
             search=page.get_by_label('Поиск поселения',exact=True)
             assert search.bounding_box()['width']>=100,'Map search must remain usable alongside its filter'
@@ -53,7 +55,7 @@ def run(browser_type,width,url,out):
         expect(page.locator('main[aria-busy=true]')).to_have_count(0)
         return data
     def clock():
-        page.get_by_role('button',name='Передать ход времени',exact=False).click()
+        page.get_by_role('button',name='Выбрать ожидание',exact=False).click()
         return action(lambda:page.get_by_role('button',name='До значимого события',exact=False).click())
     action(lambda:page.locator('[data-choice="stewardship"]').click())
     nav('Войско');page.get_by_text('Личное командование и распределение',exact=True).click()
@@ -83,7 +85,7 @@ def run(browser_type,width,url,out):
         nav(title)
         if title=='Атлас':page.locator('.map-load-state').wait_for(state='hidden')
         page.screenshot(path=str(out/f'{browser_type.name}-{width}-{title}.png'),full_page=True)
-    page.reload();nav('Войско');assert len(state()['state']['armies'])==2
+    page.reload();resume_menu(page);nav('Войско');assert len(state()['state']['armies'])==2
     nav('Летопись');page.get_by_role('button',name='Открыть список летописей',exact=True).click();expect(page.get_by_role('button',name='Продолжить',exact=True)).to_have_count(1)
     nav('Двор')
     # A complete party through UI: inspect each council and give an explicit answer.
@@ -91,6 +93,7 @@ def run(browser_type,width,url,out):
         saved=state();s=saved['state']
         if s['ending']:break
         if s['agendas']:
+            nav('Двор')
             agenda=s['agendas'][0]
             action(lambda:page.locator(f'[data-agenda="{agenda["id"]}"]').click())
             assert page.locator('[data-speaker]').count()>=1
@@ -130,7 +133,7 @@ def branches(page,url,db_url,secret,data,out):
             row=db.get(CampaignRow,created['id']);row.snapshot=prefix.to_dict();row.revision=prefix.revision
             db.execute(delete(ArchiveRow).where(ArchiveRow.campaign==created['id']))
             store._archive(db,created['id'],prefix.reports)
-        page.reload();page.get_by_role('heading',name=view(prefix)['chapter']['name'],exact=True).wait_for()
+        page.reload();resume_menu(page);campaign_nav(page,'Двор');page.get_by_role('heading',name=view(prefix)['chapter']['name'],exact=True).wait_for()
         ag=next(a for a in prefix.agendas if a['scene']==branch['scene'])
         with page.expect_response(lambda r:'/commands' in r.url and r.request.method=='POST') as response:page.locator(f'[data-agenda="{ag["id"]}"]').click()
         assert response.value.status==200
@@ -149,7 +152,7 @@ def branches(page,url,db_url,secret,data,out):
             result=page.request.get(url+'/api/campaigns/latest').json()['state']
             actor=ag['context']['person']
             note=next(h for h in result['people'][actor]['history'] if h['key']=='choice:'+branch['scene'])
-            page.get_by_role('button',name='Летопись',exact=True).click()
+            campaign_nav(page,'Летопись')
             page.locator('.people-directory summary').click()
             expect(page.locator('.ruler-person').filter(has_text=result['people'][actor]['name']).get_by_text(note['text'],exact=False)).to_be_visible()
             if result.get('accomplishments'):expect(page.get_by_role('heading',name='Что удалось изменить',exact=True)).to_be_visible()
@@ -161,7 +164,7 @@ def branches(page,url,db_url,secret,data,out):
             with store.session.begin() as db:
                 row=db.get(CampaignRow,created['id']);row.snapshot=prefix.to_dict();row.revision=prefix.revision
                 db.execute(delete(ArchiveRow).where(ArchiveRow.campaign==created['id']));store._archive(db,created['id'],prefix.reports)
-            page.reload();page.get_by_role('heading',name=view(prefix)['chapter']['name'],exact=True).wait_for()
+            page.reload();resume_menu(page);campaign_nav(page,'Двор');page.get_by_role('heading',name=view(prefix)['chapter']['name'],exact=True).wait_for()
             ag=next(x for x in prefix.agendas if x['scene']==scene)
             with page.expect_response(lambda r:'/commands' in r.url and r.request.method=='POST'):page.locator(f'[data-agenda="{ag["id"]}"]').click()
             expect(page.locator('main[aria-busy=true]')).to_have_count(0)
@@ -175,7 +178,7 @@ def branches(page,url,db_url,secret,data,out):
             assert result['people'][envoy]['status']==('dead' if treatment=='execute' else 'detained' if treatment=='detain' else 'leaving')
             if treatment=='gift':assert result['gold']==prefix.gold-20
             if treatment=='detain':
-                expect(page.locator('main[aria-busy=true]')).to_have_count(0);page.get_by_role('button',name='Летопись',exact=True).click();page.locator('.people-directory summary').click()
+                expect(page.locator('main[aria-busy=true]')).to_have_count(0);campaign_nav(page,'Летопись');page.locator('.people-directory summary').click()
                 with page.expect_response(lambda r:'/commands' in r.url and r.request.method=='POST') as response:page.get_by_role('button',name='Отпустить посланника',exact=True).click()
                 assert response.value.status==200 and response.value.json()['state']['people'][envoy]['status']=='leaving'
     store.engine.dispose();print(f'PASS {len(data["branches"])} authored choices and12 envoy treatment cases through actual council UI',flush=True)

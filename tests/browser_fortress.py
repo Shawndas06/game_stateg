@@ -1,4 +1,6 @@
 """Check the paid Murad-era flow in a disposable local database and real browser."""
+from browser_navigation import new_game,resume_menu,nav as campaign_nav
+
 import os
 from pathlib import Path
 import socket
@@ -30,7 +32,7 @@ def run():
             else:raise AssertionError('Fixture server did not start')
             with sync_playwright() as p:
                 browser=p.chromium.launch();page=browser.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
-                page.goto(url);page.get_by_text('Другие режимы',exact=True).click();page.get_by_role('button',name='Начать историю').click();page.get_by_role('heading',name='Первый диван').wait_for()
+                page.goto(url);new_game(page,'legacy');page.get_by_role('heading',name='Первый диван').wait_for()
                 save=page.request.get(url+'/api/campaigns/latest').json()
                 store=Store(db_url)
                 with store.session.begin() as db:
@@ -40,7 +42,7 @@ def run():
                     state.shown_events+=['succession','accession_murad_1'];state.factions['ottoman'].gold=1000
                     relation(state,'ottoman','byzantine')['status']='peace'
                     row.snapshot=state.to_dict();row.revision=state.revision
-                store.engine.dispose();page.reload();page.get_by_role('button',name='Карта',exact=True).click()
+                store.engine.dispose();page.reload();resume_menu(page);page.get_by_role('button',name='Карта',exact=True).click()
                 def domanic():
                     page.get_by_label('Поиск поселения',exact=True).fill('Доманич')
                     page.locator('[data-search-place="domanic"]').click()
@@ -49,7 +51,7 @@ def run():
                 expect(page.locator('.place-card')).to_contain_text('Строится новая крепость · 4 сезона')
                 result=page.request.get(url+'/api/campaigns/latest').json()['state']
                 assert result['factions']['ottoman']['gold']==750
-                page.reload();page.get_by_role('button',name='Карта',exact=True).click();domanic()
+                page.reload();resume_menu(page);page.get_by_role('button',name='Карта',exact=True).click();domanic()
                 expect(page.locator('.place-card')).to_contain_text('Строится новая крепость · 4 сезона')
                 for season in range(4):
                     page.get_by_role('button',name='Завершить сезон').click()

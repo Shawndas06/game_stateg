@@ -1,9 +1,11 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useEffect, useRef, useState, lazy, Suspense} from 'react';
 import {createRoot} from 'react-dom/client';
 import type {Army, Catalog, Save, State} from './types';
 import './style.css';
-import Atlas from './Atlas';
-import RulerApp from './RulerApp';
+const Atlas=lazy(()=>import('./Atlas'));
+const RulerApp=lazy(()=>import('./RulerApp'));
+import MainMenu from './MainMenu';
+import './strategy-shell.css';
 import './media.css';
 import SavedCampaigns from './SavedCampaigns';
 import type {RulerSave} from './ruler-types';
@@ -17,11 +19,14 @@ const nav=[['council','Совет','◈'],['map','Карта','⌖'],['state','�
 
 function App(){
   const [catalog,setCatalog]=useState<Catalog|null>(null),[save,setSave]=useState<Save|null>(null);
+  const [entered,setEntered]=useState(false);
+  const [slow,setSlow]=useState(false);
+  useEffect(()=>{const timer=setTimeout(()=>setSlow(true),5000);return()=>clearTimeout(timer)},[]);
   const [entryFailed,setEntryFailed]=useState(false);
   const [ready,setReady]=useState(false),[demo,setDemo]=useState(false),[busy,setBusy]=useState(false);
   const [error,setError]=useState(''),[tab,setTab]=useState('council'),[selected,setSelected]=useState('sogut');
   const [confirmTurn,setConfirmTurn]=useState(false),[confirmNew,setConfirmNew]=useState(false);
-  const startLock=useRef(false);
+  const startLock=useRef(false),creation=useRef<{id:string;scenario:string;mode:string}|null>(null);
   const retry=useRef<{id:string;kind:string;payload:unknown;revision:number}|null>(null);
   const state=save?.state,player=state?.factions?.ottoman;
   const place=(id:string)=>catalog?.places.find(p=>p.id===id)?.name||id;
@@ -39,9 +44,11 @@ function App(){
     })().catch(e=>{if(live){setError(e.message);setEntryFailed(true);setReady(true)}});
     return ()=>{live=false};
   },[]);
-  useEffect(()=>{const back=window.Telegram?.WebApp.BackButton;if(!back)return;const fn=()=>{setTab('council');setConfirmTurn(false)};if(tab!=='council'){back.show();back.onClick(fn)}else back.hide();return ()=>back.offClick(fn)},[tab]);
+  useEffect(()=>{const back=window.Telegram?.WebApp.BackButton;if(!back||state?.scenario==='ruler_v1')return;if(!entered){back.hide();return;}const fn=()=>{setTab('council');setConfirmTurn(false)};if(tab!=='council'){back.show();back.onClick(fn)}else back.hide();return ()=>back.offClick(fn)},[tab,entered,state?.scenario]);
+  function fullscreen(){try{const tg=window.Telegram?.WebApp;if(tg?.isVersionAtLeast?.('8.0'))tg.requestFullscreen?.()}catch{}}
+  useEffect(()=>{const tg=window.Telegram?.WebApp;const safe=()=>{for(const edge of ['top','bottom','left','right'] as const)document.documentElement.style.setProperty('--tg-'+edge,Math.max(tg?.safeAreaInset?.[edge]||0,tg?.contentSafeAreaInset?.[edge]||0)+'px')};safe();tg?.onEvent?.('safeAreaChanged',safe);tg?.onEvent?.('contentSafeAreaChanged',safe);return()=>{tg?.offEvent?.('safeAreaChanged',safe);tg?.offEvent?.('contentSafeAreaChanged',safe)}},[]);
   async function loadCampaign(id:string){setBusy(true);setError('');try{setSave(await api<Save>(`/campaigns/${id}`));setTab('council');setSelected('sogut')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
-  async function start(scenario='legacy',campaign_mode=scenario==='ruler_v1'?'long':'chapter'){if(startLock.current)return;startLock.current=true;setBusy(true);setError('');try{if(!window.Telegram?.WebApp.initData)await authenticate(demo);if(!save){const existing=await api<Save|null>('/campaigns/latest');if(existing){setSave(existing);return}}setSave(await api<Save>('/campaigns',{scenario,campaign_mode}));setSelected('sogut');setTab('council');retry.current=null;setConfirmNew(false)}catch(e){setError((e as Error).message)}finally{startLock.current=false;setBusy(false)}}
+  async function start(scenario='legacy',campaign_mode=scenario==='ruler_v1'?'realm':'chapter'){fullscreen();if(startLock.current)return;startLock.current=true;setBusy(true);setError('');try{if(!window.Telegram?.WebApp.initData)await authenticate(demo);if(!save){const existing=await api<Save|null>('/campaigns/latest');if(existing){setSave(existing);setEntered(true);return}}if(!creation.current||creation.current.scenario!==scenario||creation.current.mode!==campaign_mode)creation.current={id:crypto.randomUUID(),scenario,mode:campaign_mode};setSave(await api<Save>('/campaigns',{scenario,campaign_mode,creation_id:creation.current.id}));creation.current=null;setSelected('sogut');setTab('council');retry.current=null;setConfirmNew(false);setEntered(true)}catch(e){setError((e as Error).message)}finally{startLock.current=false;setBusy(false)}}
   async function send(kind:string,payload:Record<string,unknown>={}){
     if(!save||busy)return;setBusy(true);setError('');
     const old=retry.current;
@@ -53,8 +60,9 @@ function App(){
   }
   function select(id:string){setSelected(id);setTab('map')}
   const button=(label:string,kind:string,payload:Record<string,unknown>,blocked=false)=> <button disabled={disabled||blocked} onClick={()=>send(kind,payload)}>{label}</button>;
-  if(!ready||!catalog)return <main className="loading"><div className="seal">◈</div><p>{error||'Хронисты открывают летопись…'}</p>{error&&<button onClick={()=>location.reload()}>Повторить</button>}</main>;
-  if(state?.scenario==='ruler_v1'&&save)return <RulerApp key={save.id} initialSave={save as unknown as RulerSave} catalog={catalog} onNew={()=>start('ruler_v1')} onResume={loadCampaign}/>;
+  if(!ready||!catalog)return <main className="loading"><div className="seal">◈</div><p>{error||(slow?'Сервер отвечает медленно или пробуждается. Сохранения остаются в хранилище.':'Подключаемся к серверу…')}</p>{error&&<button onClick={()=>location.reload()}>Повторить</button>}</main>;
+  if(!entryFailed&&!entered)return <MainMenu hasSave={!!save} busy={busy} error={error} continueGame={()=>{fullscreen();setEntered(true)}} newGame={mode=>mode==='legacy'?start():start('ruler_v1',mode)}/>;
+  if(state?.scenario==='ruler_v1'&&save)return <Suspense fallback={<main className="loading">Открываем кампанию…</main>}><RulerApp key={save.id} initialSave={save as unknown as RulerSave} catalog={catalog} onNew={()=>start('ruler_v1')} onResume={loadCampaign} onMenu={current=>{setSave(current as unknown as Save);setEntered(false)}}/></Suspense>;
   if(entryFailed)return <main className="loading"><h1>Не удалось открыть летопись</h1><p role="alert">{error}</p><p>Ваше сохранение не удалено. Повторите вход; если Telegram сообщает об устаревшем входе, закройте игру и откройте её кнопкой бота.</p><button className="primary" onClick={()=>location.reload()}>Повторить вход</button></main>;
   if(!state||!player)return <main className="cinematic-welcome"><div className="splash-copy"><span className="eyebrow">Анатолия · 1299 год</span><h1>Османская<br/>кампания</h1><p className="lead">Маленький бейлик.<br/>Ваше слово. Ваша история.</p><p>Слушайте людей, отвечайте на послания и ведите государство через испытания. Наставник поможет с первыми шагами.</p>{error&&<p className="error" role="alert">{error}</p>}<button className="primary" onClick={()=>start('ruler_v1')} disabled={busy||(!demo&&!window.Telegram?.WebApp.initData)}>{busy?'Открываем летопись…':'Стать правителем →'}</button><small>Пролог и обучение · время идёт только по вашему приказу</small><details><summary>Другие режимы</summary><button onClick={()=>start('ruler_v1','chapter')} disabled={busy||(!demo&&!window.Telegram?.WebApp.initData)}>Первая глава · учебная партия →</button><button onClick={()=>start()} disabled={busy||(!demo&&!window.Telegram?.WebApp.initData)}>Начать историю · прежние правила →</button></details><small>{demo?'Локальная демонстрация':'Откройте игру из Telegram'}</small></div></main>;
   const a=state.armies['ottoman-1'];
@@ -63,7 +71,7 @@ function App(){
   const mine=p.controller==='ottoman';
   const siege=state.sieges[a.location];
   return <div className="app">
-    <header className="header"><div className="brand"><span className="seal">◈</span><div><span className="eyebrow">Османская кампания</span><strong>{state.calendar.season}, {state.calendar.year}</strong></div></div><div className="ruler"><span>{state.ruler}</span><small>{state.ruler_rank>=3?'Держава':'Бейлик'} · ход {state.turn}</small></div></header>
+    <header className="header"><button onClick={()=>setEntered(false)}>Главное меню</button><div className="brand"><span className="seal">◈</span><div><span className="eyebrow">Османская кампания</span><strong>{state.calendar.season}, {state.calendar.year}</strong></div></div><div className="ruler"><span>{state.ruler}</span><small>{state.ruler_rank>=3?'Держава':'Бейлик'} · ход {state.turn}</small></div></header>
     <div className="resources" aria-label="Ресурсы государства"><div><small>Казна</small><strong>{player.gold} <em>◈</em></strong><span className={state.budget.net<0?'negative':''}>{signed(state.budget.net)} / сезон</span></div><div><small>Запасы</small><strong>{player.food} <em>✳</em></strong><span>{signed(state.budget.food_income-state.budget.food_expense)} / сезон</span></div><div><small>Резерв</small><strong>{player.manpower} <em>♙</em></strong><span>людей</span></div><div><small>Легитимность</small><strong>{player.legitimacy}<em>%</em></strong><span>признание власти</span></div></div>
     <main className="content" aria-busy={busy}>
       {error&&<div className="error" role="alert">{error}<button className="quiet" aria-label="Закрыть сообщение" onClick={()=>setError('')}>×</button></div>}
@@ -77,7 +85,7 @@ function App(){
       </>}
       {tab==='map'&&<>
         <div className="section-heading"><div><span className="eyebrow">Военная география</span><h1>Атлас державы</h1></div></div>
-        <Atlas state={state} catalog={catalog} selected={selected} select={setSelected}/>
+        <Suspense fallback={<p>Загружаем карту…</p>}><Atlas state={state} catalog={catalog} selected={selected} select={setSelected}/></Suspense>
         <div className="place-list" aria-label="Ваши владения">{catalog.places.filter(q=>state.provinces[q.id].controller==='ottoman').map(q=><button key={q.id} className={q.id===selected?'selected':''} onClick={()=>setSelected(q.id)}>{state.provinces[q.id].controller==='ottoman'?'●':'○'} {q.name}</button>)}</div>
         <section className="card place-card"><span className="eyebrow">{p.fortress_level===0?'Поселение без крепости':catalog.places.find(q=>q.id===selected)?.port?'Порт и укреплённый город':'Укреплённое владение'}</span><h2>{place(selected)} {state.capital===selected&&<small>★ столица</small>}</h2><p className="muted">Владелец: {catalog.factions[p.owner]}{p.controller!==p.owner&&` · Военный контроль: ${catalog.factions[p.controller]}`}</p>
           <div className="metrics"><span><b>{count(p.garrison)}</b>гарнизон</span><span><b>{p.walls}</b>стены</span><span><b>{p.loyalty}%</b>лояльность</span><span><b>{p.prosperity}%</b>хозяйство</span></div>

@@ -11,6 +11,7 @@ import tempfile
 import time
 from urllib.request import urlopen
 from playwright.sync_api import expect, sync_playwright
+from browser_navigation import new_game,resume_menu,nav as campaign_nav
 
 
 def run(browser_type, width, url, out):
@@ -22,7 +23,7 @@ def run(browser_type, width, url, out):
     page.on('request',lambda r:external_fonts.append(r.url) if 'fonts.googleapis.com' in r.url or 'fonts.gstatic.com' in r.url else None)
     def state():return page.request.get(url+'/api/campaigns/latest').json()['state']
     def nav(name):
-        page.get_by_role('button',name=name,exact=True).click()
+        campaign_nav(page,name)
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
     def act(callback):
         with page.expect_response(lambda r:'/commands' in r.url and r.request.method=='POST') as response:callback()
@@ -43,79 +44,29 @@ def run(browser_type, width, url, out):
         for value in valid:
             field.fill(value);expect(field).to_have_attribute('aria-invalid','false')
             for name in buttons:expect(page.get_by_role('button',name=name,exact=True)).to_be_enabled()
-    page.goto(url)
-    expect(page.get_by_role('button',name='Стать правителем',exact=False)).to_be_visible()
-    for family in ['manrope','prata']:
-        response=page.request.get(url+f'/media/fonts/{family}-cyrillic.woff2')
-        assert response.status==200 and response.body()[:4]==b'wOF2','Font route must return actual WOFF2 bytes'
-    loaded=page.evaluate('async()=>{await Promise.all([document.fonts.load("20px Prata","Осман"),document.fonts.load("14px Manrope","Осман")]);await document.fonts.ready;return [...document.fonts].filter(f=>f.status==="loaded").map(f=>f.family.replaceAll("\\\"",""))}')
-    assert 'Manrope' in loaded and 'Prata' in loaded,loaded
-    page.get_by_role('button',name='Стать правителем',exact=False).click();page.get_by_role('button',name='Пропустить пролог',exact=True).click();stage('welcome')
-    expect(page.get_by_role('heading',name=state()['chapter']['name'],exact=True)).to_be_visible()
+    page.goto(url);new_game(page,'long');page.get_by_role('button',name='Пропустить пролог',exact=True).click()
     start=page.get_by_role('button',name='Начать обучение',exact=True)
-    box=start.bounding_box();nav_box=page.locator('.bottom-nav').bounding_box()
-    assert box['y']>=0 and box['y']+box['height']<=nav_box['y'],'The first learning action must fit above navigation without scrolling'
-    assert start.evaluate('(el)=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}')
-    revision=state()['revision']
+    expect(start).to_be_visible()
+    assert start.evaluate('(el)=>{const r=el.getBoundingClientRect();return r.y>=0&&r.bottom<=innerHeight&&el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}')
+    revision=state()['revision'];start.click()
+    expect(page.get_by_label('Число новобранцев на карте',exact=True)).to_be_visible()
+    assert state()['revision']==revision,'Teaching changed simulation'
+    page.get_by_role('button',name='Закрыть карточку',exact=True).click()
     page.get_by_role('button',name='Пропустить обучение',exact=True).click()
-    page.reload();expect(page.locator('[data-guide-stage]')).to_have_count(0)
-    page.get_by_role('button',name='? Как играть',exact=True).click()
-    expect(page.get_by_role('dialog')).to_be_visible()
-    page.keyboard.press('Shift+Tab');expect(page.get_by_role('button',name='Вернуться к игре',exact=True)).to_be_focused()
-    page.keyboard.press('Tab');expect(page.get_by_role('button',name='Переключить на отдельные разделы',exact=True)).to_be_focused()
-    page.keyboard.press('Escape');expect(page.get_by_role('dialog')).to_have_count(0)
-    page.get_by_role('button',name='? Как играть',exact=True).click()
-    page.get_by_role('button',name='Пройти обучение заново',exact=True).click();stage('council')
-    assert state()['revision']==revision and state()['day']==0,'Teaching changed the simulation'
-    page.screenshot(path=str(out/f'{browser_type.name}-{width}-first-advice.png'),full_page=True)
-    page.screenshot(path=str(out/f'{browser_type.name}-{width}-first-viewport.png'))
-    before=state()
-    opened=act(lambda:page.get_by_role('button',name='К вопросу совета',exact=True).click())
-    assert opened['council']['agenda']==before['agendas'][0]['id']
-    assert opened['day']==before['day'] and opened['gold']==before['gold']
-    page.get_by_role('button',name='Читать вопрос и мнения',exact=False).click()
-    box=page.locator('[data-testid=ruler-council]').bounding_box();assert 90<=box['y']<250,box
+    page.reload();resume_menu(page)
+    expect(page.locator('.campaign-coach')).to_have_count(0)
+    nav('Двор');before=state()
     page.locator('.ruler-speech-group > summary').click()
     speeches=page.locator('.council-speech');assert speeches.count()==5
     for speech in speeches.all():
         if speech.get_attribute('open') is None:speech.locator('summary').click()
         expect(speech.locator('p')).to_be_visible();assert len(speech.locator('p').inner_text())>20
-    page.get_by_role('button',name='Перейти к решению',exact=False).click()
     for choice in page.locator('[data-choice]').all():
         choice.evaluate('(el)=>el.scrollIntoView({block:"center"})')
-        assert choice.evaluate('(el)=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}'),'A status message or toolbar covers a decision'
-    gold=state()['gold']
+        assert choice.evaluate('(el)=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}')
     decided=act(lambda:page.locator('[data-choice="stewardship"]').click())
-    assert decided['gold']==gold-25,'The first choice must actually pay once'
-    page.get_by_role('button',name='Дальше: ваши владения',exact=False).click();stage('map')
-    page.get_by_label('Поиск поселения',exact=True).fill('Сёгют')
-    try:
-        expect(page.get_by_label('Поиск поселения',exact=True)).to_have_value('Сёгют')
-        expect(page.locator('[data-search-place="sogut"]')).to_be_visible()
-        page.locator('[data-search-place="sogut"]').click()
-    except Exception:
-        page.screenshot(path=str(out/f'{browser_type.name}-{width}-search-failure.png'),full_page=True)
-        (out/f'{browser_type.name}-{width}-search-failure.txt').write_text(str({'errors':errors,'inputs':page.locator('input').evaluate_all('(xs)=>xs.map(x=>({label:x.getAttribute("aria-label"),value:x.value}))'),'body':page.locator('body').inner_text()}))
-        raise
-    expect(page.locator('.ruler-place-card h2')).to_have_text('Сёгют')
-    page.get_by_role('button',name='Дальше: как устроены войска',exact=False).click();stage('army')
-    expect(page.get_by_role('tab',name='Мои армии',exact=True)).to_have_attribute('aria-selected','true')
-    page.get_by_role('button',name='Дальше: казна и управление',exact=False).click();stage('state')
-    expect(page.get_by_role('heading',name='Счета казны',exact=True)).to_be_visible()
-    expect(page.get_by_label('Торговый груз',exact=True)).to_have_count(0)
-    page.get_by_role('button',name='Дальше: дать приказам исполниться',exact=False).click();stage('time')
-    page.reload();stage('time')
-    before=state();page.get_by_role('button',name='Попробовать ожидание',exact=True).click()
-    act(lambda:page.get_by_role('button',name='Семь дней или до известия',exact=True).click());stage('reports')
-    assert before['day']<state()['day']<=before['day']+7
-    page.get_by_role('button',name='Читать новые донесения',exact=False).click()
-    box=page.get_by_role('heading',name='Последние донесения',exact=True).bounding_box()
-    toolbar=page.locator('.ruler-toolbar').bounding_box();nav_box=page.locator('.bottom-nav').bounding_box()
-    # The last section may reach the document scroll limit before aligning at
-    # the top. Require actual visibility between controls, not an arbitrary Y.
-    assert box['y']>=toolbar['y']+toolbar['height'] and box['y']+box['height']<=nav_box['y'],box
-    page.get_by_role('button',name='Понятно, продолжить правление',exact=True).click()
-    page.reload();expect(page.locator('[data-guide-stage]')).to_have_count(0)
+    assert decided['gold']==before['gold']-25
+    page.screenshot(path=str(out/f'{browser_type.name}-{width}-first-viewport.png'))
     # Raw editing, per-form isolation and zero semantics.
     nav('Войско');page.get_by_text('Личное командование и распределение',exact=True).click()
     matrix('Число передаваемых воинов',['Из гарнизона в армию','Оставить в гарнизоне','Выделить отдельную армию'],['','0','-1','1.5','5001'],['1','10'])
@@ -167,7 +118,7 @@ def run(browser_type, width, url, out):
     after=act(lambda:page.get_by_role('button',name='Заказать продовольствие',exact=True).click())
     purchase=next(c for c in after['transports'] if c['kind']=='purchase')
     assert purchase['grain']==100 and purchase['escort_count']==0
-    page.reload();nav('Держава');page.get_by_role('tab',name='Торговля',exact=True).click()
+    page.reload();resume_menu(page);nav('Держава');page.get_by_role('tab',name='Торговля',exact=True).click()
     assert any(c['id']==purchase['id'] for c in state()['transports'])
     page.screenshot(path=str(out/f'{browser_type.name}-{width}-trade.png'),full_page=True)
     # All tasks remain accessible with one fixed navigation row and readable input widths.

@@ -1,4 +1,6 @@
 """Real static media + persisted introduction + lawful combat succession in mobile browsers."""
+from browser_navigation import new_game,resume_menu,nav as campaign_nav
+
 import json,os,socket,subprocess,sys,tempfile,time
 from pathlib import Path
 from urllib.request import urlopen
@@ -28,14 +30,14 @@ def run(bt,width,url,db_url,prefix,out):
     page.add_init_script("const original=HTMLMediaElement.prototype.play;HTMLMediaElement.prototype.play=function(){window.lastMedia=this;return original.call(this)}")
     def state():return page.request.get(url+'/api/campaigns/latest').json()['state']
     def fits():assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-    page.goto(url);expect(page.get_by_role('button',name='Стать правителем',exact=False)).to_be_enabled();fits()
+    page.goto(url);expect(page.get_by_role('button',name='Новая игра',exact=True)).to_be_enabled();fits()
     for asset in ['cover','advisor','succession']:
         size=page.evaluate("src=>new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i.naturalWidth);i.onerror=no;i.src=src})",f'/media/{asset}.webp')
         assert size>500,(asset,size)
     ranged=page.request.get(url+'/media/succession.mp4',headers={'Range':'bytes=0-31'})
     assert ranged.status==206 and len(ranged.body())==32 and b'ftyp' in ranged.body()
     page.screenshot(path=str(out/f'{bt.name}-{width}-splash.png'))
-    page.get_by_role('button',name='Стать правителем',exact=False).click();expect(page.get_by_test_id('prologue')).to_be_visible()
+    new_game(page,'long');expect(page.get_by_test_id('prologue')).to_be_visible()
     before=state();assert before['day']==0 and before['prologue_pending']
     assert page.evaluate('!window.lastMedia'),'Unexpected automatic playback before consent'
     page.get_by_role('button',name='Включить голос',exact=True).click()
@@ -49,13 +51,13 @@ def run(bt,width,url,db_url,prefix,out):
         page.get_by_role('button',name='Продолжить',exact=True).click();expect(page.get_by_role('heading',name=title,exact=True)).to_be_visible();fits()
     page.screenshot(path=str(out/f'{bt.name}-{width}-prologue.png'))
     page.get_by_role('button',name='Выключить голос',exact=True).click()
-    page.get_by_role('button',name='К первому совету',exact=False).click();expect(page.get_by_role('heading',name='Первый совет',exact=True)).to_be_visible()
+    page.get_by_role('button',name='К первому совету',exact=False).click();campaign_nav(page,'Двор');expect(page.get_by_role('heading',name='Первый совет',exact=True)).to_be_visible()
     after=state();assert not after['prologue_pending'] and after['day']==before['day'] and after['gold']==before['gold']
-    page.reload();expect(page.get_by_test_id('prologue')).to_have_count(0)
+    page.reload();resume_menu(page);expect(page.get_by_test_id('prologue')).to_have_count(0)
     page.get_by_role('button',name='Пропустить обучение',exact=True).click()
     page.screenshot(path=str(out/f'{bt.name}-{width}-adviser.png'),full_page=True);fits()
-    for tab,title in [('Атлас','Атлас державы'),('Войско','Войско'),('Держава','Держава'),('Летопись','Летопись и люди')]:
-        page.get_by_role('button',name=tab,exact=True).click();expect(page.get_by_role('heading',name=title,exact=True)).to_be_visible();expect(page.locator('.adviser')).to_have_count(0);fits()
+    for tab,title in [('Войско','Войско'),('Держава','Держава'),('Летопись','Летопись и люди')]:
+        campaign_nav(page,tab);expect(page.get_by_role('heading',name=title,exact=True)).to_be_visible();expect(page.locator('.adviser')).to_have_count(0);fits()
     assert state()['revision']==after['revision'],'Media or navigation changed the campaign'
     # A complete, lawful prefix is restored solely to save repeating its commands
     # through each browser. No death, date, troops or scene is manufactured.
@@ -64,7 +66,7 @@ def run(bt,width,url,db_url,prefix,out):
     with store.session.begin() as db:
         row=db.get(CampaignRow,created['id']);row.snapshot=prefix.state.to_dict();row.revision=prefix.state.revision
         db.execute(delete(ArchiveRow).where(ArchiveRow.campaign==created['id']));store._archive(db,created['id'],prefix.state.reports)
-    page.reload();expect(page.get_by_role('heading',name='Власть после смерти правителя',exact=True)).to_be_visible()
+    page.reload();resume_menu(page);expect(page.get_by_role('heading',name='Власть после смерти правителя',exact=True)).to_be_visible()
     assert page.locator('.accession-film').count()==0
     old=state();page.locator('[data-choice=orhan]').click();expect(page.get_by_role('dialog')).to_be_visible()
     changed=state();assert changed['ruler_id']=='orhan' and changed['accession']['day']==old['day']
@@ -73,9 +75,9 @@ def run(bt,width,url,db_url,prefix,out):
     page.wait_for_function("document.querySelector('video').currentTime>0.2 && !document.querySelector('video').paused")
     assert page.locator('video').evaluate('(v)=>v.videoWidth')==1280
     page.locator('video').evaluate('(v)=>new Promise(ok=>{v.pause();v.addEventListener("seeked",ok,{once:true});v.currentTime=10})');page.screenshot(path=str(out/f'{bt.name}-{width}-film.png'));fits()
-    page.reload();expect(page.get_by_role('dialog')).to_be_visible()
-    page.get_by_role('button',name='Пропустить видео',exact=True).click();page.reload();expect(page.get_by_role('dialog')).to_have_count(0)
-    page.get_by_role('button',name='Летопись',exact=True).click();page.get_by_role('button',name='Вспомнить передачу власти',exact=True).click()
+    page.reload();resume_menu(page);expect(page.get_by_role('dialog')).to_be_visible()
+    page.get_by_role('button',name='Пропустить видео',exact=True).click();page.reload();resume_menu(page);expect(page.get_by_role('dialog')).to_have_count(0)
+    campaign_nav(page,'Летопись');page.get_by_role('button',name='Вспомнить передачу власти',exact=True).click()
     expect(page.get_by_role('dialog')).to_be_visible();page.keyboard.press('Escape');expect(page.get_by_role('dialog')).to_have_count(0)
     page.get_by_role('button',name='Вспомнить передачу власти',exact=True).click()
     page.locator('video').evaluate('(v)=>new Promise(ok=>{v.addEventListener("loadedmetadata",ok,{once:true});if(v.readyState>=1)ok()})')
@@ -98,7 +100,7 @@ def run(bt,width,url,db_url,prefix,out):
         db.execute(delete(ArchiveRow).where(ArchiveRow.campaign==created['id']));store._archive(db,created['id'],later.reports)
     if later.flags.get('accession'):
         page.evaluate("key=>localStorage.setItem(key,'seen')",f"accession:{created['id']}:{later.flags['accession']['day']}")
-    page.reload()
+    page.reload();resume_menu(page);campaign_nav(page,'Двор')
     agenda=next(a for a in later.agendas if a['scene']=='orhan_handover')
     page.locator(f'[data-agenda="{agenda["id"]}"]').click()
     page.locator('[data-choice=handover]').click()
@@ -106,7 +108,7 @@ def run(bt,width,url,db_url,prefix,out):
     assert state()['ruler_id']=='murad' and state()['gold']==later.gold
     page.screenshot(path=str(out/f'{bt.name}-{width}-murad.png'))
     page.get_by_role('button',name='К совету Мурада',exact=False).click()
-    page.reload();expect(page.get_by_role('dialog')).to_have_count(0)
+    page.reload();resume_menu(page);expect(page.get_by_role('dialog')).to_have_count(0)
     assert not errors,errors
     print(f'PASS media {bt.name}{width}: consent/audio, three prologue cards, refresh, adviser context, lawful accession day{old["day"]}, decoded MP4, skip/replay and {len(clips)} MP3s',flush=True)
     store.engine.dispose();ctx.close();browser.close()
