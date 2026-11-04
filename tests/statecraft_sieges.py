@@ -5,7 +5,7 @@ from campaign.ruler.engine import new_campaign,apply_command,validate,view
 from campaign.ruler.models import RulerState
 
 
-def offensive():
+def offensive(prepared=True):
     s=new_campaign(19,extended=True,living=True);trace=[]
     def act(kind,payload):
         nonlocal s
@@ -13,6 +13,10 @@ def offensive():
     act('begin_reign',{});a=s.agendas[0];act('decide',{'agenda':a['id'],'choice':'stewardship'})
     master=next(m['id'] for m in view(s)['statecraft']['masters'] if 'mining' in m['knows'])
     act('hire_master',{'person':master,'province':'sogut'})
+    if prepared:
+        act('raise',{'province':'sogut','troop':'archers','count':20})
+        while s.places['sogut'].training:act('advance',{'days':1})
+        act('transfer',{'army':'ottoman-1','direction':'to_army','troops':{'militia':35,'archers':20}})
     act('mission',{'army':'ottoman-1','purpose':'conquer','target':'inegol','funds':20})
     for _ in range(90):
         act('advance',{'days':1})
@@ -22,13 +26,21 @@ def offensive():
     while s.people[master].travel:act('advance',{'days':1})
     prefix=s.to_dict();results=[]
     for operation in ['search','tunnel']:
-        s=RulerState.from_dict(prefix);owner=s.places['inegol'].controller
+        s=RulerState.from_dict(prefix);owner=s.places['inegol'].controller;walls=s.places['inegol'].walls
         act('siege_operation',{'province':'inegol','person':master,'operation':operation})
         for _ in range(45):
             act('advance',{'days':1})
             w=list(s.flags['statecraft']['siege_work'].values())[-1]
             if w['status']!='active':break
-        assert w['status']=='completed' and s.places['inegol'].controller==owner
+        assert s.places['inegol'].controller==owner
+        if prepared or operation=='search':
+            assert w['status']=='completed',w
+            if operation=='search':assert type(s.sieges['inegol']['passage_found']) is bool
+            else:assert s.places['inegol'].walls<=max(0,walls-12)
+        else:
+            assert w['status']=='failed' and w['reason']=='siege_ended',w
+            assert s.day<w['ready'] and 'inegol' not in s.sieges
+            assert not any('подкоп повредил' in r['text'] for r in s.reports)
         results.append({'operation':operation,'day':s.day,'state':s.to_dict()})
     return {'seed':19,'trace':trace,'results':results,'prefix':prefix}
 
@@ -53,6 +65,6 @@ def defensive():
 
 
 if __name__=='__main__':
-    results={'offensive':offensive(),'defensive':defensive()}
+    results={'offensive':offensive(),'interrupted':offensive(False),'defensive':defensive()}
     Path('/tmp/statecraft-sieges.json').write_text(json.dumps(results,ensure_ascii=False))
-    print('PASS legal V5 siege chains: hired sapper reaches real siege, search and tunnel complete; defender reaches actual attack and sorties',flush=True)
+    print('PASS legal V5 siege chains: trained reinforcements sustain search/tunnel; defeated unprepared army interrupts work; defender reaches actual attack and sorties',flush=True)

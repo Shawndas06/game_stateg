@@ -446,6 +446,7 @@ def cleanup(s: RulerState) -> None:
     for pid,sg in list(s.sieges.items()):
         sg['armies']=[x for x in sg['armies'] if x in s.armies and s.armies[x].size and s.armies[x].location==pid and not s.armies[x].travel]
         if not sg['armies'] or s.places[pid].controller==sg['faction'] or not war(s,sg['faction'],s.places[pid].controller):del s.sieges[pid]
+    knowledge.reconcile_siege_work(s)
     for a in s.armies.values():
         if not a.size:
             for pid in [a.commander,a.deputy]:
