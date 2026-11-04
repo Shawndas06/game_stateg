@@ -16,8 +16,14 @@ def run(browser_type,width,url,out):
         expect(page.locator('main[aria-busy=true]')).to_have_count(0)
         return response.value.json()['state']
     def section(name):page.get_by_role('tab',name=name,exact=True).click()
-    page.goto(url);page.get_by_role('button',name='Стать правителем',exact=False).click();click('Пропустить пролог');click('Пропустить обучение');click('Держава')
+    page.goto(url);page.get_by_role('button',name='Стать правителем',exact=False).click();click('Пропустить пролог');click('Держава')
     before=state();n=action('Включить живое государство');assert n['gold']==before['gold'] and n['day']==before['day']
+    click('Двор');page.evaluate('scrollTo(0,0)')
+    start=page.get_by_role('button',name='Начать обучение',exact=True);box=start.bounding_box();nav=page.locator('.bottom-nav').bounding_box()
+    assert box['y']>=0 and box['y']+box['height']<=nav['y'],'New office must not push first learning action below navigation'
+    assert start.evaluate('(el)=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}')
+    page.screenshot(path=str(out/f'{browser_type.name}-{width}-living-welcome.png'))
+    click('Пропустить обучение')
     page.get_by_role('button',name='Дела правления ·',exact=False).click()
     expect(page.get_by_role('heading',name='Дела правления',exact=True)).to_be_visible()
     section('Договоры');page.get_by_label('Государство для переговоров').select_option('germiyan')
