@@ -51,6 +51,7 @@ def run(browser_type, width, url, out):
     loaded=page.evaluate('async()=>{await Promise.all([document.fonts.load("20px Prata","Осман"),document.fonts.load("14px Manrope","Осман")]);await document.fonts.ready;return [...document.fonts].filter(f=>f.status==="loaded").map(f=>f.family.replaceAll("\\\"",""))}')
     assert 'Manrope' in loaded and 'Prata' in loaded,loaded
     page.get_by_role('button',name='Стать правителем',exact=False).click();page.get_by_role('button',name='Пропустить пролог',exact=True).click();stage('welcome')
+    expect(page.get_by_role('heading',name=state()['chapter']['name'],exact=True)).to_be_visible()
     revision=state()['revision']
     page.get_by_role('button',name='Пропустить обучение',exact=True).click()
     page.reload();expect(page.locator('[data-guide-stage]')).to_have_count(0)

@@ -58,6 +58,7 @@ jobs:
           trap 'kill "$server_pid"' EXIT
           python scripts/wait_for_server.py
           python tests/browser_auth.py
+          RULER_UX_SCREENSHOTS=/tmp/ruler-ux-evidence PYTHONPATH=. python tests/browser_ruler_ux.py
           PYTHONPATH=. python tests/tactical_scenarios.py
           PYTHONPATH=. python tests/browser_tactics.py
           ATLAS_PERF_ASSERT=1 python tests/browser_atlas_performance.py
@@ -68,7 +69,6 @@ jobs:
           PYTHONPATH=. python tests/dynasty_scenarios.py
           PYTHONPATH=. python tests/court_scenarios.py
           RULER_ACCEPTANCE=/tmp/ruler-combined-acceptance.json RULER_SCREENSHOTS=/tmp/ruler-browser-evidence PYTHONPATH=. python tests/browser_ruler.py
-          RULER_UX_SCREENSHOTS=/tmp/ruler-ux-evidence PYTHONPATH=. python tests/browser_ruler_ux.py
           PYTHONPATH=. python tests/browser_media.py
           RULER_ACCEPTANCE=/tmp/court-browser-acceptance.json RULER_SCREENSHOTS=/tmp/court-browser-evidence PYTHONPATH=. python tests/browser_ruler.py
       - name: Preserve ruler acceptance evidence
