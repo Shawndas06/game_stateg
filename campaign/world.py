@@ -18,6 +18,16 @@ WORLD_FACTIONS = {
     "mamluk": "Мамлюки", "cyprus": "Кипр",
 }
 
+# A town's access to shipping need not put its civic centre on the sea shore.
+PORT_ACCESS = {
+    'athens':'Внешняя морская гавань Пирей',
+    'rome':'Речная пристань на Тибре; выход к морю через устье',
+    'pisa':'Речная пристань на Арно; морской выход ниже по течению',
+    'seville':'Речная пристань на Гвадалквивире; морской выход ниже по течению',
+    'edremit':'Внешние пристани Эдремитского залива',
+    'ephesus':'Пристани района Айясолука; берег менялся из-за наносов',
+}
+
 # id, name, longitude, latitude, initial faction, garrison, wall integrity, port
 WORLD_PLACES = [
     # Villages/market settlements on the founding frontier.
@@ -31,8 +41,8 @@ WORLD_PLACES = [
     ("golpazari", "Гёльпазары", 30.318, 40.284, "byzantine", 10, 0, False),
     ("eskisehir", "Эскишехир", 30.521, 39.777, "seljuk", 40, 40, False),
     ("inonu", "Инёню", 30.144, 39.816, "ottoman", 10, 0, False),
-    ("ulubat", "Лопадион", 28.461, 40.200, "byzantine", 28, 40, False),
-    ("apollonia", "Аполлония", 28.679, 40.171, "byzantine", 15, 15, False),
+    ("ulubat", "Лопадион", 28.436936, 40.203619, "byzantine", 28, 40, False),
+    ("apollonia", "Аполлония", 28.6782, 40.1661, "byzantine", 15, 15, False),
     # Both shores of the Bosporus and the European bridgeheads.
     ("chrysopolis", "Хрисополь", 29.015, 41.026, "byzantine", 45, 40, True),
     ("chalcedon", "Халкидон", 29.028, 40.990, "byzantine", 35, 35, True),
@@ -46,8 +56,8 @@ WORLD_PLACES = [
     ("adrianople", "Адрианополь", 26.556, 41.677, "byzantine", 90, 80, False),
     ("didymoteicho", "Дидимотихон", 26.496, 41.349, "byzantine", 50, 70, False),
     ("ipsala", "Кипсела", 26.382, 40.921, "byzantine", 12, 0, False),
-    ("gallipoli", "Галлиполи", 26.676, 40.413, "byzantine", 65, 65, True),
-    ("bolayir", "Болайыр", 26.871, 40.515, "byzantine", 12, 0, False),
+    ("gallipoli", "Галлиполи", 26.67174, 40.40836, "byzantine", 65, 65, True),
+    ("bolayir", "Болайыр", 26.75725, 40.51498, "byzantine", 12, 0, False),
     ("lapseki", "Лампсак", 26.686, 40.346, "byzantine", 30, 30, True),
     ("abydos", "Абидос", 26.408, 40.194, "byzantine", 30, 45, True),
     ("biga", "Бига", 27.244, 40.228, "byzantine", 25, 30, False),
@@ -62,7 +72,7 @@ WORLD_PLACES = [
     ("afyon", "Афьон", 30.538, 38.764, "germiyan", 40, 50, False),
     ("usak", "Ушак", 29.407, 38.682, "germiyan", 20, 20, False),
     ("isparta", "Испарта", 30.553, 37.765, "hamid", 40, 45, False),
-    ("egirdir", "Эгирдир", 30.848, 37.874, "hamid", 25, 40, False),
+    ("egirdir", "Эгирдир", 30.85056, 37.875, "hamid", 25, 40, False),
     ("antalya", "Анталья", 30.713, 36.896, "seljuk", 65, 60, True),
     ("alanya", "Алайя", 31.999, 36.544, "seljuk", 50, 65, True),
     ("konya", "Кония", 32.484, 37.871, "seljuk", 90, 70, False),
@@ -125,7 +135,7 @@ WORLD_PLACES = [
     ("palermo", "Палермо", 13.361, 38.116, "sicily", 70, 70, True),
     ("messina", "Мессина", 15.555, 38.194, "sicily", 40, 55, True),
     ("cagliari", "Кальяри", 9.122, 39.223, "pisa", 40, 50, True),
-    ("marseille", "Марсель", 5.370, 43.296, "france", 65, 60, True),
+    ("marseille", "Марсель", 5.368, 43.299, "france", 65, 60, True),
     ("avignon", "Авиньон", 4.805, 43.949, "france", 30, 45, False),
     ("montpellier", "Монпелье", 3.877, 43.611, "france", 30, 35, False),
     ("perpignan", "Перпиньян", 2.895, 42.698, "mallorca", 25, 35, False),

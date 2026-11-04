@@ -2,7 +2,7 @@
 from collections import deque
 from campaign.engine import RuleError,require
 from campaign.content import ADJACENCY, TROOPS
-from campaign.ruler.core import count, duration, learn, losses, name, record, roll, ruler_location, uid
+from campaign.ruler.core import calendar, count, duration, learn, losses, name, record, roll, ruler_location, uid
 from campaign.ruler.models import Cohort, Person
 from campaign.ruler.diplomacy import data, capital, money, treasury
 
@@ -14,6 +14,8 @@ TECH={
  'counterweight':{'name':'Противовесный требушет','requires':['stone_thrower'],'cost':100,'days':180,'effect':'Крупная машина требует обученной команды и длительной сборки.'},
  'mining':{'name':'Осадные подкопы','requires':['stonework'],'cost':60,'days':90,'effect':'Подготовка сапёров, поиск скрытых проходов и подкоп стен.'},
  'logistics':{'name':'Дорожное и обозное дело','requires':[],'cost':40,'days':90,'effect':'Работы на охраняемой дороге и организация местной доставки.'},
+ 'navigation':{'name':'Судоходство','requires':[],'cost':55,'days':90,'effect':'Обучение кормчих и перевозчиков. Открывает переправы; морские грузы требуют оборудованного порта и службы перевозок.'},
+ 'harbor_building':{'name':'Устройство портов','requires':['navigation','carpentry','stonework'],'cost':70,'days':120,'effect':'Подготовка причальных мастеров. Позволяет оборудовать историческую пристань причалами и складами, используя местных работников.'},
 }
 ENGINES={'ram':{'name':'Таран','tech':'carpentry','cost':35,'days':30,'workers':5,'damage':2},'catapult':{'name':'Каменомёт','tech':'stone_thrower','cost':80,'days':60,'workers':8,'damage':4},'tower':{'name':'Осадная башня','tech':'tower','cost':70,'days':60,'workers':10,'damage':3},'trebuchet':{'name':'Требушет','tech':'counterweight','cost':140,'days':120,'workers':15,'damage':7}}
 
@@ -23,6 +25,15 @@ def enable(s):
         pid=uid(s,'master');s.people[pid]=Person(pid,title,1265,site,'master',faction=s.places[site].controller,skills={'command':20,'stewardship':45,'siege':60,'logistics':50})
         d['specialists'][pid]={'knows':skills,'fee':fee,'wage':3,'until':s.day+120,'employer':None,'known':True}
     record(s,'Два мастера прислали условия найма. Их знания и плата указаны в разделе развития; предложение имеет срок.','master')
+    maritime_master(s)
+
+def maritime_master(s):
+    if s.flags.get('maritime_master_introduced'):return
+    s.flags['maritime_master_introduced']=True
+    pid=uid(s,'master');site='nicomedia'
+    s.people[pid]=Person(pid,'Михаил, мастер причалов и перевозок',calendar(s)['year']-39,site,'master',faction=s.places[site].controller)
+    data(s)['specialists'][pid]={'knows':['carpentry','stonework','navigation','harbor_building'],'fee':65,'wage':4,'until':s.day+120,'employer':None,'known':True}
+    record(s,'Мастер причалов и перевозок предложил службу. Его можно нанять для обучения кормчих, плотников и строителей портов.','master')
 
 def path(start,end):
     queue=deque([(start,[])]);seen={start}
@@ -152,6 +163,7 @@ def _projects(s):
             accomplish(s,w['id'],'Дело доведено до результата',name(p.id)+': '+(TECH[w['tech']]['name'] if w['kind']=='learn' else ENGINES[w['engine']]['name'] if w['kind']=='engine' else 'устроена дорога'))
 
 def tick(s):
+    maritime_master(s)
     for p in s.people.values():
         tr=p.travel
         if not tr or tr.get('purpose') not in ['master_move','installation']:continue
@@ -164,7 +176,7 @@ def tick(s):
     if s.day%720==0 and len(data(s)['specialists'])<40:
         site=next((capital(s,f) for f in ['genoa','byzantine','germiyan'] if capital(s,f)),s.capital)
         pid=uid(s,'master');s.people[pid]=Person(pid,['Юсуф','Мануил','Исхак','Михаил'][(s.day//720)%4]+', приглашённый инженер',1265+s.day//365,site,'master',faction=s.places[site].controller,skills={'command':20,'stewardship':45,'siege':65,'logistics':55})
-        data(s)['specialists'][pid]={'knows':['carpentry','stone_thrower','counterweight','tower'],'fee':100,'wage':4,'until':s.day+120,'employer':None,'known':True}
+        data(s)['specialists'][pid]={'knows':['carpentry','stonework','navigation','harbor_building'] if s.day//720%2 else ['carpentry','stone_thrower','counterweight','tower'],'fee':100,'wage':4,'until':s.day+120,'employer':None,'known':True}
         record(s,'Новый мастер прислал условия службы и перечень своих знаний. Предложение ограничено по времени.','master')
     for w in data(s)['siege_work'].values():
         if w['status']!='active' or s.day<w['ready']:continue

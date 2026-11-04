@@ -16,6 +16,8 @@ COPY --from=client /build/web/dist/ web/dist/
 COPY web/public/land.geojson web/public/land.geojson
 COPY web/public/bithynia-geography.json web/public/bithynia-geography.json
 COPY web/public/mediterranean-geography.json web/public/mediterranean-geography.json
+COPY web/public/map-sites.json web/public/map-sites.json
+COPY docs/licenses/ licenses/
 USER campaign
 EXPOSE 8000
 CMD ["sh", "-c", "exec uvicorn server.app:create_app --factory --host 0.0.0.0 --port \"${PORT:-8000}\""]

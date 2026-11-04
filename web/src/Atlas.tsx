@@ -4,6 +4,7 @@ export type AtlasState={calendar:{year:number};capital:string;provinces:Record<s
 import {layoutPlaces, landSampler, polygonPath, project, screenPoint} from './atlas-geometry';
 import type {Geography, Point, Viewport} from './atlas-geometry';
 import './atlas.css';
+import {coastClearances,groundScale} from './map-scene';
 
 const factionColor: Record<string, string> = {ottoman: '#335d45', byzantine: '#934b42', germiyan: '#82704b'};
 const colorFor = (fid: string) => factionColor[fid] || `hsl(${[...fid].reduce((a,c)=>a+c.charCodeAt(0)*17,0)%360} 29% 40%)`;
@@ -77,6 +78,7 @@ export default function Atlas({state, catalog, selected, select, selectArmy, sel
   const visible = useMemo(() => catalog.places.filter(p => {const [x,y]=screenPoint(project(p.lon,p.lat),view,width,height);return x>15&&x<width-15&&y>30&&y<height-90}), [catalog.places,view.x,view.y,view.width,view.height,width,height]);
   const detailed = visible.length <= Math.max(12, Math.floor(width * (height-150) / 9000));
   const pins = useMemo(() => detailed ? layoutPlaces(visible, view, width, height) : [], [visible,detailed,view.x,view.y,view.width,view.height,width,height]);
+  const clearance=useMemo(()=>{const values=geography?coastClearances(geography,catalog.places.map(p=>project(p.lon,p.lat))):[];return new Map(catalog.places.map((p,i)=>[p.id,values[i]||0]))},[geography,catalog.places]);
   const results = catalog.places.filter(p => (kind==='all'||(kind==='village' ? state.provinces[p.id].fortress_level===0 : state.provinces[p.id].fortress_level>0)) && p.name.toLocaleLowerCase('ru').includes(query.toLocaleLowerCase('ru')));
 
   // Fullscreen changes both marker layout and hit targets: measure before paint.
@@ -219,7 +221,7 @@ export default function Atlas({state, catalog, selected, select, selectArmy, sel
     <div className="atlas-search"><input aria-label="Поиск поселения" placeholder="Найти город или поселение…" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="Тип поселения" value={kind} onChange={e=>setKind(e.target.value)}><option value="all">Все места</option><option value="fortress">Укреплённые</option><option value="village">Поселения</option></select></div>
     {(query || kind!=='all') && <div className="atlas-search-results" aria-label="Результаты поиска"><small>Найдено: {results.length}</small>{results.map(p=><button key={p.id} data-search-place={p.id} onClick={()=>{focusPlace(p.id);setQuery('');setKind('all')}}>{p.name}<small>{catalog.factions[state.provinces[p.id].controller]}</small></button>)}</div>}
     <div ref={area} className={`illustrated-map-canvas ${world ? 'world-map-canvas' : ''}`}>
-      <svg ref={svg} className="illustrated-map" aria-label="Стратегическая карта Средиземноморья" data-detail={detailed ? 'fortresses' : 'overview'} viewBox={`0 0 ${width} ${height}`} onPointerDown={e => {
+      <svg ref={svg} onClickCapture={e=>{if(!detailed||!(e.target as Element).closest('[data-place]'))return;e.stopPropagation();if(moved.current)return;const matrix=e.currentTarget.getScreenCTM();if(!matrix)return;const point=new DOMPoint(e.clientX,e.clientY).matrixTransform(matrix.inverse()),x=point.x,y=point.y;const nearest=[...pins].sort((a,b)=>Math.hypot(a.anchor[0]-x,a.anchor[1]-y)-Math.hypot(b.anchor[0]-x,b.anchor[1]-y))[0];if(nearest)choose(nearest.id)}} className="illustrated-map" aria-label="Стратегическая карта Средиземноморья" data-detail={detailed ? 'fortresses' : 'overview'} viewBox={`0 0 ${width} ${height}`} onPointerDown={e => {
         if (!pointers.current.size){moved.current=false;gestureStart.current=[e.clientX,e.clientY]}
         pointers.current.set(e.pointerId, [e.clientX, e.clientY]);
         // Keep target clicks on their marker; capture only background drags.
@@ -269,15 +271,15 @@ export default function Atlas({state, catalog, selected, select, selectArmy, sel
         })}
         {!detailed && <g className="overview-settlements">{visible.map(p=>{const [x,y]=toScreen(p.lon,p.lat);const active=selected===p.id;return <g key={p.id} data-overview-place={p.id} transform={`translate(${x} ${y})`}><path d="M-5 3V-6H-3V-3H0V-6H3V-3H5V3Z" fill={colorFor(state.provinces[p.id].controller)} stroke="#f5e7bf" strokeWidth=".8"/>{(active || p.kind==='city' && view.width<350)&&<text y="14" textAnchor="middle" fontSize="9" fill="#3f4934" paintOrder="stroke" stroke="#eee0b5" strokeWidth="2">{p.name}</text>}</g>})}<rect x="0" y="0" width={width} height={height-90} fill="transparent" role="button" aria-label="Приблизить область карты" tabIndex={0} onClick={e=>{if(moved.current)return;const bounds=e.currentTarget.getBoundingClientRect();const x=view.x+(e.clientX-bounds.left)/width*view.width;const y=view.y+(e.clientY-bounds.top)/height*view.height;setPan([x-baseCenter[0],y-baseCenter[1]]);setZoom(z=>Math.min(80,z*3))}} onKeyDown={e=>{if(e.key==='Enter')setZoom(z=>Math.min(80,z*3))}}/></g>}
         <g pointerEvents="none" className="map-leader-lines">{pins.map(p => Math.hypot(p.position[0] - p.anchor[0], p.position[1] - p.anchor[1]) > 10 && <g key={p.id}><path d={`M${p.anchor.join(' ')}L${p.position.join(' ')}`} stroke="#6c7153" opacity=".6" strokeWidth=".8"/><circle cx={p.anchor[0]} cy={p.anchor[1]} r="2" fill="#856e43" stroke="#ecdfb8" strokeWidth=".7"/></g>)}</g>
-        {pins.map(p => {
+        {[...pins].sort((a,b)=>Number(a.id===selected)-Number(b.id===selected)).map(p => {
           const place = state.provinces[p.id], color = colorFor(place.controller);
           const active = p.id === selected, besieged = !!state.sieges[p.id];
           const stationed = Object.values(state.armies).filter(a => a.location === p.id && troopCount(a.troops) > 0);
           return <g key={p.id} data-place={p.id} data-testid={`place-${p.id}`} className={`illustrated-place ${active ? 'is-selected' : ''}`} role="button" tabIndex={0} aria-label={`Выбрать ${p.name}`} transform={`translate(${p.position.join(' ')})`} onClick={() => choose(p.id)} onKeyDown={e => {if (e.key === 'Enter' || e.key === ' ') {e.preventDefault(); selectMarker(p.id)}}}>
-            <rect className="place-hit-target" x="-46" y="-36" width="92" height="68" rx="10" fill="transparent"/>
+            <rect className="place-hit-target" x="-24" y="-24" width="48" height="48" rx="10" fill="transparent"/>
             {active && <ellipse cy="2" rx="26" ry="14" fill="#eee0a3" stroke="#aa7836" strokeWidth="1.5"/>}
             {besieged && <ellipse cy="2" rx="29" ry="17" fill="none" stroke="#9e4834" strokeWidth="1.6" strokeDasharray="4 3"/>}
-            <g pointerEvents="none">{place.fortress_level>0 ? <Fortress large={p.id === state.capital || p.kind==='city'} port={p.port}/> : <Village/>}</g>
+            <g pointerEvents="none" transform={`scale(${groundScale(clearance.get(p.id)||0,view.width/width)})`}>{place.fortress_level>0 ? <Fortress large={p.id === state.capital || p.kind==='city'} port={p.port}/> : <Village/>}</g><circle r="2.5" fill={colorFor(place.controller)} pointerEvents="none"/>
             <path d="M-3-27V-45" stroke="#665437" strokeWidth="1.1" pointerEvents="none"/>
             <path d="M-3-45Q3-48 11-44L10-35Q3-39-3-36Z" fill={color} stroke="#fff0c6" strokeWidth=".7" pointerEvents="none"/>
             {place.controller === 'ottoman' && <path d="M3-43A3 3 0 1 0 6-38A2.6 2.6 0 1 1 3-43" fill="#f8edc9" pointerEvents="none"/>}
