@@ -15,7 +15,13 @@ def command(s,kind,d):
     if s.rules_version<5:return False
     if diplomacy.command(s,kind,d) or knowledge.command(s,kind,d):return True
     state=diplomacy.data(s)
-    if kind=='plan_order':
+    if kind in ['plan_gather','execute_gather']:
+        from campaign.ruler.gather import plan
+        if kind=='plan_gather':state['gather_draft']={'revision':s.revision+1,'command':deepcopy(d),'summary':plan(s,d)}
+        else:
+            draft=state.get('gather_draft');require(draft and draft['revision']==s.revision,'Положение изменилось. Заново проверьте сбор')
+            plan(s,draft['command'],execute=True);state.pop('gather_draft',None)
+    elif kind=='plan_order':
         summary=_plan(s,d)
         state['draft']={'revision':s.revision+1,'command':deepcopy(d),'summary':summary}
     elif kind=='execute_plan':
@@ -77,7 +83,7 @@ def command(s,kind,d):
 
 def _plan(s,d,execute=False):
     from campaign.ruler import military
-    from campaign.ruler.core import own_army, route, troops
+    from campaign.ruler.core import own_army, route, troops, duration
     trial=s if execute else deepcopy(s);a=own_army(trial,str(d.get('army','')))
     add=d.get('troops',{})
     require(isinstance(add,dict),'Укажите состав подкрепления')
@@ -93,7 +99,7 @@ def _plan(s,d,execute=False):
     if p.controller==a.faction and count(p.garrison)<15:warnings.append(f'{name(p.id)}: останется {count(p.garrison)} воинов. Охрана ворот и складов ослаблена.')
     food=a.grain//max(1,a.size)
     if food<14:warnings.append(f'В обозе продовольствия примерно на {food} дней. Подготовьте поставку или разрешите закупки в пределах походной казны.')
-    return {'army':a.id,'commander':a.commander,'location':a.location,'target':d['target'],'troops':troops(a.cohorts),'garrison':troops(p.garrison),'food_days':food,'funds':d.get('funds',0),'deadline':s.day+d.get('days',180),'route':path or [],'warnings':warnings}
+    return {'army':a.id,'commander':a.commander,'location':a.location,'target':d['target'],'troops':troops(a.cohorts),'garrison':troops(p.garrison),'food_days':food,'funds':d.get('funds',0),'deadline':s.day+d.get('days',180),'route':path or [],'travel_days':sum(duration(a,b) for a,b in zip([a.location]+(path or []),path or [])),'warnings':warnings}
 
 def _policy(s):
     from campaign.ruler import civil
@@ -262,6 +268,6 @@ def validate(s):
 def public(s):
     if s.rules_version<5:return None
     d=diplomacy.data(s)
-    return {**diplomacy.public(s),**knowledge.public(s),'draft':deepcopy(d.get('draft',{}).get('summary')),'tasks':tasks(s),'policies':{k:dict(v) for k,v in d['policies'].items()},'cases':[dict(x) for x in d['cases'].values()],
+    return {**diplomacy.public(s),**knowledge.public(s),'gather_draft':deepcopy(d.get('gather_draft',{}).get('summary')),'draft':deepcopy(d.get('draft',{}).get('summary')),'tasks':tasks(s),'policies':{k:dict(v) for k,v in d['policies'].items()},'cases':[dict(x) for x in d['cases'].values()],
             'plots':[{k:v for k,v in x.items() if k not in ['chance','loyalty']} for x in d['plots'].values()],
             'deliveries':[{k:v for k,v in c.items() if k in ['id','faction','seller','location','target','grain','trade']} for c in s.foreign_cargo if c.get('trade') and 'ottoman' in [c['faction'],c.get('seller')]]}

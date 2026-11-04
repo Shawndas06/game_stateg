@@ -1,3 +1,4 @@
+import {metric} from './diagnostics';
 // The short-lived session stays in memory: embedded browsers may reject cookies.
 // Never persist Telegram credentials or session tokens in browser storage.
 export class ApiError extends Error {constructor(message:string, public status:number){super(message)}}
@@ -5,9 +6,12 @@ let token='';
 let login:Promise<void>|null=null;
 
 async function fetchJson<T>(path:string,body?:unknown):Promise<T>{
+ const started=performance.now();
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),65000);
  try{
   const response=await fetch('/api'+path,{signal:controller.signal,credentials:'same-origin',headers:{...(token?{Authorization:`Bearer ${token}`}:{ }),...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{method:'POST',body:JSON.stringify(body)})});
+  if(path.endsWith('/commands'))metric({kind:'command',duration_ms:performance.now()-started,status:response.status});
+  if(!response.ok)metric({kind:'http_error',duration_ms:performance.now()-started,status:response.status,...(response.headers.get('X-Request-ID')?{request_id:response.headers.get('X-Request-ID')!}:{})});
   const data=await response.json().catch(()=>{throw new Error('Invalid JSON')});
   if(!response.ok)throw new ApiError(typeof data?.detail==='string'?data.detail:'Сервер временно недоступен. Повторите попытку.',response.status);
   return data;

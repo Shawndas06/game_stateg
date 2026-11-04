@@ -10,7 +10,7 @@ from campaign.ruler.core import *
 
 
 def command(s: RulerState, kind: str, d: dict) -> bool:
-    if kind in ['raise','demobilize'] and not d.get('_delivered'):
+    if (kind in ['raise','demobilize'] or kind=='form_army' and s.rules_version>=5) and not d.get('_delivered'):
         from campaign.ruler.civil import dispatch_regional
         if dispatch_regional(s,kind,d):return True
     if kind=='raise':
@@ -25,14 +25,18 @@ def command(s: RulerState, kind: str, d: dict) -> bool:
     elif kind=='form_army':
         p=owned(s,str(d.get('province','')))
         require(p.id not in s.sieges,'В осаждённой крепости нельзя формировать походную армию')
-        require(p.id==ruler_location(s),'Новый отряд формируют в присутствии правителя; удалённым армиям можно отправлять поручения')
+        require(p.id==ruler_location(s) or s.rules_version>=5 and d.get('_delivered'),'Новый отряд формируют в присутствии правителя; удалённым армиям можно отправлять поручения')
         commander=str(d.get('commander',''));free_officer(s,commander,p.id)
         selected=selection(d.get('troops'));units=take(s,p.garrison,selected)
         aid=uid(s,'army');a=Army(aid,'ottoman',p.id,units,commander,grain=0,deputy_officer=f'Старший десятник отряда {aid}')
         s.armies[aid]=a
         if p.governor==commander:p.governor=None
         s.people[commander].role='commander'
-        _load(s,a,p.id,min(p.grain,a.size*20))
+        ration_days=d.get('ration_days',20);require(type(ration_days) is int and 0<=ration_days<=60,'Запас от нуля до 60 дней')
+        _load(s,a,p.id,min(p.grain,a.size*ration_days))
+        if d.get('rally'):
+            require(s.rules_version>=5,'Сбор по распоряжению относится к расширенной кампании')
+            command(s,'mission',{'army':aid,'target':d['rally'],'purpose':'march','funds':d.get('funds',0),'_delivered':True})
         record(s,f'{s.people[commander].name} принял {a.size} воинов в {name(p.id)}. В гарнизоне осталось {count(p.garrison)}.','military')
     elif kind=='demobilize':
         p=owned(s,str(d.get('province','')),True)
@@ -126,7 +130,7 @@ def command(s: RulerState, kind: str, d: dict) -> bool:
         money=d.get('funds',0);require(type(money) is int and 0<=money<=5000,'Укажите допустимую сумму походной казны')
         spend(s,money)
         mandate={'id':uid(s,'mandate'),'purpose':purpose,'target':target,'area':area,'allow_assault':bool(d.get('allow_assault',False)),'allow_requisition':bool(d.get('allow_requisition',False)),'status':'issued','issued':s.day,'spent':0,'deadline':s.day+days,'funds':money}
-        start=ruler_location(s);path=route(s,start,a.location,hostile_end=True)
+        start=a.location if d.get('_delivered') else ruler_location(s);path=route(s,start,a.location,hostile_end=True)
         require(path is not None,'Гонец не может добраться до армии')
         # A later mandate supersedes undelivered orders and refunds their escrow.
         for item in list(s.couriers):

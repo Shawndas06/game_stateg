@@ -1,101 +1,62 @@
-"""Atlas interaction benchmark against an isolated built application, never production.
-
-ATLAS_PERF_OUT=/tmp/atlas-before.json PYTHONPATH=. python tests/browser_atlas_performance.py
-Use ATLAS_PERF_ASSERT=1 after the optimization to enforce stable coastline paths.
-"""
-import json,os,socket,subprocess,sys,tempfile,time
+"""Canvas camera benchmarks and interaction invariants; isolated server only."""
+import json,os
 from pathlib import Path
-from urllib.request import urlopen
-from playwright.sync_api import sync_playwright,expect
+from playwright.sync_api import expect
+import browser_ruler_ux as harness
+from browser_navigation import new_game,resume_menu
 
+readings=[]
 
-def run(bt,width,url):
-    browser=bt.launch();context=browser.new_context(viewport={'width':width,'height':844},is_mobile=True,has_touch=True)
-    page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-    page.goto(url);page.get_by_role('button',name='Стать правителем',exact=False).click()
-    page.get_by_role('button',name='Пропустить пролог',exact=True).click()
-    cdp=context.new_cdp_session(page) if bt.name=='chromium' else None
-    if cdp:cdp.send('Emulation.setCPUThrottlingRate',{'rate':4});cdp.send('Performance.enable')
-    # Opening now happens when teaching is dismissed, before any atlas nav click.
-    started=time.perf_counter();page.get_by_role('button',name='Пропустить обучение',exact=True).click();page.get_by_test_id('campaign-command-map').wait_for();page.locator('.map-load-state').wait_for(state='hidden')
-    page.locator('.illustrated-map').scroll_into_view_if_needed()
-    opened=round((time.perf_counter()-started)*1000)
-    readings=[]
-    for mode in ['campaign','world']:
-        if mode=='world':page.get_by_role('button',name='Весь мир',exact=False).click()
-        page.locator('.illustrated-map').scroll_into_view_if_needed()
-        page.evaluate('''() => {
-          const svg=document.querySelector('.illustrated-map');
-          window.atlasSample={frames:[],long:[],pathWrites:0,requests:0,coastWrites:0,active:true};
-          window.atlasObserver=new MutationObserver(list=>{atlasSample.pathWrites+=list.filter(m=>m.attributeName==='d').length;atlasSample.coastWrites+=list.filter(m=>m.target.closest('[data-coastline]')).length});
-          atlasObserver.observe(svg,{subtree:true,attributes:true,attributeFilter:['d']});
-          if(PerformanceObserver.supportedEntryTypes.includes('longtask'))new PerformanceObserver(list=>{if(atlasSample.active)atlasSample.long.push(...list.getEntries().map(e=>e.duration))}).observe({type:'longtask'});
-          let last=performance.now();function frame(now){if(!atlasSample.active)return;atlasSample.frames.push(now-last);last=now;requestAnimationFrame(frame)}requestAnimationFrame(frame);
-        }''')
-        # Count actual network traffic, excluding local browser data/blob URLs.
-        requests=[];on_request=lambda request:requests.append(request) if request.url.startswith(('http:','https:')) else None;page.on('request',on_request)
-        before={m['name']:m['value'] for m in cdp.send('Performance.getMetrics')['metrics']} if cdp else {}
-        box=page.locator('.illustrated-map').bounding_box();x=box['x']+box['width']*.3;y=box['y']+box['height']*.45
-        start=time.perf_counter()
-        for direction in [1,-1,1,-1]:
-            page.mouse.move(x,y);page.mouse.down()
-            writes=page.evaluate('atlasSample.pathWrites')
-            page.mouse.move(x+direction*70,y+direction*35,steps=24)
-            assert page.evaluate('atlasSample.pathWrites')==writes,'Paths/layout must stay frozen while the pointer is held'
-            page.mouse.up()
-        elapsed=(time.perf_counter()-start)*1000
-        after={m['name']:m['value'] for m in cdp.send('Performance.getMetrics')['metrics']} if cdp else {}
-        sample=page.evaluate('''() => {atlasSample.active=false;atlasObserver.disconnect();return atlasSample}''')
-        page.remove_listener('request',on_request)
-        frames=sorted(sample['frames'][1:]);p95=frames[min(len(frames)-1,int(len(frames)*.95))]
-        report={'browser':bt.name,'width':width,'mode':mode,'cpu_throttle':4 if cdp else None,'open_ms':opened,'drag_ms':round(elapsed),'frame_p95_ms':round(p95,1),'long_tasks':len(sample['long']),'max_long_ms':round(max(sample['long'],default=0),1),'path_writes':sample['pathWrites'],'coastline_writes':sample['coastWrites'],'script_ms':round((after.get('ScriptDuration',0)-before.get('ScriptDuration',0))*1000),'network_requests':len(requests)}
-        if os.getenv('ATLAS_PERF_ASSERT'):
-            assert len(requests)==0,'Dragging should not request server state or geography'
-            # Routes may change their d; the large coastline geometry must stay fixed.
-            assert page.locator('[data-coastline]').count()>0
-            assert sample['coastWrites']==0,'Coastline geometry was rebuilt during a drag'
-            assert page.locator('feTurbulence,feDropShadow').count()==0
-        print(json.dumps(report),flush=True);readings.append(report)
-    page.get_by_label('Поиск поселения',exact=True).fill('Бурса');page.locator('[data-search-place=bursa]').click()
-    expect(page.get_by_test_id('place-bursa')).to_be_in_viewport()
-    assert 'is-selected' in page.get_by_test_id('place-bursa').get_attribute('class')
-    page.get_by_test_id('place-bursa').locator('.place-hit-target').click();expect(page.locator('.ruler-place-card h2')).to_have_text('Бурса')
-    page.get_by_role('button',name='Моя столица',exact=False).click()
-    expect(page.get_by_test_id('place-sogut')).to_be_in_viewport()
-    camera=lambda:page.locator('[data-coastline]').evaluate('(el)=>el.parentElement.getAttribute("transform")')
-    before=camera();box=page.get_by_test_id('place-sogut').locator('.place-hit-target').bounding_box()
-    x=box['x']+box['width']/2;y=box['y']+box['height']/2
-    page.mouse.move(x,y);page.mouse.down();page.mouse.move(x+3,y+1);page.mouse.up()
-    page.evaluate('()=>new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(ok)))')
-    assert camera()==before,'Small tap jitter must not pan the map'
-    page.mouse.move(x,y);page.mouse.down()
-    for n in range(1,21):page.mouse.move(x+n,y)
-    page.mouse.up()
-    page.wait_for_function('(before)=>document.querySelector("[data-coastline]").parentElement.getAttribute("transform")!==before',arg=before)
-    assert 'is-selected' in page.get_by_test_id('place-sogut').get_attribute('class'),'A slow drag must not select another place'
-    page.get_by_role('button',name='Приблизить карту',exact=True).click();page.get_by_role('button',name='Отдалить карту',exact=True).click()
+def run(bt,width,url,out):
+    browser=bt.launch();ctx=browser.new_context(viewport={'width':844,'height':390},is_mobile=True,has_touch=True,device_scale_factor=3)
+    page=ctx.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(url);new_game(page,'realm');page.get_by_role('button',name='Пропустить пролог',exact=True).click();page.get_by_role('button',name='Пропустить обучение',exact=True).click()
+    expect(page.get_by_test_id('place-sogut')).to_be_visible()
+    cdp=ctx.new_cdp_session(page) if bt.name=='chromium' else None
+    if cdp:cdp.send('Emulation.setCPUThrottlingRate',{'rate':4})
+    def state():return page.request.get(url+'/api/campaigns/latest').json()['state']
+    for quality in ['low','medium','high']:
+        page.get_by_role('button',name='Открыть меню кампании',exact=True).click();page.get_by_label('Качество карты',exact=True).select_option(quality);page.get_by_role('button',name='Продолжить',exact=True).click()
+        expect(page.locator('.canvas-world')).to_have_attribute('data-quality',quality)
+        for mode in ['campaign','world']:
+            if mode=='world':page.get_by_role('button',name='Весь мир',exact=True).click()
+            revision=state()['revision'];requests=[];on_request=lambda r:requests.append(r.url) if r.url.startswith(('http:','https:')) else None;page.on('request',on_request)
+            page.evaluate('''()=>{window.sample={frames:[],writes:0,last:0,active:true};window.mo=new MutationObserver(xs=>sample.writes+=xs.length);mo.observe(document.querySelector('.map-hit-layer'),{subtree:true,childList:true,attributes:true});function tick(t){if(!sample.active)return;if(sample.last)sample.frames.push(t-sample.last);sample.last=t;requestAnimationFrame(tick)}requestAnimationFrame(tick)}''')
+            # Begin on clear map space, away from fixed HUD/panels.
+            for direction in [1,-1]:
+                page.mouse.move(540,240);page.mouse.down();writes=page.evaluate('sample.writes');page.mouse.move(540+direction*60,260,steps=24)
+                assert page.evaluate('sample.writes')==writes,'Camera gestures must not rebuild marker DOM'
+                page.mouse.up();page.evaluate('()=>new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(ok)))')
+            sample=page.evaluate('()=>{sample.active=false;mo.disconnect();return sample}');page.remove_listener('request',on_request)
+            assert not requests,requests
+            assert state()['revision']==revision
+            frames=sorted(sample['frames']);p95=frames[min(len(frames)-1,int(len(frames)*.95))] if frames else None
+            limits={'low':1,'medium':1.5,'high':2};ratio=page.locator('canvas').evaluate('(c)=>c.width/c.clientWidth')
+            assert ratio<=limits[quality]+.01
+            page.screenshot(path=str(out/f'canvas-{bt.name}-{quality}-{mode}.png'))
+            readings.append({'browser':bt.name,'quality':quality,'mode':mode,'cpu_throttle':4 if cdp else None,'frame_p95_ms':round(p95,1) if p95 else None,'requests':len(requests),'dpr':ratio})
+        page.get_by_role('button',name='Столица',exact=True).click();page.get_by_role('button',name='Закрыть карточку',exact=True).click()
+    # Real native pinch starts at an interactive army marker.
+    if cdp:
+        marker=page.locator('[data-map-army="ottoman-1"]');box=marker.bounding_box();x=box['x']+24;y=box['y']+24
+        before=page.evaluate('localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith("camera:")))');revision=state()['revision']
+        cdp.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':x,'y':y,'id':1},{'x':x+60,'y':y,'id':2}]})
+        for delta in [10,20,30]:cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':x-delta,'y':y,'id':1},{'x':x+60+delta,'y':y,'id':2}]})
+        cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
+        after=page.evaluate('localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith("camera:")))')
+        assert json.loads(after)['width']<json.loads(before)['width']*.8
+        assert state()['revision']==revision and not page.locator('.campaign-inspector').is_visible()
+    page.get_by_label('Поиск поселения',exact=True).fill('Бурса');page.locator('[data-search-place=bursa]').click();expect(page.get_by_test_id('place-bursa')).to_be_visible()
+    page.get_by_role('button',name='Закрыть карточку',exact=True).click();revision=state()['revision']
+    camera=page.evaluate('localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith("camera:")))')
+    page.reload();resume_menu(page);expect(page.get_by_test_id('place-bursa')).to_be_visible()
+    assert page.evaluate('localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith("camera:")))')==camera and state()['revision']==revision
     assert not errors,errors
-    context.close();browser.close();return readings
+    print('PASS canvas '+bt.name+': all qualities, camera without requests/DOM churn, native marker pinch, search and saved camera',flush=True)
+    ctx.close();browser.close()
 
-
-def main():
-    readings=[]
-    with tempfile.TemporaryDirectory(prefix='atlas-benchmark-') as tmp:
-        with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
-        url=f'http://127.0.0.1:{port}'
-        with open(Path(tmp)/'server.log','w+') as log:
-            process=subprocess.Popen([sys.executable,'-m','uvicorn','server.app:create_app','--factory','--host','127.0.0.1','--port',str(port)],env={**os.environ,'APP_ENV':'test','DATABASE_URL':f'sqlite:///{tmp}/state.db','SESSION_SECRET':'atlas-benchmark-only','PUBLIC_URL':url},stdout=log,stderr=log)
-            try:
-                for _ in range(100):
-                    if process.poll() is not None:log.seek(0);raise RuntimeError(log.read())
-                    try:
-                        with urlopen(url+'/api/health',timeout=1):break
-                    except OSError:time.sleep(.1)
-                else:raise AssertionError('Fixture server did not start')
-                with sync_playwright() as p:
-                    for bt,width in [(p.chromium,390),(p.webkit,390)]:readings+=run(bt,width,url)
-            finally:process.terminate();process.wait(timeout=10)
-    Path(os.getenv('ATLAS_PERF_OUT','/tmp/atlas-performance.json')).write_text(json.dumps(readings,indent=2))
-
-
-if __name__=='__main__':main()
+if __name__=='__main__':
+    original=run
+    def once(bt,width,url,out):
+        if width==390:original(bt,width,url,out)
+    harness.run=once;harness.main();Path(os.getenv('ATLAS_PERF_OUT','/tmp/atlas-performance.json')).write_text(json.dumps(readings,indent=2));print(json.dumps(readings),flush=True)
