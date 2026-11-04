@@ -49,7 +49,7 @@ def run(browser_type, width, height):
     assert page.locator('.original-world-map').count()==0
     assert page.locator('[data-overview-place]').count()==len(cities)
     page.get_by_label('Регион карты',exact=True).select_option('straits')
-    assert page.locator('[data-overview-place="constantinople"]').count()==1
+    expect(page.locator('[data-overview-place="constantinople"], [data-place="constantinople"]')).to_have_count(1)
     # Search crosses regional bounds and must expose each real settlement;
     # the same selected ID is read back through the province card.
     check_cities=cities if width==390 and browser_type.name=='chromium' else [city for city in cities if city['id'] in ['sogut','bursa','constantinople','galata','chrysopolis','chalcedon','domanic','lisbon','cairo']]

@@ -176,13 +176,20 @@ def test_create_receipt_prevents_duplicate_new_game_with_existing_save(tmp_path)
 
 def test_text_compression_and_media_range_cache_contract(tmp_path):
     app=create_app(Settings(mode='test',database_url=f'sqlite:///{tmp_path}/headers.db',session_secret='test'))
+    # Simulation CI has no web/dist. Mount committed media through the same
+    # StaticFiles stack; browser_media separately verifies the built /media route.
+    from server.app import ROOT
+    from fastapi.staticfiles import StaticFiles
+    app.mount('/fixture-media',StaticFiles(directory=ROOT/'web'/'public'/'media'))
     with TestClient(app) as c:
         data=c.get('/mediterranean-geography.json?v=test',headers={'Accept-Encoding':'gzip'})
         assert data.status_code==200 and data.headers['content-encoding']=='gzip'
         assert data.headers['cache-control']=='public, max-age=86400' and data.json()['land']
         plain=c.get('/mediterranean-geography.json');assert plain.headers['cache-control']=='no-cache'
-        media=c.get('/media/succession.mp4',headers={'Range':'bytes=0-31','Accept-Encoding':'gzip'})
+        media=c.get('/fixture-media/succession.mp4',headers={'Range':'bytes=0-31','Accept-Encoding':'gzip'})
         assert media.status_code==206 and len(media.content)==32 and 'content-encoding' not in media.headers
+        full=c.get('/fixture-media/succession.mp4',headers={'Accept-Encoding':'gzip'})
+        assert full.status_code==200 and len(full.content)>1000 and 'content-encoding' not in full.headers
         assert c.get('/api/catalog').headers['cache-control']=='no-store'
     app.state.store.engine.dispose()
 
