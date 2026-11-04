@@ -20,3 +20,11 @@ const geo=JSON.parse(await readFile(new URL('../web/public/mediterranean-geograp
 for(const q of ['low','medium','high'])counts[q]=paths(geo,q).land.reduce((n,p)=>n+p.points.length,0);
 assert(counts.low<=counts.medium&&counts.medium<=counts.high);
 console.log('PASS map scene: 500 indexed picks, anchored/clamped zoom, closed rings, LOD vertex counts',counts);
+
+const prefs=await import(data(await compile('../web/src/preferences.ts')));
+globalThis.localStorage={getItem(){throw Error('blocked')},setItem(){throw Error('blocked')}};
+prefs.remember('diagnostics','off');assert.equal(prefs.read('diagnostics'),'off');
+prefs.remember('map-quality','low');assert.equal(prefs.read('map-quality'),'low');
+globalThis.localStorage={getItem(){return 'on'},setItem(){throw Error('quota')}};
+prefs.remember('voice','off');assert.equal(prefs.read('voice'),'off');
+console.log('PASS optional preferences: blocked storage and quota failures retain current-session choices');

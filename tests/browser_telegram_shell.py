@@ -10,11 +10,24 @@ def run(bt,width,url,out):
     ctx.add_init_script('''window.sdk={fullscreen:0,locked:false,events:{},back:null};window.Telegram={WebApp:{initData:'',ready(){},expand(){},isVersionAtLeast(){return true},requestFullscreen(){sdk.fullscreen++},lockOrientation(){sdk.locked=true},unlockOrientation(){sdk.locked=false},safeAreaInset:{top:18,bottom:12,left:0,right:0},contentSafeAreaInset:{top:25,bottom:0,left:0,right:0},onEvent(k,f){sdk.events[k]=f},offEvent(k,f){if(sdk.events[k]===f)delete sdk.events[k]},BackButton:{show(){},hide(){},onClick(f){sdk.back=f},offClick(f){if(sdk.back===f)sdk.back=null}}}}''')
     ctx.route('https://telegram.org/js/**',lambda r:r.fulfill(body='/* SDK fixture */',content_type='application/javascript'))
     page=ctx.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    failed_geo=[]
+    def geography(route):
+        if not failed_geo:failed_geo.append(True);route.abort('aborted')
+        else:route.continue_()
+    page.route('**/mediterranean-geography.json*',geography)
     page.goto(url);new_game(page,'realm');page.get_by_role('button',name='Пропустить пролог',exact=True).click();page.get_by_role('button',name='Пропустить обучение',exact=True).click()
+    expect(page.get_by_role('button',name='Повторить загрузку карты',exact=True)).to_be_visible()
+    page.get_by_role('button',name='Повторить загрузку карты',exact=True).click()
     assert page.evaluate('sdk.fullscreen')==1
     assert page.locator('.header').bounding_box()['y']>=25
     expect(page.get_by_test_id('place-sogut')).to_be_visible();page.get_by_test_id('place-sogut').click();expect(page.locator('.campaign-inspector')).to_be_visible()
     page.evaluate('sdk.back()');expect(page.locator('.campaign-inspector')).to_be_hidden()
+    revision=page.request.get(url+'/api/campaigns/latest').json()['state']['revision']
+    page.locator('[data-map-army="ottoman-1"]').click();page.get_by_role('button',name='Указать цель на карте',exact=True).click()
+    page.evaluate('sdk.back()');expect(page.locator('.campaign-inspector')).to_be_visible()
+    expect(page.get_by_role('button',name='Отменить выбор цели',exact=True)).to_have_count(0)
+    assert page.request.get(url+'/api/campaigns/latest').json()['state']['revision']==revision
+    page.evaluate('sdk.back()')
     nav(page,'Государство');page.get_by_role('button',name='Мастера, учреждения и знания',exact=True).click();expect(page.get_by_role('tab',name='Мастера и знания',exact=True)).to_have_attribute('aria-selected','true')
     page.evaluate('sdk.back()');expect(page.locator('.canvas-world')).to_be_visible();expect(page.locator('.strategy-active')).to_have_count(1)
     page.evaluate('sdk.back()');expect(page.get_by_role('dialog',name='Меню кампании',exact=True)).to_be_visible()
@@ -36,7 +49,10 @@ def run(bt,width,url,out):
     page.evaluate('()=>{Telegram.WebApp.isVersionAtLeast=()=>false;Telegram.WebApp.lockOrientation=()=>{throw Error("Unsupported orientation must not be called")}}')
     page.get_by_role('button',name='Открыть меню кампании',exact=True).click()
     expect(page.get_by_role('button',name='Закрепить / освободить текущее положение экрана',exact=True)).to_be_disabled()
-    page.get_by_role('button',name='Продолжить',exact=True).click()
+    page.evaluate('()=>{Storage.prototype.getItem=()=>{throw Error("blocked")};Storage.prototype.setItem=()=>{throw Error("blocked")}}')
+    page.get_by_label('Разрешить технические отчёты без содержимого партии',exact=True).uncheck()
+    page.get_by_role('button',name='Главное меню',exact=True).click();page.get_by_role('button',name='Настройки и помощь',exact=True).click()
+    expect(page.get_by_role('button',name='Отправить технический отчёт',exact=True)).to_be_disabled()
     assert not errors,errors
     print(f'PASS Telegram shell {bt.name}: landscape/portrait, fullscreen, safe areas, contextual back, masters shortcut, blank input',flush=True)
     ctx.close();browser.close()

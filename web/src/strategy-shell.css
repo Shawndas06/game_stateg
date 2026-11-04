@@ -15,3 +15,4 @@
 .app.strategy-shell .campaign-dock{max-width:calc(100% - 196px)}.app.strategy-shell .campaign-dock button,.app.strategy-shell .ruler-toolbar button{font-size:16px;padding:10px 12px}.app.strategy-shell .ruler-toolbar{gap:6px}.app.strategy-shell .modal[aria-label=Правление] button{display:block;width:100%;margin:8px 0}
 .battle-result{min-height:100dvh;display:grid;place-items:center;padding:24px;background:#183e32}.battle-result>.card{width:min(640px,100%);font-size:17px}.battle-result button{min-height:48px;font-size:16px}
 .gather-source{border:1px solid #d4c5a2;border-radius:8px;padding:12px;margin:12px 0}.gather-source>label{display:block}.gather-source input[type=checkbox]{margin-right:10px}.gather-panel h2{font-size:24px}.gather-panel>button{margin:12px 0}
+.app.strategy-shell .map-instruction button{min-height:48px;font-size:16px}

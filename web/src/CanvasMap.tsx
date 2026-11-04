@@ -9,8 +9,8 @@ import {metric} from './diagnostics';
 import {read,remember} from './CampaignMedia';
 
 type Props={state:AtlasState;catalog:Catalog;selected:string;select:(id:string)=>void;selectArmy:(id:string)=>void;selectedArmy?:string;armyNames:Record<string,string>;focusToken:number;campaign:string;plannedRoute?:string[];planned?:{province:string;count:number}[];quality:Quality;onHelp:()=>void};
-let geography:Promise<Geography>|undefined;
-const load=()=>geography||(geography=fetch('/mediterranean-geography.json?v='+encodeURIComponent(document.querySelector('meta[name=build]')?.getAttribute('content')||'development')).then(r=>{if(!r.ok)throw Error('Карта не загрузилась');return r.json()}).catch(e=>{geography=undefined;throw e}));
+let geography:Geography|undefined;
+const load=(signal:AbortSignal)=>geography?Promise.resolve(geography):fetch('/mediterranean-geography.json?v='+encodeURIComponent(document.querySelector('meta[name=build]')?.getAttribute('content')||'development'),{signal}).then(r=>{if(!r.ok)throw Error('Карта не загрузилась');return r.json()}).then(data=>{geography=data;return data as Geography});
 export default function CanvasMap(props:Props){
  const {state,catalog,selected,select,selectArmy,selectedArmy,armyNames,campaign,quality,onHelp}=props;
  const root=useRef<HTMLDivElement>(null),canvas=useRef<HTMLCanvasElement>(null),camera=useRef<Viewport>({x:0,y:0,width:60,height:40});
@@ -19,6 +19,7 @@ export default function CanvasMap(props:Props){
  const [hits,setHits]=useState<Hit[]>([]),[query,setQuery]=useState(''),[political,setPolitical]=useState(false),[failure,setFailure]=useState(''),[attempt,setAttempt]=useState(0);
  const latest=useRef(props);latest.current=props;
  useEffect(()=>{
+  const controller=new AbortController(),leave=(event:PageTransitionEvent)=>{if(!event.persisted)controller.abort()};window.addEventListener('pagehide',leave);
   const area=root.current!,surface=canvas.current!,ctx=surface.getContext('2d')!;let live=true,frame=0,w=1,h=1,geo:ReturnType<typeof paths>|null=null;
   let terrain:HTMLCanvasElement|null=null,terrainView:Viewport|null=null;
   const symbols=new Map<string,HTMLCanvasElement>(),points=catalog.places.map(p=>({...p,point:project(p.lon,p.lat)}));
@@ -62,14 +63,14 @@ export default function CanvasMap(props:Props){
   function resize(){const box=area.getBoundingClientRect();w=Math.max(1,box.width);h=Math.max(1,box.height);camera.current.height=camera.current.width*h/w;queue()}
   const observer=new ResizeObserver(resize);observer.observe(area);resize();
   try{const saved=JSON.parse(read('camera:'+campaign)||'null');if(saved&&['x','y','width','height'].every(k=>Number.isFinite(saved[k]))&&saved.width>=12&&saved.width<=7600)camera.current={...saved,height:saved.width*h/w};else center(state.capital)}catch{center(state.capital)}
-  load().then(data=>{if(live){geo=paths(data,quality);setFailure('');queue()}}).catch(()=>{if(live)setFailure('Карта не загрузилась. Проверьте соединение и повторите.')});
+  load(controller.signal).then(data=>{if(live){geo=paths(data,quality);setFailure('');queue()}}).catch(()=>{if(live&&!controller.signal.aborted)setFailure('Карта не загрузилась. Проверьте соединение и повторите.')});
   const position=(e:PointerEvent):Point=>{const b=area.getBoundingClientRect();return [e.clientX-b.x,e.clientY-b.y]};
   const down=(e:PointerEvent)=>{if((e.target as HTMLElement).closest('.map-hud'))return;if(!fingers.size){moved.current=false;dragged=false;lastFrame=0;frames.length=0;start=position(e)}fingers.set(e.pointerId,position(e));active=true;area.setPointerCapture(e.pointerId);const a=[...fingers.values()];last=a.length>1?[(a[0][0]+a[1][0])/2,(a[0][1]+a[1][1])/2]:a[0];distance=a.length>1?Math.hypot(a[1][0]-a[0][0],a[1][1]-a[0][1]):0;};
   const move=(e:PointerEvent)=>{if(!fingers.has(e.pointerId))return;fingers.set(e.pointerId,position(e));const a=[...fingers.values()],mid:Point=a.length>1?[(a[0][0]+a[1][0])/2,(a[0][1]+a[1][1])/2]:a[0];if(a.length>1){const d=Math.hypot(a[1][0]-a[0][0],a[1][1]-a[0][1]);if(distance>0)camera.current=zoomAt(camera.current,distance/Math.max(1,d),mid,w,h);distance=d;moved.current=true}else if(Math.hypot(mid[0]-start[0],mid[1]-start[1])>6)moved.current=true;if(moved.current){camera.current.x-=(mid[0]-last[0])*camera.current.width/w;camera.current.y-=(mid[1]-last[1])*camera.current.height/h;dragged=true;queue()}last=mid};
   const up=(e:PointerEvent)=>{if(!fingers.has(e.pointerId))return;const pos=position(e);fingers.delete(e.pointerId);if(area.hasPointerCapture(e.pointerId))area.releasePointerCapture(e.pointerId);if(fingers.size){last=[...fingers.values()][0];return}active=false;suppress.current=dragged||e.type==='pointercancel';if(!suppress.current){const hit=lookup(...pos);if(hit){suppress.current=true;if(hit.kind==='army')latest.current.selectArmy(hit.id);else latest.current.select(hit.id)}}persist();queue();if(dragged&&frames.length>=8){const sorted=[...frames].sort((a,b)=>a-b),p95=sorted[Math.min(sorted.length-1,Math.floor(sorted.length*.95))];metric({kind:'map_frame',duration_ms:p95});if(p95>50&&quality!=='low'&&read('map-auto')!=='off'){remember('map-quality',quality==='high'?'medium':'low');window.dispatchEvent(new Event('graphics-quality'))}}};
   const wheel=(e:WheelEvent)=>{if((e.target as HTMLElement).closest('.map-hud'))return;e.preventDefault();camera.current=zoomAt(camera.current,Math.exp(e.deltaY*.001),[e.offsetX,e.offsetY],w,h);persist();queue()};
   area.addEventListener('pointerdown',down);area.addEventListener('pointermove',move);area.addEventListener('pointerup',up);area.addEventListener('pointercancel',up);area.addEventListener('wheel',wheel,{passive:false});document.addEventListener('visibilitychange',queue);
-  return()=>{live=false;cancelAnimationFrame(frame);observer.disconnect();area.removeEventListener('pointerdown',down);area.removeEventListener('pointermove',move);area.removeEventListener('pointerup',up);area.removeEventListener('pointercancel',up);area.removeEventListener('wheel',wheel);document.removeEventListener('visibilitychange',queue)};
+  return()=>{live=false;controller.abort();window.removeEventListener('pagehide',leave);cancelAnimationFrame(frame);observer.disconnect();area.removeEventListener('pointerdown',down);area.removeEventListener('pointermove',move);area.removeEventListener('pointerup',up);area.removeEventListener('pointercancel',up);area.removeEventListener('wheel',wheel);document.removeEventListener('visibilitychange',queue)};
  },[campaign,quality,political,attempt]);
  useEffect(()=>{if(priorSelected.current!==selected){priorSelected.current=selected;focus.current(selected)}else schedule.current()},[state,selected,selectedArmy,props.plannedRoute]);
  useEffect(()=>{if(props.focusToken)focus.current(selected)},[props.focusToken]);

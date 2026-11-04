@@ -5,8 +5,7 @@ import type {GuideStage} from './RulerGuide';
 import './media.css';
 
 type Clip=keyof typeof lines;
-const read=(key:string)=>{try{return localStorage.getItem(key)}catch{return null}};
-const remember=(key:string,value:string)=>{try{localStorage.setItem(key,value)}catch{/* Optional browser preference. */}};
+import {read,remember} from './preferences';
 
 /** Authored recordings, loaded on demand. No API, hidden game data or voice service. */
 export function Voice({clip}:{clip:Clip}){

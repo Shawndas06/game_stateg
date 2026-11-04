@@ -19,9 +19,10 @@ const phases:Record<string,string>={active:'Исполняется',issued:'Пр
 
 export default function CampaignMap({active,campaign,onHelp,onTime,state:s,catalog,selected,select,armyId,selectArmy,busy,send,council,army:advancedArmy,civil,office}:Props){
  const [panel,setPanel]=useState(false);const [quality]=useGraphics();
- const panelState=useRef({active,panel});panelState.current={active,panel};
- useEffect(()=>{const close=(e:Event)=>{if(panelState.current.active&&panelState.current.panel){e.preventDefault();setPanel(false)}};window.addEventListener('campaign-back',close);return()=>window.removeEventListener('campaign-back',close)},[]);
+ const panelState=useRef({active,panel,picking:false});
+ useEffect(()=>{const close=(e:Event)=>{const current=panelState.current;if(!current.active)return;if(current.picking){e.preventDefault();setPicking(false);setPanel(true)}else if(current.panel){e.preventDefault();setPanel(false)}};window.addEventListener('campaign-back',close);return()=>window.removeEventListener('campaign-back',close)},[]);
  const [focus,setFocus]=useState<'place'|'army'>(()=>read('map-object:'+campaign)==='army'?'army':'place'),[section,setSection]=useState('overview'),[picking,setPicking]=useState(false),[focusToken,setFocusToken]=useState(0);
+ panelState.current={active,panel,picking};
  const [orderTarget,setOrderTarget]=useState(selected),[purpose,setPurpose]=useState('march'),[funds,setFunds]=useState('0'),[assault,setAssault]=useState(false),[requisition,setRequisition]=useState(false);
  const [troop,setTroop]=useState('militia'),[recruits,setRecruits]=useState('10'),[warehouse,setWarehouse]=useState(s.capital),[grain,setGrain]=useState('800');
  const [review,setReview]=useState<{revision:number;key:string}|null>(null);
@@ -54,7 +55,7 @@ export default function CampaignMap({active,campaign,onHelp,onTime,state:s,catal
  const recruitmentProblems=[...(p.owner!=='ottoman'?['Сначала закрепите управление владением через совет.']:[]),...(s.sieges[selected]?['Крепость осаждена: сначала снимите осаду.']:[]),...(p.training.length?['Здесь уже готовят людей. Дождитесь завершения набора.']:[]),...(s.pending_edicts.some(e=>e.kind==='raise'&&e.province===selected)?['Приказ о наборе уже в пути. Дождитесь исполнителя.']:[]),...(n!==null&&n>(p.reserve||0)?['Для этого набора не хватает свободных местных людей.']:[]),...(n!==null&&n*catalog.troops[troop].cost>s.gold?['В казне не хватает денег. Уменьшите набор.']:[])];
  return <section inert={!active} aria-hidden={!active} className={`campaign-map ${active?'':'map-background-only'}`}  data-testid="campaign-command-map">
 
-  {picking&&<p className="map-instruction">Выберите город назначения. Приказ ещё не отправлен.</p>}
+  {picking&&<p className="map-instruction">Выберите город назначения. Приказ ещё не отправлен. <button onClick={()=>{setPicking(false);setPanel(true)}}>Отменить выбор цели</button></p>}
   <div className="campaign-attention">{s.agendas.length>0&&<button className="map-council-call" disabled={busy} onClick={()=>council(s.agendas[0].id)}>Совет: {s.agendas[0].title}<small>Ждут ответа: {s.agendas.length}</small></button>}{letters>0&&<button className="map-council-call" onClick={()=>office('diplomacy')}>Посольства ждут ответа · {letters}</button>}{s.statecraft&&<button onClick={()=>office('orders')}>{decisions?`Дела требуют решения · ${decisions}`:'Поручения и донесения'}<small>{s.statecraft.tasks.filter(t=>!['completed','cancelled','returned'].includes(t.status)).length} в работе</small></button>}</div>
   <CampaignCoach campaign={campaign} state={s} openCity={()=>{choosePlace(s.capital);setSection('recruit');setFocusToken(x=>x+1)}} onTime={onTime} onCouncil={()=>{if(s.agendas.length)council(s.agendas[0].id)}}/>
   <div className="campaign-map-layout"><div className="campaign-map-surface" ref={mapRef}>
