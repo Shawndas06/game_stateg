@@ -27,6 +27,8 @@ def run(bt,width,url,out):
     page.get_by_role('button',name='Закрыть карточку',exact=True).click()
     nav(page,'Держава');page.get_by_role('button',name='Мастера, учреждения и знания',exact=True).click()
     expect(page.get_by_role('heading',name='Морское дело',exact=True)).to_be_visible()
+    expect(page.get_by_role('button',name='Организовать морские перевозки',exact=True)).to_be_disabled()
+    expect(page.get_by_text('Нужен собственный оборудованный порт:',exact=False)).to_be_visible()
     expect(page.get_by_role('heading',name='Михаил, мастер причалов и перевозок',exact=True)).to_be_visible()
     expect(page.get_by_text('Судоходство, Устройство портов',exact=False)).to_be_visible()
     assert not errors,errors
