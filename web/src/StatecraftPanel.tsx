@@ -4,16 +4,16 @@ import type {RulerState} from './ruler-types';
 import NumberField,{integer} from './NumberField';
 import './statecraft.css';
 
-type Props={state:RulerState;catalog:Catalog;busy:boolean;send:(kind:string,payload?:Record<string,unknown>)=>void;openPlace:(id:string)=>void;openArmy:(id:string)=>void;openCouncil:(id:string)=>void;section:string;setSection:(id:string)=>void};
+type Props={initialTarget?:string;initialProvince?:string;state:RulerState;catalog:Catalog;busy:boolean;send:(kind:string,payload?:Record<string,unknown>)=>void;openPlace:(id:string)=>void;openArmy:(id:string)=>void;openCouncil:(id:string)=>void;section:string;setSection:(id:string)=>void};
 const statuses:Record<string,string>={issued:'В пути',requested:'В пути',moving:'В пути',assembling:'Собирается',travelling:'В пути',returning:'Возвращается',arrived:'Ждёт ответа',active:'Исполняется',serving:'На службе',awaiting:'Нужно решение',held:'Нужно решение',completed:'Завершено',returned:'Вернулся',accepted:'Согласовано',rejected:'Отказ',expired:'Срок истёк',cancelled:'Отменено',failed:'Не удалось',preparing:'Подготовка',installed:'Принял власть',answered:'Ответ дан',resolved:'Разрешено',open:'Нужно решение',recalled:'Отозвано',broken:'Расторгнут',seized:'Потерян'};
 const labels:Record<string,string>={army:'Военное поручение',civil:'Распоряжение',cargo:'Доставка',workshop:'Работа мастера',construction:'Строительство',training:'Подготовка воинов',appointment:'Назначение',master:'Прибытие мастера',embassy:'Посольство'};
 const proposals:Record<string,string>={peace:'Мир',trade:'Торговля',nap:'Ненападение',alliance:'Оборонительный союз',access:'Право прохода',submit:'Признать себя вассалом',demand:'Предложить подчиниться',war:'Объявить войну'};
 const sum=(v:Record<string,number>)=>Object.values(v).reduce((a,b)=>a+b,0);
 
-export default function StatecraftPanel({state:s,catalog,busy,send,openPlace,openArmy,openCouncil,section,setSection}:Props){
+export default function StatecraftPanel({initialTarget,initialProvince,state:s,catalog,busy,send,openPlace,openArmy,openCouncil,section,setSection}:Props){
  const d=s.statecraft!;
- const [target,setTarget]=useState(d.contacts[0]||''),[proposal,setProposal]=useState('trade'),[days,setDays]=useState('720'),[payment,setPayment]=useState('0'),[tribute,setTribute]=useState('10'),[levy,setLevy]=useState('30'),[count,setCount]=useState('10');
- const [province,setProvince]=useState(s.capital),[person,setPerson]=useState(''),[tech,setTech]=useState('carpentry'),[engine,setEngine]=useState('ram'),[army,setArmy]=useState(Object.keys(s.armies)[0]||'');
+ const [target,setTarget]=useState(initialTarget&&d.contacts.includes(initialTarget)?initialTarget:d.contacts[0]||''),[proposal,setProposal]=useState('trade'),[days,setDays]=useState('720'),[payment,setPayment]=useState('0'),[tribute,setTribute]=useState('10'),[levy,setLevy]=useState('30'),[count,setCount]=useState('10');
+ const [province,setProvince]=useState(initialProvince||s.capital),[person,setPerson]=useState(''),[tech,setTech]=useState('carpentry'),[engine,setEngine]=useState('ram'),[army,setArmy]=useState(Object.keys(s.armies)[0]||'');
  const [budget,setBudget]=useState('20'),[grain,setGrain]=useState('21'),[guards,setGuards]=useState('20'),[repair,setRepair]=useState(false),[purchase,setPurchase]=useState(false),[recruit,setRecruit]=useState(false),[plot,setPlot]=useState('information');
  const place=(id:string)=>catalog.places.find(x=>x.id===id)?.name||id, faction=(id:string)=>catalog.factions[id]||id;
  const own=Object.values(s.provinces).filter(x=>x.controlled),masters=d.masters.filter(x=>x.employer==='ottoman'&&x.status==='active'),master=masters.find(x=>x.id===person)||masters[0];

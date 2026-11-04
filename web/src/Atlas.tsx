@@ -45,7 +45,7 @@ function Compass({x, y}: {x: number; y: number}) {
   </g>;
 }
 
-export default function Atlas({state, catalog, selected, select}: {state: AtlasState; catalog: Catalog; selected: string; select: (id: string) => void}) {
+export default function Atlas({state, catalog, selected, select, selectArmy, selectedArmy, armyNames={}, focusToken=0, commandMode=false, inspect, selectionLabel}: {state: AtlasState; catalog: Catalog; selected: string; select: (id: string) => void; selectArmy?:(id:string)=>void; selectedArmy?:string; armyNames?:Record<string,string>; focusToken?:number; commandMode?:boolean; inspect?:()=>void; selectionLabel?:string}) {
   const [world, setWorld] = useState(false);
   const [zoom, setZoom] = useState(3);
   const [pan, setPan] = useState<Point>(()=>{const p=catalog.places.find(p=>p.id===state.capital)!;const [x,y]=project(p.lon,p.lat);return [x-794,y-226.5]});
@@ -98,7 +98,9 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
     if (!area.current) return;
     const observer = new ResizeObserver(() => {
       // A queued notification may describe the pre-fullscreen rectangle.
-      const {width,height}=area.current!.getBoundingClientRect();
+      const element=area.current;
+      if(!element)return;
+      const {width,height}=element.getBoundingClientRect();
       if (width && height) setSize(old=>old.width===width&&old.height===height?old:{width,height});
     });
     observer.observe(area.current);
@@ -185,12 +187,12 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   };
   const selectedPlace = catalog.places.find(p => p.id === selected)!;
-  function focusPlace(pid: string, scale = 18) {
+  function focusPlace(pid: string, scale = 18, notify = true) {
     const p = catalog.places.find(p=>p.id===pid)!;
     const [x,y] = project(p.lon,p.lat);
     previousSelection.current=pid;
-    setZoom(baseWidth / scale); setPan([x-baseCenter[0],y-baseCenter[1]]); select(pid);
-    requestAnimationFrame(()=>area.current?.scrollIntoView({block:'center'}));
+    setZoom(baseWidth / scale); setPan([x-baseCenter[0],y-baseCenter[1]]); if(notify)select(pid);
+    if(notify)requestAnimationFrame(()=>area.current?.scrollIntoView({block:'center'}));
   }
   function focusSelected() {focusPlace(selectedPlace.id)}
   const selectMarker = (pid:string) => {previousSelection.current=pid;select(pid)};
@@ -199,12 +201,21 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
   useEffect(()=>{
     if (previousSelection.current === selected) return;
     previousSelection.current = selected;
-    focusPlace(selected);
+    focusPlace(selected,18,false);
   },[selected]);
+  useEffect(()=>{if(focusToken)focusPlace(selected,18,false)},[focusToken]);
+
+  const mapControls=<div className="illustrated-map-tools">
+        <button aria-label="Приблизить карту" onClick={() => setZoom(z => Math.min(world ? 80 : 6, z * 1.3))}>+</button><button aria-label="Отдалить карту" onClick={() => setZoom(z => Math.max(.8, z / 1.3))}>−</button>
+        <button aria-label="Показать выбранную крепость" onClick={focusSelected}>Выбранный город</button>
+        {world && <button aria-label="Показать всю карту" onClick={()=>reset(true)}>Вся карта</button>}
+        <button aria-label="Вернуть карту" onClick={() => reset()}>Обзор</button>
+        <button aria-label={fullScreen ? 'Свернуть карту' : 'Развернуть карту'} onClick={() => setFullScreen(v => !v)}>{fullScreen ? 'Свернуть' : 'Во весь экран'}</button>
+      </div>;
 
   return <section className={`illustrated-atlas ${fullScreen ? 'atlas-fullscreen' : ''}`} aria-label="Карта кампании">
-    <header className="atlas-map-heading"><div><span className="eyebrow">{world ? 'Средиземноморье' : 'Вифиния · кампания'}</span><strong>{world ? 'Карта известного мира' : 'На подступах к Бурсе'}</strong></div><button className="map-heading-button" onClick={() => reset(!world)}>{world ? 'К кампании' : 'Весь мир'}</button></header>
-    <div className="atlas-home"><button className="primary" onClick={()=>focusPlace(state.capital)}>Моя столица · {catalog.places.find(p=>p.id===state.capital)?.name}</button><span>Выбрано: {selectedPlace.name}</span></div><div className="atlas-navigation"><label>Регион<select aria-label="Регион карты" value={region} onChange={e=>{const r=catalog.regions.find(r=>r.id===e.target.value);setRegion(e.target.value);if(r){const [x,y]=project(r.lon,r.lat);setPan([x-baseCenter[0],y-baseCenter[1]]);setZoom(baseWidth/(r.width*20))}}}><option value="">Выбрать регион…</option>{catalog.regions.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label><span>{visible.length} в окне · {catalog.places.length} всего</span></div>
+    {commandMode?<header className="atlas-command-bar"><button className="primary" aria-label={'Моя столица · '+catalog.places.find(p=>p.id===state.capital)?.name} onClick={()=>focusPlace(state.capital)}>Столица</button><button onClick={()=>reset(!world)}>{world?'К кампании':'Весь мир'}</button>{inspect&&<button aria-label="Открыть действия" onClick={inspect}>Действия</button>}</header>:<><header className="atlas-map-heading"><div><span className="eyebrow">{world ? 'Средиземноморье' : 'Вифиния · кампания'}</span><strong>{world ? 'Карта известного мира' : 'На подступах к Бурсе'}</strong></div><button className="map-heading-button" onClick={() => reset(!world)}>{world ? 'К кампании' : 'Весь мир'}</button></header><div className="atlas-home"><button className="primary" onClick={()=>focusPlace(state.capital)}>Моя столица · {catalog.places.find(p=>p.id===state.capital)?.name}</button><span>Выбрано: {selectedPlace.name}</span></div></>}
+    <div className="atlas-navigation"><label>Регион<select aria-label="Регион карты" value={region} onChange={e=>{const r=catalog.regions.find(r=>r.id===e.target.value);setRegion(e.target.value);if(r){const [x,y]=project(r.lon,r.lat);setPan([x-baseCenter[0],y-baseCenter[1]]);setZoom(baseWidth/(r.width*20))}}}><option value="">Выбрать регион…</option>{catalog.regions.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label><span>{visible.length} в окне · {catalog.places.length} всего</span></div>
     <div className="atlas-search"><input aria-label="Поиск поселения" placeholder="Найти город или поселение…" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="Тип поселения" value={kind} onChange={e=>setKind(e.target.value)}><option value="all">Все места</option><option value="fortress">Укреплённые</option><option value="village">Поселения</option></select></div>
     {(query || kind!=='all') && <div className="atlas-search-results" aria-label="Результаты поиска"><small>Найдено: {results.length}</small>{results.map(p=><button key={p.id} data-search-place={p.id} onClick={()=>{focusPlace(p.id);setQuery('');setKind('all')}}>{p.name}<small>{catalog.factions[state.provinces[p.id].controller]}</small></button>)}</div>}
     <div ref={area} className={`illustrated-map-canvas ${world ? 'world-map-canvas' : ''}`}>
@@ -212,7 +223,7 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
         if (!pointers.current.size){moved.current=false;gestureStart.current=[e.clientX,e.clientY]}
         pointers.current.set(e.pointerId, [e.clientX, e.clientY]);
         // Keep target clicks on their marker; capture only background drags.
-        const marker = (e.target as Element).closest('[data-place]');
+        const marker = (e.target as Element).closest('[data-place],[data-map-army]');
         (marker || e.currentTarget).setPointerCapture(e.pointerId);
       }} onPointerMove={pointerMove} onPointerUp={endPointer} onPointerCancel={endPointer}>
         <defs>
@@ -270,24 +281,21 @@ export default function Atlas({state, catalog, selected, select}: {state: AtlasS
             <path d="M-3-27V-45" stroke="#665437" strokeWidth="1.1" pointerEvents="none"/>
             <path d="M-3-45Q3-48 11-44L10-35Q3-39-3-36Z" fill={color} stroke="#fff0c6" strokeWidth=".7" pointerEvents="none"/>
             {place.controller === 'ottoman' && <path d="M3-43A3 3 0 1 0 6-38A2.6 2.6 0 1 1 3-43" fill="#f8edc9" pointerEvents="none"/>}
-            {stationed.map((army, i) => <g key={army.id} transform={`translate(${19 + i * 25} -18)`} pointerEvents="none"><path d="M-2-12V6" stroke="#6b5436"/><path d="M-2-12H20L16 0H-2Z" fill={colorFor(army.faction)} stroke="#f0e0b5" strokeWidth=".7"/><text x="8" y="-4" textAnchor="middle" fontSize="8" fill="#fff4d5">{troopCount(army.troops)}</text></g>)}
+            {!selectArmy&&stationed.map((army, i) => <g key={army.id} transform={`translate(${19 + i * 25} -18)`} pointerEvents="none"><path d="M-2-12V6" stroke="#6b5436"/><path d="M-2-12H20L16 0H-2Z" fill={colorFor(army.faction)} stroke="#f0e0b5" strokeWidth=".7"/><text x="8" y="-4" textAnchor="middle" fontSize="8" fill="#fff4d5">{troopCount(army.troops)}</text></g>)}
             <rect x={-Math.max(35, p.name.length * 3.8)} y="14" width={Math.max(70, p.name.length * 7.6)} height="20" rx="3" fill={active ? '#395a43' : '#f2e5bf'} fillOpacity={active ? '.97' : '.92'} stroke={active ? '#263f32' : '#c3ab77'} strokeWidth=".6" pointerEvents="none"/>
             <text className="place-name" y="28" textAnchor="middle" fill={active ? '#fff1c8' : '#4f4933'} pointerEvents="none">{p.id === state.capital ? '★ ' : ''}{p.name}</text>
           </g>;
         })}
+        {selectArmy&&pins.flatMap(p=>Object.values(state.armies).filter(a=>a.location===p.id&&troopCount(a.troops)>0).map((a,i)=><g key={'army-'+a.id} className="atlas-army" data-map-army={a.id} role="button" tabIndex={0} aria-label={'Выбрать армию: '+(armyNames[a.id]||a.id)} aria-pressed={selectedArmy===a.id} transform={`translate(${p.position[0]+i*48} ${p.position[1]-66})`} onClick={e=>{e.stopPropagation();if(!moved.current)selectArmy(a.id)}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectArmy(a.id)}}}><rect x="-24" y="-22" width="48" height="44" rx="6" fill="transparent"/><path d="M-17-16H18L14 13H-17Z" fill={selectedArmy===a.id?'#ac7a32':colorFor(a.faction)} stroke="#fff3cf" strokeWidth="2"/><text y="4" textAnchor="middle" fill="#fff9e8" fontSize="12" pointerEvents="none">{troopCount(a.troops)}</text></g>))}
         <Compass x={43} y={width < 500 ? 90 : height - 53}/>
         <path d={`M8 35V8H35M${width - 35} 8H${width - 8}V35M8 ${height - 35}V${height - 8}H35M${width - 35} ${height - 8}H${width - 8}V${height - 35}`} fill="none" stroke="#9f8551" strokeWidth="1" opacity=".7" pointerEvents="none"/>
       </svg>
       {!geography && <div className="map-load-state" role="status">{loadError ? <><p>Не удалось загрузить карту</p><button onClick={() => setAttempt(n => n + 1)}>Повторить</button></> : 'Разворачиваем карту…'}</div>}
-      <div className="illustrated-map-tools">
-        <button aria-label="Приблизить карту" onClick={() => setZoom(z => Math.min(world ? 80 : 6, z * 1.3))}>+</button><button aria-label="Отдалить карту" onClick={() => setZoom(z => Math.max(.8, z / 1.3))}>−</button>
-        <button aria-label="Показать выбранную крепость" onClick={focusSelected}>Выбранный город</button>
-        {world && <button aria-label="Показать всю карту" onClick={()=>reset(true)}>Вся карта</button>}
-        <button aria-label="Вернуть карту" onClick={() => reset()}>Обзор</button>
-        <button aria-label={fullScreen ? 'Свернуть карту' : 'Развернуть карту'} onClick={() => setFullScreen(v => !v)}>{fullScreen ? 'Свернуть' : 'Во весь экран'}</button>
-      </div>
+      {!commandMode&&mapControls}
       {<div className="map-corner-caption"><span>Кампания {state.calendar.year} года</span><small>{detailed ? 'Двигайте карту · увеличивайте двумя пальцами' : 'Нажмите на область для приближения'}</small></div>}
     </div>
+    {commandMode&&mapControls}
+    {commandMode&&<div className="atlas-selection-caption" aria-live="polite">{selectionLabel||selectedPlace.name}</div>}
     <footer className="illustrated-map-legend"><span><i style={{background: factionColor.ottoman}}/>Османы</span><span><i style={{background: factionColor.byzantine}}/>Византия</span><span className="siege-key">◌ Осада</span>{<button aria-pressed={layers} onClick={() => setLayers(v => !v)}>{layers ? 'Скрыть дороги' : 'Показать дороги'}</button>}</footer>
 
   </section>;
