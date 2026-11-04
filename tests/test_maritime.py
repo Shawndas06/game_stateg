@@ -131,7 +131,7 @@ def test_recorded_legal_maritime_school_walk_without_resource_or_date_injection(
     for i,(kind,payload) in enumerate(script['commands']):
         s=act(s,kind,payload)
         if i%15==0:s=RulerState.from_dict(s.to_dict())
-    assert not s.ending and s.day==430
+    assert not s.ending and s.day==369
     assert {'navigation','carpentry','stonework','harbor_building'}<=set(s.flags['statecraft']['skills']['ottoman'])
     assert any('harbor_building' in m['knows'] and m['fee']==0 and m['employer']=='ottoman' for m in s.flags['statecraft']['specialists'].values())
 
@@ -151,3 +151,27 @@ def test_port_command_receipt_and_reload_do_not_double_charge(tmp_path):
         assert c.post(url,json=cmd).json()==first.json()==c.get(f"/api/campaigns/{save['id']}").json()
         assert first.json()['state']['gold']==1880
         assert first.json()['state']['provinces']['mudanya']['reserve']==68
+
+def test_marmara_port_routes_carry_real_grain_and_preserve_land_roads_and_ferries():
+    from campaign.engine import route_kind
+    from campaign.content import PLACE_INDEX
+    links=[('mudanya','constantinople'),('cius','constantinople'),('nicomedia','constantinople'),('mudanya','gallipoli'),('gallipoli','smyrna'),('lapseki','smyrna')]
+    for a,b in links:assert route_kind(a,b)=='sea' and PLACE_INDEX[a][7] and PLACE_INDEX[b][7]
+    assert route_kind('mudanya','cius')=='land'
+    assert route_kind('chrysopolis','constantinople')=='ferry'
+    assert route_kind('lapseki','gallipoli')=='ferry'
+    s,pid=prepared();s.places['mudanya'].buildings.append('harbor')
+    s.institutions['shipping']={'status':'active','ready':0,'maritime':True}
+    p=s.places['constantinople'];p.owner=p.controller='ottoman'
+    a=s.armies['ottoman-1'];a.location=p.id;s.people[a.commander].location=p.id
+    gold=s.gold;stock=s.places['mudanya'].grain;aboard=a.grain
+    n=act(s,'provision',{'army':a.id,'province':'mudanya','amount':200})
+    cargo=next(iter(n.transports.values()))
+    assert cargo['path']==['constantinople'] and cargo['grain']==200
+    assert n.gold==gold-5 and n.places['mudanya'].grain==stock-200 and n.armies[a.id].grain==aboard
+    # Isolate civil transport ticks from army consumption to audit the transfer.
+    for _ in range(30):
+        n.day+=1;civil.tick(n)
+        if cargo['status']=='completed':break
+    assert cargo['status']=='completed' and cargo['location']==p.id and cargo['grain']==0
+    assert n.armies[a.id].grain==aboard+200

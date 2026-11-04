@@ -2,7 +2,7 @@
 from copy import deepcopy
 import pytest
 from campaign.engine import RuleError,relation_key
-from campaign.ruler import diplomacy as dip,knowledge as know,civil,statecraft
+from campaign.ruler import diplomacy as dip,knowledge as know,civil,statecraft,military
 from campaign.ruler.engine import new_campaign,apply_command as act,validate,view
 from campaign.ruler.models import RulerState
 from campaign.ruler.core import count
@@ -190,6 +190,35 @@ def test_search_is_fixed_and_interrupted_siege_work_does_not_damage_new_siege():
     s=act(s,'siege_operation',{'province':p.id,'operation':'tunnel','person':master});s.sieges[p.id]['started']=29
     walls=s.places[p.id].walls;s.day=58;know.tick(s);assert s.places[p.id].walls==walls
     assert list(dip.data(s)['siege_work'].values())[-1]['status']=='failed'
+
+@pytest.mark.parametrize('cause',['withdrawal','empty_army','capture','peace','missing','replacement'])
+@pytest.mark.parametrize('operation',['search','tunnel','infiltrate'])
+def test_sapper_released_immediately_when_original_siege_ends(cause,operation):
+    # Boundary fixture: the legal arrival/defeat path is covered by statecraft_sieges.py.
+    s=realm(29);site='bilecik';a=s.armies['ottoman-1'];a.location=site;a.travel=None
+    s.sieges[site]={'province':site,'faction':'ottoman','armies':[a.id],'started':0,'morale':90,'passage_found':True}
+    master=next(pid for pid,m in dip.data(s)['specialists'].items() if 'mining' in m['knows'])
+    dip.data(s)['specialists'][master]['employer']='ottoman';s.people[master].location=site;s.people[master].faction='ottoman'
+    s=act(s,'siege_operation',{'province':site,'operation':operation,'person':master})
+    a=s.armies[a.id];s.day=1;walls=s.places[site].walls;gold=s.gold
+    if cause=='withdrawal':a.travel={'path':['sogut'],'left':1,'retreat':True}
+    elif cause=='empty_army':a.cohorts=[]
+    elif cause=='capture':s.places[site].controller='ottoman'
+    elif cause=='peace':s.relations[relation_key('ottoman','byzantine')]['status']='peace'
+    elif cause=='missing':del s.sieges[site]
+    else:s.sieges[site]['started']=1
+    military.cleanup(s)
+    work=list(dip.data(s)['siege_work'].values())[-1]
+    assert work['status']=='failed' and work['reason']=='siege_ended' and work['finished']==1<work['ready']
+    assert not know.busy(s,master) and s.places[site].walls==walls and s.gold==gold
+    assert any(r['kind']=='siege_report' and 'работы сапёров прекращены' in r['text'] for r in s.reports)
+    s=RulerState.from_dict(s.to_dict());before=s.to_dict()
+    military.cleanup(s)
+    assert s.to_dict()==before,'Repeated cleanup must not repeat a failure report or payment'
+    s.day=work['ready'];know.tick(s)
+    assert s.places[site].walls==walls and not know.busy(s,master)
+    if cause=='replacement':assert not s.sieges[site].get('passage_used')
+
 
 def test_throne_installation_requires_vassal_and_physical_candidate_arrival():
     s=realm();s=act(s,'support_claim',{'person':'ahmed','target':'germiyan'});s.day=90

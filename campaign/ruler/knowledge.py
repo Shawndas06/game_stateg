@@ -129,6 +129,16 @@ def siege_command(s,d):
     data(s)['siege_work'][ident]={'id':ident,'province':pid,'operation':op,'master':master,'ready':s.day+(14 if op=='search' else 30 if op=='tunnel' else 7),'status':'active','siege_started':sg['started']}
     record(s,f'{name(pid)}: сапёры получили поручение. Результат пока неизвестен.','order')
 
+def reconcile_siege_work(s):
+    if s.rules_version<5:return
+    for w in data(s)['siege_work'].values():
+        if w['status']!='active':continue
+        sg=s.sieges.get(w['province'])
+        if not sg or sg['faction']!='ottoman' or sg['started']!=w['siege_started']:
+            w.update(status='failed',reason='siege_ended',finished=s.day)
+            record(s,f"{name(w['province'])}: работы сапёров прекращены — прежняя осада закончилась. Мастер освобождён от поручения.",'siege_report')
+
+
 def _projects(s):
     from campaign.ruler.court import accomplish
     for w in data(s)['projects'].values():
@@ -178,6 +188,7 @@ def tick(s):
         pid=uid(s,'master');s.people[pid]=Person(pid,['Юсуф','Мануил','Исхак','Михаил'][(s.day//720)%4]+', приглашённый инженер',1265+s.day//365,site,'master',faction=s.places[site].controller,skills={'command':20,'stewardship':45,'siege':65,'logistics':55})
         data(s)['specialists'][pid]={'knows':['carpentry','stonework','navigation','harbor_building'] if s.day//720%2 else ['carpentry','stone_thrower','counterweight','tower'],'fee':100,'wage':4,'until':s.day+120,'employer':None,'known':True}
         record(s,'Новый мастер прислал условия службы и перечень своих знаний. Предложение ограничено по времени.','master')
+    reconcile_siege_work(s)
     for w in data(s)['siege_work'].values():
         if w['status']!='active' or s.day<w['ready']:continue
         sg=s.sieges.get(w['province']);p=s.places[w['province']];master=s.people[w['master']]

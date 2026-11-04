@@ -1,4 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
+import {createPortal} from 'react-dom';
 import type {Catalog} from './types';
 import type {AtlasState} from './Atlas';
 import {project} from './atlas-geometry';
@@ -8,7 +9,7 @@ import type {Hit,Quality} from './map-scene';
 import {metric} from './diagnostics';
 import {read,remember} from './CampaignMedia';
 
-type Props={state:AtlasState;catalog:Catalog;selected:string;select:(id:string)=>void;selectArmy:(id:string)=>void;selectedArmy?:string;armyNames:Record<string,string>;focusToken:number;campaign:string;plannedRoute?:string[];planned?:{province:string;count:number}[];quality:Quality;onHelp:()=>void};
+type Props={query:string;setQuery:(value:string)=>void;active:boolean;state:AtlasState;catalog:Catalog;selected:string;select:(id:string)=>void;selectArmy:(id:string)=>void;selectedArmy?:string;armyNames:Record<string,string>;focusToken:number;campaign:string;plannedRoute?:string[];planned?:{province:string;count:number}[];quality:Quality;onHelp:()=>void};
 let geography:Geography|undefined;
 const load=(signal:AbortSignal)=>{
  if(geography)return Promise.resolve(geography);
@@ -16,16 +17,20 @@ const load=(signal:AbortSignal)=>{
  return Promise.all(['/mediterranean-geography.json','/map-sites.json'].map(path=>fetch(path+'?v='+version,{signal}).then(r=>{if(!r.ok)throw Error('Карта не загрузилась');return r.json()}))).then(([geo,sites])=>{geography={...geo,...sites};return geography!});
 };
 export default function CanvasMap(props:Props){
- const {state,catalog,selected,select,selectArmy,selectedArmy,armyNames,campaign,quality,onHelp}=props;
+ const {query,setQuery,state,catalog,selected,select,selectArmy,selectedArmy,armyNames,campaign,quality,onHelp}=props;
  const root=useRef<HTMLDivElement>(null),canvas=useRef<HTMLCanvasElement>(null),camera=useRef<Viewport>({x:0,y:0,width:60,height:40});
  const priorSelected=useRef(selected);
  const draw=useRef<()=>void>(()=>{}),schedule=useRef<()=>void>(()=>{}),focus=useRef<(id:string)=>void>(()=>{}),moved=useRef(false),suppress=useRef(false);
- const [hits,setHits]=useState<Hit[]>([]),[query,setQuery]=useState(''),[political,setPolitical]=useState(false),[failure,setFailure]=useState(''),[attempt,setAttempt]=useState(0);
+ const [hits,setHits]=useState<Hit[]>([]),[political,setPolitical]=useState(false),[failure,setFailure]=useState(''),[attempt,setAttempt]=useState(0);
+ const [searchHost,setSearchHost]=useState<HTMLElement|null>(null);
+ useEffect(()=>{setSearchHost(document.getElementById('campaign-map-search'))},[]);
+ useEffect(()=>{if(!props.active)setQuery('')},[props.active]);
  const latest=useRef(props);latest.current=props;
  useEffect(()=>{
   const controller=new AbortController(),abort=()=>controller.abort(),leave=(event:PageTransitionEvent)=>{if(!event.persisted)abort()};window.addEventListener('beforeunload',abort);window.addEventListener('pagehide',leave);
   const area=root.current!,surface=canvas.current!,ctx=surface.getContext('2d')!;let live=true,frame=0,w=1,h=1,geo:ReturnType<typeof paths>|null=null;
   let terrain:HTMLCanvasElement|null=null,terrainView:Viewport|null=null;let clearances:number[]=[],refineFocus:string|null=null;
+  const seaEdges=new Set(catalog.route_details.filter(r=>r.kind!=='land').map(r=>[r.from,r.to].sort().join(':')));
   const symbols=new Map<string,HTMLCanvasElement>(),points=catalog.places.map((p,index)=>({...p,index,point:project(p.lon,p.lat)}));
   let lookup=hitIndex([]),active=false,dragged=false,lastFrame=0;const frames:number[]=[];const fingers=new Map<number,Point>();let last:Point=[0,0],start:Point=[0,0],distance=0;
   const persist=()=>remember('camera:'+campaign,JSON.stringify(camera.current));
@@ -43,7 +48,7 @@ export default function CanvasMap(props:Props){
    }
    const origin=at([terrainView.x,terrainView.y],v,w,h);ctx.drawImage(terrain,...origin,terrainView.width/v.width*w,terrainView.height/v.height*h);
    const indexed=new Map(points.map(x=>[x.id,x]));ctx.lineWidth=1;ctx.strokeStyle='#9e8d65';
-   for(const [a,b] of catalog.roads){const p1=indexed.get(a),p2=indexed.get(b);if(!p1||!p2)continue;const [x,y]=at(p1.point,v,w,h),[xx,yy]=at(p2.point,v,w,h);if(Math.max(x,xx)<0||Math.min(x,xx)>w||Math.max(y,yy)<0||Math.min(y,yy)>h)continue;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(xx,yy);ctx.stroke()}
+   for(const [a,b] of catalog.roads){const p1=indexed.get(a),p2=indexed.get(b);if(!p1||!p2)continue;const [x,y]=at(p1.point,v,w,h),[xx,yy]=at(p2.point,v,w,h);if(Math.max(x,xx)<0||Math.min(x,xx)>w||Math.max(y,yy)<0||Math.min(y,yy)>h)continue;const water=seaEdges.has([a,b].sort().join(':'));ctx.strokeStyle=water?'#527e8c':'#9e8d65';ctx.setLineDash(water?[5,5]:[]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(xx,yy);ctx.stroke()}ctx.setLineDash([]);
    const visible:Hit[]=[],occupied=new Set<string>();const ordered=[...points].sort((a,b)=>Number(a.id===p.selected)-Number(b.id===p.selected));
    for(const place of ordered){const [x,y]=at(place.point,v,w,h);if(x<-40||x>w+40||y<-40||y>h+40)continue;const province=p.state.provinces[place.id];if(!province)continue;
     const chosen=place.id===p.selected;const cell=`${Math.floor(x/56)},${Math.floor(y/48)}`;const detailed=v.width<260;const label=chosen||detailed&&!occupied.has(cell);occupied.add(cell);
@@ -85,7 +90,7 @@ export default function CanvasMap(props:Props){
   <canvas ref={canvas} aria-label="Карта державы"/>
   <div className="map-hit-layer">{hits.map(hit=><button key={hit.kind+hit.id} data-testid={hit.kind==='place'?'place-'+hit.id:undefined} data-map-army={hit.kind==='army'?hit.id:undefined} aria-label={hit.kind==='army'?`Армия: ${armyNames[hit.id]}`:catalog.places.find(p=>p.id===hit.id)?.name} aria-pressed={hit.kind==='army'?hit.id===selectedArmy:hit.id===selected} style={{left:hit.x-24,top:hit.y-24,zIndex:hit.id===selected||hit.id===selectedArmy?3:1}} onClick={e=>{if(e.detail&&suppress.current)return;hit.kind==='army'?selectArmy(hit.id):select(hit.id)}}/>)}</div>
   <div className="map-hud map-tools"><button onClick={()=>choose(state.capital)}>Столица</button><button onClick={()=>{const el=root.current!;camera.current={x:-3400,y:1150-3600*el.clientHeight/el.clientWidth,width:7200,height:7200*el.clientHeight/el.clientWidth};remember('camera:'+campaign,JSON.stringify(camera.current));draw.current()}}>Весь мир</button><button aria-pressed={political} onClick={()=>setPolitical(x=>!x)}>Границы</button><button onClick={onHelp}>Советник</button></div>
-  <div className="map-hud map-search"><input aria-label="Поиск поселения" placeholder="Найти город…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<div className="map-search-results">{catalog.places.filter(p=>p.name.toLocaleLowerCase('ru').includes(query.toLocaleLowerCase('ru'))).slice(0,12).map(p=><button key={p.id} data-search-place={p.id} onClick={()=>choose(p.id)}>{p.name}</button>)}</div>}</div>
+  {searchHost&&props.active&&createPortal(<div className="map-search"><input type="search" aria-label="Поиск поселения" placeholder="Найти город…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<div className="map-search-results">{catalog.places.filter(p=>p.name.toLocaleLowerCase('ru').includes(query.trim().toLocaleLowerCase('ru'))).slice(0,12).map(p=><button key={p.id} data-search-place={p.id} onClick={()=>choose(p.id)}>{p.name}</button>)}</div>}</div>,searchHost)}
   {failure&&<div className="map-hud map-failure" role="alert">{failure}<button onClick={()=>setAttempt(x=>x+1)}>Повторить загрузку карты</button></div>}
  </div>;
 }

@@ -19,8 +19,19 @@ def run(bt,width,url,out):
     expect(page.get_by_role('button',name='Повторить загрузку карты',exact=True)).to_be_visible()
     page.get_by_role('button',name='Повторить загрузку карты',exact=True).click()
     assert page.evaluate('sdk.fullscreen')==1
-    assert page.locator('.header').bounding_box()['y']>=25
+    bar=page.locator('.header').bounding_box()
+    assert bar['y']==0 and bar['height']<=82,bar
+    assert page.get_by_role('button',name='Открыть меню кампании',exact=True).bounding_box()['y']>=25
+    assert page.locator('.header .map-search').count()==1
+    page.evaluate("Telegram.WebApp.contentSafeAreaInset.top=44;sdk.events.contentSafeAreaChanged()")
+    assert page.get_by_label('Поиск поселения',exact=True).bounding_box()['y']>=44
+    page.evaluate("Telegram.WebApp.contentSafeAreaInset.top=25;sdk.events.contentSafeAreaChanged()")
+    expect(page.get_by_role('button',name='Повторить загрузку карты',exact=True)).to_be_hidden()
+    page.screenshot(path=str(out/f'{bt.name}-compact-landscape.png'))
     expect(page.get_by_test_id('place-sogut')).to_be_visible();page.get_by_test_id('place-sogut').click();expect(page.locator('.campaign-inspector')).to_be_visible()
+    page.get_by_label('Поиск поселения',exact=True).fill('Констан')
+    page.evaluate('sdk.back()');expect(page.get_by_label('Поиск поселения',exact=True)).to_have_value('')
+    expect(page.locator('.campaign-inspector')).to_be_visible()
     page.evaluate('sdk.back()');expect(page.locator('.campaign-inspector')).to_be_hidden()
     revision=page.request.get(url+'/api/campaigns/latest').json()['state']['revision']
     page.locator('[data-map-army="ottoman-1"]').click();page.get_by_role('button',name='Указать цель на карте',exact=True).click()

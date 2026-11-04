@@ -27,6 +27,13 @@ def run(bt,width,url,out):
     new_game(page,'realm');click('Пропустить пролог');click('Пропустить обучение')
     expect(page.locator('.canvas-world canvas')).to_be_visible();expect(page.get_by_test_id('place-sogut')).to_be_visible()
     assert not page.locator('.campaign-inspector').is_visible()
+    # Search belongs to the compact bar, not a second overlay on the map.
+    assert page.locator('.header .map-search').count()==1
+    assert page.locator('.canvas-world .map-search').count()==0
+    bar=page.locator('.header').bounding_box();search=page.get_by_label('Поиск поселения',exact=True).bounding_box()
+    assert bar['y']==0 and bar['height']<=57,(bar,search)
+    assert search['y']>=bar['y'] and search['y']+search['height']<=bar['y']+bar['height']
+    assert search['height']>=48 and search['width']>=100
     assert page.locator('.canvas-world').bounding_box()['height']==height
     before=state();page.reload();resume_menu(page);expect(page.locator('.canvas-world')).to_be_visible();assert state()['revision']==before['revision']
     page.screenshot(path=str(out/f'{bt.name}-{width}-first-map.png'))
