@@ -31,9 +31,13 @@ def run(browser_type,width,url,out):
     assert next(m for m in n['statecraft']['masters'] if m['id']==master['id'])['travelling']
     # Preview is a UI command; only confirmation allocates the campaign funds.
     click('Войско');page.get_by_label('Задача армии',exact=True).select_option('cover');page.get_by_label('Цель поручения',exact=True).select_option('sogut')
+    garrison=sum(state()['provinces']['sogut']['garrison'].values());page.get_by_label('Включить подкрепление из местного гарнизона в ведомость').check()
+    page.get_by_label('Подкрепление из гарнизона',exact=True).fill('');expect(page.get_by_role('button',name='Проверить ведомость похода',exact=True)).to_be_disabled()
+    page.get_by_label('Подкрепление из гарнизона',exact=True).fill('10')
     gold=state()['gold'];n=action('Проверить ведомость похода');assert n['gold']==gold and n['statecraft']['draft']
     click('Открыть ведомость и подтвердить');n=action('Подтвердить проверенное поручение')
     assert n['gold']==gold-20 and n['armies']['ottoman-1']['mission']['purpose']=='cover'
+    assert sum(n['provinces']['sogut']['garrison'].values())==garrison-10
     page.reload();page.get_by_role('button',name='Дела правления ·',exact=False).click()
     for title in ['Поручения','Договоры','Мастера и знания','Полномочия','Дворы и связи']:
         section(title);expect(page.get_by_role('tab',name=title,exact=True)).to_have_css('color','rgb(255, 248, 231)');expect(page.get_by_role('tab',name=title,exact=True)).to_have_css('background-color','rgb(33, 78, 61)');assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),title
