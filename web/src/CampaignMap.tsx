@@ -19,7 +19,8 @@ const phases:Record<string,string>={active:'Исполняется',issued:'Пр
 
 export default function CampaignMap({active,campaign,onHelp,onTime,state:s,catalog,selected,select,armyId,selectArmy,busy,send,council,army:advancedArmy,civil,office}:Props){
  const [panel,setPanel]=useState(false);const [quality]=useGraphics();
- useEffect(()=>{const close=(e:Event)=>{if(active&&panel){e.preventDefault();setPanel(false)}};window.addEventListener('campaign-back',close);return()=>window.removeEventListener('campaign-back',close)},[active,panel]);
+ const panelState=useRef({active,panel});panelState.current={active,panel};
+ useEffect(()=>{const close=(e:Event)=>{if(panelState.current.active&&panelState.current.panel){e.preventDefault();setPanel(false)}};window.addEventListener('campaign-back',close);return()=>window.removeEventListener('campaign-back',close)},[]);
  const [focus,setFocus]=useState<'place'|'army'>(()=>read('map-object:'+campaign)==='army'?'army':'place'),[section,setSection]=useState('overview'),[picking,setPicking]=useState(false),[focusToken,setFocusToken]=useState(0);
  const [orderTarget,setOrderTarget]=useState(selected),[purpose,setPurpose]=useState('march'),[funds,setFunds]=useState('0'),[assault,setAssault]=useState(false),[requisition,setRequisition]=useState(false);
  const [troop,setTroop]=useState('militia'),[recruits,setRecruits]=useState('10'),[warehouse,setWarehouse]=useState(s.capital),[grain,setGrain]=useState('800');

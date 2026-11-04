@@ -19,6 +19,9 @@ def run(bt,width,url,out):
     page.evaluate('sdk.back()');expect(page.locator('.canvas-world')).to_be_visible();expect(page.locator('.strategy-active')).to_have_count(1)
     page.evaluate('sdk.back()');expect(page.get_by_role('dialog',name='Меню кампании',exact=True)).to_be_visible()
     page.evaluate('sdk.back()');expect(page.get_by_role('dialog')).to_have_count(0)
+    for _ in range(3):
+        page.evaluate('sdk.back()');expect(page.get_by_role('dialog',name='Меню кампании',exact=True)).to_be_visible()
+        page.evaluate('sdk.back()');expect(page.get_by_role('dialog')).to_have_count(0)
     page.set_viewport_size({'width':390,'height':844});page.get_by_role('button',name='Столица',exact=True).click();expect(page.locator('.campaign-inspector')).to_be_visible()
     assert page.locator('.campaign-inspector').bounding_box()['width']==390
     page.get_by_role('tab',name='Набор',exact=True).click();field=page.get_by_label('Число новобранцев на карте',exact=True);field.fill('');expect(page.get_by_role('button',name='Начать набор в городе',exact=True)).to_be_disabled()
