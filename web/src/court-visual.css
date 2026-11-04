@@ -71,3 +71,5 @@
 .ruler-app .button-grid button{font-size:13px;min-height:46px}
 .ruler-app .ruler-form label,.ruler-app .ruler-field{font-size:12px}
 .ruler-app .ruler-form select,.ruler-app .ruler-field select,.ruler-app input[type=number]{font-size:14px}
+.ruler-app .ruler-feedback{position:static;transform:none;width:100%;margin:0 0 16px;padding:12px 14px;background:#e3ebdb;color:#294a34;border:1px solid #acbd9d;box-shadow:none;font-size:13px}
+.ruler-app .ruler-feedback button{color:#294a34;min-height:40px;min-width:40px}

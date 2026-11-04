@@ -44,10 +44,11 @@ def run(browser_type, width, url, out):
             field.fill(value);expect(field).to_have_attribute('aria-invalid','false')
             for name in buttons:expect(page.get_by_role('button',name=name,exact=True)).to_be_enabled()
     page.goto(url)
+    expect(page.get_by_role('button',name='Стать правителем',exact=False)).to_be_visible()
     for family in ['manrope','prata']:
         response=page.request.get(url+f'/media/fonts/{family}-cyrillic.woff2')
         assert response.status==200 and response.body()[:4]==b'wOF2','Font route must return actual WOFF2 bytes'
-    loaded=page.evaluate('async()=>{await document.fonts.ready;return [...document.fonts].filter(f=>f.status==="loaded").map(f=>f.family.replaceAll("\\\"",""))}')
+    loaded=page.evaluate('async()=>{await Promise.all([document.fonts.load("20px Prata","Осман"),document.fonts.load("14px Manrope","Осман")]);await document.fonts.ready;return [...document.fonts].filter(f=>f.status==="loaded").map(f=>f.family.replaceAll("\\\"",""))}')
     assert 'Manrope' in loaded and 'Prata' in loaded,loaded
     page.get_by_role('button',name='Стать правителем',exact=False).click();page.get_by_role('button',name='Пропустить пролог',exact=True).click();stage('welcome')
     revision=state()['revision']
@@ -75,6 +76,9 @@ def run(browser_type, width, url, out):
         if speech.get_attribute('open') is None:speech.locator('summary').click()
         expect(speech.locator('p')).to_be_visible();assert len(speech.locator('p').inner_text())>20
     page.get_by_role('button',name='Перейти к решению',exact=False).click()
+    for choice in page.locator('[data-choice]').all():
+        choice.evaluate('(el)=>el.scrollIntoView({block:"center"})')
+        assert choice.evaluate('(el)=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}'),'A status message or toolbar covers a decision'
     gold=state()['gold']
     decided=act(lambda:page.locator('[data-choice="stewardship"]').click())
     assert decided['gold']==gold-25,'The first choice must actually pay once'
