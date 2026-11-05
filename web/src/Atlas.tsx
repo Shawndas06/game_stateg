@@ -1,3 +1,4 @@
+import {pageController,releasePageController} from './page-lifecycle';
 import {useEffect, useLayoutEffect, useId, useMemo, useRef, useState} from 'react';
 import type {Catalog} from './types';
 export type AtlasState={calendar:{year:number};capital:string;provinces:Record<string,{controller:string;fortress_level:number}>;armies:Record<string,{id:string;faction:string;location:string;troops:Record<string,number>;order:{target:string}|null}>;sieges:Record<string,unknown>};
@@ -88,13 +89,14 @@ export default function Atlas({state, catalog, selected, select, selectArmy, sel
   },[fullScreen]);
 
   useEffect(() => {
-    const controller = new AbortController();
+    const controller=pageController(),resume=(event:PageTransitionEvent)=>{if(event.persisted)setAttempt(x=>x+1)};
+    window.addEventListener('pageshow',resume);
     setLoadError(false);
-    fetch('/mediterranean-geography.json', {signal: controller.signal}).then(response => {
+    if(!controller.signal.aborted)fetch('/mediterranean-geography.json', {signal: controller.signal}).then(response => {
       if (!response.ok) throw new Error('Map unavailable');
       return response.json();
     }).then(data => setGeography(data)).catch(error => {if (error.name !== 'AbortError') setLoadError(true)});
-    return () => controller.abort();
+    return () => {releasePageController(controller);window.removeEventListener('pageshow',resume)};
   }, [attempt]);
   useEffect(() => {
     if (!area.current) return;

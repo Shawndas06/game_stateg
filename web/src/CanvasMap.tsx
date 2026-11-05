@@ -1,5 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
+import {pageController,releasePageController} from './page-lifecycle';
 import type {Catalog} from './types';
 import type {AtlasState} from './Atlas';
 import {project} from './atlas-geometry';
@@ -12,6 +13,7 @@ import {read,remember} from './CampaignMedia';
 type Props={query:string;setQuery:(value:string)=>void;active:boolean;state:AtlasState;catalog:Catalog;selected:string;select:(id:string)=>void;selectArmy:(id:string)=>void;selectedArmy?:string;armyNames:Record<string,string>;focusToken:number;campaign:string;plannedRoute?:string[];planned?:{province:string;count:number}[];quality:Quality;onHelp:()=>void};
 let geography:Geography|undefined;
 const load=(signal:AbortSignal)=>{
+ if(signal.aborted)return Promise.reject(signal.reason);
  if(geography)return Promise.resolve(geography);
  const version=encodeURIComponent(document.querySelector('meta[name=build]')?.getAttribute('content')||'development');
  return Promise.all(['/mediterranean-geography.json','/map-sites.json'].map(path=>fetch(path+'?v='+version,{signal}).then(r=>{if(!r.ok)throw Error('Карта не загрузилась');return r.json()}))).then(([geo,sites])=>{geography={...geo,...sites};return geography!});
@@ -27,7 +29,7 @@ export default function CanvasMap(props:Props){
  useEffect(()=>{if(!props.active)setQuery('')},[props.active]);
  const latest=useRef(props);latest.current=props;
  useEffect(()=>{
-  const controller=new AbortController(),abort=()=>controller.abort(),leave=(event:PageTransitionEvent)=>{if(!event.persisted)abort()};window.addEventListener('beforeunload',abort);window.addEventListener('pagehide',leave);
+  const controller=pageController(),resume=(event:PageTransitionEvent)=>{if(event.persisted)setAttempt(x=>x+1)};window.addEventListener('pageshow',resume);
   const area=root.current!,surface=canvas.current!,ctx=surface.getContext('2d')!;let live=true,frame=0,w=1,h=1,geo:ReturnType<typeof paths>|null=null;
   let terrain:HTMLCanvasElement|null=null,terrainView:Viewport|null=null;let clearances:number[]=[],refineFocus:string|null=null;
   const seaEdges=new Set(catalog.route_details.filter(r=>r.kind!=='land').map(r=>[r.from,r.to].sort().join(':')));
@@ -81,7 +83,7 @@ export default function CanvasMap(props:Props){
   const up=(e:PointerEvent)=>{if(!fingers.has(e.pointerId))return;const pos=position(e);fingers.delete(e.pointerId);if(area.hasPointerCapture(e.pointerId))area.releasePointerCapture(e.pointerId);if(fingers.size){last=[...fingers.values()][0];return}active=false;suppress.current=dragged||e.type==='pointercancel';if(!suppress.current){const hit=lookup(...pos);if(hit){suppress.current=true;if(hit.kind==='army')latest.current.selectArmy(hit.id);else latest.current.select(hit.id)}}persist();queue();if(dragged&&frames.length>=8){const sorted=[...frames].sort((a,b)=>a-b),p95=sorted[Math.min(sorted.length-1,Math.floor(sorted.length*.95))];metric({kind:'map_frame',duration_ms:p95});if(p95>50&&quality!=='low'&&read('map-auto')!=='off'){remember('map-quality',quality==='high'?'medium':'low');window.dispatchEvent(new Event('graphics-quality'))}}};
   const wheel=(e:WheelEvent)=>{if((e.target as HTMLElement).closest('.map-hud'))return;e.preventDefault();camera.current=zoomAt(camera.current,Math.exp(e.deltaY*.001),[e.offsetX,e.offsetY],w,h);persist();queue()};
   area.addEventListener('pointerdown',down);area.addEventListener('pointermove',move);area.addEventListener('pointerup',up);area.addEventListener('pointercancel',up);area.addEventListener('wheel',wheel,{passive:false});document.addEventListener('visibilitychange',queue);
-  return()=>{live=false;controller.abort();window.removeEventListener('beforeunload',abort);window.removeEventListener('pagehide',leave);cancelAnimationFrame(frame);observer.disconnect();area.removeEventListener('pointerdown',down);area.removeEventListener('pointermove',move);area.removeEventListener('pointerup',up);area.removeEventListener('pointercancel',up);area.removeEventListener('wheel',wheel);document.removeEventListener('visibilitychange',queue)};
+  return()=>{live=false;releasePageController(controller);window.removeEventListener('pageshow',resume);cancelAnimationFrame(frame);observer.disconnect();area.removeEventListener('pointerdown',down);area.removeEventListener('pointermove',move);area.removeEventListener('pointerup',up);area.removeEventListener('pointercancel',up);area.removeEventListener('wheel',wheel);document.removeEventListener('visibilitychange',queue)};
  },[campaign,quality,political,attempt]);
  useEffect(()=>{if(priorSelected.current!==selected){priorSelected.current=selected;focus.current(selected)}else schedule.current()},[state,selected,selectedArmy,props.plannedRoute]);
  useEffect(()=>{if(props.focusToken)focus.current(selected)},[props.focusToken]);

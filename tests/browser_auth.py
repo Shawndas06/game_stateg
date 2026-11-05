@@ -2,7 +2,7 @@
 
 Disposable local server only. No real credentials or production campaigns.
 """
-import hashlib, hmac, json, os, socket, subprocess, sys, tempfile, time
+import hashlib, hmac, json, os, re, socket, subprocess, sys, tempfile, time
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import urlopen
@@ -25,7 +25,7 @@ def run(bt,url,uid):
     context=browser.new_context(viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
     context.add_init_script('window.Telegram={WebApp:{initData:'+json.dumps(init_data(uid)) + ',ready(){},expand(){}}}')
     context.route('https://telegram.org/js/**',lambda route:route.fulfill(status=200,body='/* mock SDK injected before application */',content_type='application/javascript'))
-    page=context.new_page();errors=[];failed_resources=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page=context.new_page();errors=[];failed_resources=[];stage=['entry'];page.on('pageerror',lambda e:errors.append({'stage':stage[0],'error':str(e)}))
     page.on('requestfailed',lambda r:failed_resources.append({'url':r.url.split('?')[0],'reason':r.failure}) if 'geography.json' in r.url or 'map-sites.json' in r.url else None)
     auth_calls=[]
     def auth(route):
@@ -61,23 +61,45 @@ def run(bt,url,uid):
         if len(commands)==1:route.fulfill(status=401,json={'detail':'Сессия истекла'})
         else:route.continue_()
     page.route('**/commands',reject_once)
-    page.get_by_role('button',name='Пропустить пролог',exact=True).click()
-    expect(page.get_by_test_id('prologue')).to_have_count(0)
-    assert len(commands)==2 and commands[0]['command_id']==commands[1]['command_id']
-    page.reload();resume_menu(page)
+    # Hold real map loads across reload, rather than relying on machine timing.
+    held=[];maps=re.compile(r'/(?:mediterranean-geography|map-sites)\.json(?:\?|$)')
+    def pending_map(route):
+        if len(held)<2:
+            held.append(route);page.evaluate('(count)=>document.documentElement.dataset.heldMaps=String(count)',len(held))
+        else:route.continue_()
+    page.route(maps,pending_map);stage[0]='first-map'
+    try:
+        # A late mount after unload must not start any new map request.
+        page.evaluate("window.dispatchEvent(new Event('beforeunload'))")
+        page.get_by_role('button',name='Пропустить пролог',exact=True).click()
+        expect(page.get_by_test_id('prologue')).to_have_count(0)
+        assert len(commands)==2 and commands[0]['command_id']==commands[1]['command_id']
+        expect(page.locator('.canvas-world')).to_be_visible()
+        page.evaluate('()=>new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(ok)))')
+        assert not held,'A late map mount started I/O in a departing document'
+        with page.expect_request(lambda r:'/map-sites.json' in r.url):
+            page.evaluate("window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}))")
+        expect(page.locator('html')).to_have_attribute('data-held-maps','2')
+        stage[0]='reload';page.reload()
+    finally:
+        for route in held:route.abort()
+        page.unroute(maps,pending_map)
+    resume_menu(page)
+    stage[0]='resume'
     expect(page.locator('.canvas-world')).to_be_visible()
     page.get_by_role('button',name='Пропустить обучение',exact=True).click()
     expect(page.get_by_test_id('campaign-command-map')).to_be_visible()
+    expect(page.get_by_test_id('place-sogut')).to_be_visible()
     nav(page,'Двор')
     expect(page.get_by_text('Что делать сейчас',exact=True)).to_be_visible()
     page.get_by_role('button',name='Открыть меню кампании',exact=True).click();page.get_by_role('button',name='Главное меню',exact=True).click()
-    created.clear();new_game(page,'realm')
+    stage[0]='new-campaign';created.clear();new_game(page,'realm')
     expect(page.get_by_role('alert')).to_be_visible();page.get_by_role('button',name='Начать кампанию',exact=True).click()
     expect(page.get_by_test_id('prologue')).to_be_visible()
     assert replays and replays[-1]==created[0],'Retry with an existing save created another campaign'
     assert not errors,{'pageerrors':errors,'failed_map_requests':failed_resources}
     context.close();browser.close()
-    print(bt.name+': failed login -> retry, blocked cookies, lost create -> resume, 401 command -> same-ID retry, reload PASS',flush=True)
+    print(bt.name+': failed login -> retry, blocked cookies, lost create -> resume, 401 command -> same-ID retry, late map blocked, restored map and pending-load reload PASS',flush=True)
 
 
 def main():

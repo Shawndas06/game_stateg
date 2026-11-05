@@ -46,6 +46,7 @@ jobs:
       - run: node ../tests/map_scene.mjs
       - run: node ../tests/historical_geography.mjs
       - run: node ../tests/build_identity.mjs
+      - run: node ../tests/page_lifecycle.mjs
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"

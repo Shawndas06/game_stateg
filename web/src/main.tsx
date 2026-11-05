@@ -1,3 +1,4 @@
+import './page-lifecycle';
 import React, {useEffect, useRef, useState, lazy, Suspense} from 'react';
 import {createRoot} from 'react-dom/client';
 import type {Army, Catalog, Save, State} from './types';
