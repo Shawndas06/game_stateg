@@ -62,6 +62,7 @@ jobs:
           python scripts/wait_for_server.py
           python tests/browser_auth.py
           PYTHONPATH=. python tests/browser_strategy.py
+          PYTHONPATH=. python tests/browser_panels.py
           PYTHONPATH=. python tests/browser_maritime.py
           PYTHONPATH=. python tests/browser_gather.py
           PYTHONPATH=. python tests/browser_telegram_shell.py

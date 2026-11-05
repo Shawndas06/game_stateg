@@ -31,7 +31,7 @@ def run(bt,width,url,out):
     assert page.locator('.header .map-search').count()==1
     assert page.locator('.canvas-world .map-search').count()==0
     bar=page.locator('.header').bounding_box();search=page.get_by_label('Поиск поселения',exact=True).bounding_box()
-    assert bar['y']==0 and bar['height']<=57,(bar,search)
+    assert bar['y']==0 and bar['height']<=49,(bar,search)
     assert search['y']>=bar['y'] and search['y']+search['height']<=bar['y']+bar['height']
     assert search['height']>=48 and search['width']>=100
     assert page.locator('.canvas-world').bounding_box()['height']==height
