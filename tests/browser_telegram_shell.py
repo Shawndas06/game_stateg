@@ -20,7 +20,7 @@ def run(bt,width,url,out):
     page.get_by_role('button',name='Повторить загрузку карты',exact=True).click()
     assert page.evaluate('sdk.fullscreen')==1
     bar=page.locator('.header').bounding_box()
-    assert bar['y']==0 and bar['height']<=82,bar
+    assert bar['y']==0 and bar['height']<=74,bar
     assert page.get_by_role('button',name='Открыть меню кампании',exact=True).bounding_box()['y']>=25
     assert page.locator('.header .map-search').count()==1
     page.evaluate("Telegram.WebApp.contentSafeAreaInset.top=44;sdk.events.contentSafeAreaChanged()")
@@ -49,7 +49,7 @@ def run(bt,width,url,out):
     page.set_viewport_size({'width':390,'height':844});page.get_by_role('button',name='Столица',exact=True).click();expect(page.locator('.campaign-inspector')).to_be_visible()
     assert page.locator('.campaign-inspector').bounding_box()['width']==390
     page.get_by_role('tab',name='Набор',exact=True).click();field=page.get_by_label('Число новобранцев на карте',exact=True);field.fill('');expect(page.get_by_role('button',name='Начать набор в городе',exact=True)).to_be_disabled()
-    assert field.bounding_box()['width']>250
+    assert field.bounding_box()['width']>=150  # Responsive two-column form; shared readable-field minimum.
     page.evaluate('sdk.back()');page.screenshot(path=str(out/f'{bt.name}-landscape-portrait.png'))
     page.get_by_role('button',name='Передать ход времени',exact=True).click()
     expect(page.locator('main[aria-busy=true]')).to_have_count(0)

@@ -50,7 +50,7 @@ export default function RulerApp({initialSave,catalog,onNew,onResume,onMenu}:{in
  const personName=(id:string|null)=>id?s.people[id]?.name||'Старший отряда':'Старший отряда';
  const ruler=s.people[s.ruler_id],adminPlace=p.controlled?selected:s.capital;
  const disabled=busy||!!s.ending;
- const date=(day:number,compact=false)=>new Date(Date.UTC(1299,2,1)+day*86400000).toLocaleDateString('ru-RU',{day:'numeric',month:compact?'short':'long',year:'numeric',timeZone:'UTC'});
+ const date=(day:number,compact=false)=>new Date(Date.UTC(1299,2,1)+day*86400000).toLocaleDateString('ru-RU',{day:compact?'2-digit':'numeric',month:compact?'2-digit':'long',year:'numeric',timeZone:'UTC'});
  const atCourt=(who:RulerPerson)=>who.location===s.court_location&&!who.travel;
  const available=Object.values(s.people).filter(x=>x.faction==='ottoman'&&x.status==='active'&&atCourt(x)&&!armies.some(y=>[y.commander,y.deputy].includes(x.id))&&x.id!==s.ruler_id);
  const appointees=Object.values(s.people).filter(x=>x.id!==s.ruler_id&&x.faction==='ottoman'&&x.status==='active'&&!x.travel&&!armies.some(a=>[a.commander,a.deputy].includes(x.id)));
@@ -90,7 +90,7 @@ export default function RulerApp({initialSave,catalog,onNew,onResume,onMenu}:{in
  if(s.prologue_pending)return <Prologue busy={busy} error={error} onDone={()=>send('begin_reign')}/>;
  if(showFilm)return <AccessionFilm state={s} onClose={closeFilm}/>;
  return <div className={`app ruler-app strategy-shell ${tab==='map'?'strategy-active':'strategy-window'}`}  ref={topRef}>
-  <header className="header"><button disabled={busy} aria-label="Открыть меню кампании" onClick={()=>setConfirm('menu')}>Меню</button><div className="brand"><strong title={date(s.day)}>{date(s.day,true).replace(/\s*г\.$/,'')}</strong></div><div id="campaign-map-search"/><div className="ruler"><span>{s.ruler}</span><small>{place(ruler.location)} · {statusNames[s.ruler_status]}</small></div></header>
+  <header className="header"><button disabled={busy} aria-label="Открыть меню кампании" onClick={()=>setConfirm('menu')}>Меню</button><div className="brand"><strong title={date(s.day)}>{date(s.day,true).replace(/\s*г\.$/,'')}</strong><span className="header-gold" title={`Казна: ${s.gold} монет`} aria-label={`Казна: ${s.gold} монет`}>{s.gold} мон.</span></div><div id="campaign-map-search"/><div className="ruler"><span>{s.ruler}</span><small>{place(ruler.location)} · {statusNames[s.ruler_status]}</small></div></header>
   <div className="ruler-overview" aria-label="Краткое положение державы"><span>Казна <b>{s.gold} монет</b></span><span>Походные войска <b>{armies.reduce((n,a)=>n+total(a.troops),0)}</b></span></div>
    {<CampaignMap active={tab==='map'} campaign={save.id} onTime={()=>setConfirm('time')} onHelp={()=>setConfirm('help')} state={s} catalog={catalog} selected={selected} select={setSelected} armyId={armyId} selectArmy={id=>{setArmyId(id);remember('army:'+save.id,id)}} busy={disabled} send={send} council={openAgenda} army={()=>{setArmySection('forces');navigate('army')}} civil={(section,id)=>{setSelected(id);setCivilSection(section);navigate('state')}} office={showOffice}/>}
   <main className="content" aria-busy={busy}>{tab!=='map'&&<button className="close-section" onClick={()=>navigate('map')}>Закрыть окно · к карте</button>}
@@ -177,7 +177,7 @@ export default function RulerApp({initialSave,catalog,onNew,onResume,onMenu}:{in
    </>}
   </main>
 
-  <nav className="campaign-dock" aria-label="Дела государства"><button onClick={()=>setConfirm('government')}>Правление</button></nav>
+  <nav className="campaign-dock" aria-label="Дела государства"><button aria-label="Правление" title="Правление" onClick={()=>setConfirm('government')}><NavIcon name="state"/><span>Правление</span></button></nav>
   {confirm==='government'&&<div className="modal" role="dialog" aria-modal="true" aria-label="Правление"><section className="card"><h2>Дела государства</h2>{[['court','Совет'],['map','Карта'],['army','Войско'],['state','Государство'],['archive','Летопись']].map(([id,title])=><button key={id} onClick={()=>{setConfirm(null);navigate(id);if(id==='archive')moreArchive(true)}}>{title}</button>)}<button onClick={()=>setConfirm(null)}>Закрыть</button></section></div>}
 
   {confirm==='time'&&<div className="modal" role="dialog" aria-modal="true" aria-labelledby="ruler-time-title"><section className="card"><h2 id="ruler-time-title">Передать время исполнителям</h2><p>Войска, гонцы и обозы продолжат путь. Сроки писем и обещаний тоже идут.</p>{s.agendas.length>0&&<p className="notice">Остались вопросы без ответа. По истечении срока адресат узнает, что ответа не последовало.</p>}<button disabled={busy} onClick={()=>send('advance',{days:1,strategic:true})}>Один день или до известия</button><button className="primary" disabled={busy} onClick={()=>send('advance',{days:7,strategic:true})}>Семь дней или до известия</button><button disabled={busy} onClick={()=>send('advance',{days:90,strategic:true})}>До значимого события · не более сезона</button><button className="quiet" onClick={()=>setConfirm(null)}>Вернуться к совету</button></section></div>}
