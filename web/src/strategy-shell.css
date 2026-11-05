@@ -36,7 +36,7 @@
 @media(orientation:landscape) and (max-height:500px){.app.strategy-shell .map-tools{flex-direction:row}}
 
 /* The heading stays outside the one scrolling body. */
-.app.strategy-shell{--inspector-width:min(480px,52vw);--campaign-footer:calc(56px + var(--tg-bottom,0px))}
+.app.strategy-shell{--inspector-width:min(480px,calc(50vw - 32px));--campaign-footer:calc(56px + var(--tg-bottom,0px))}
 .app.strategy-shell>.header{padding:var(--campaign-safe-top) max(8px,var(--tg-right,0px)) 0 max(8px,var(--tg-left,0px));border-bottom:0;gap:8px}
 .app.strategy-shell .header .brand{flex-direction:column;align-items:flex-start;gap:0}
 .header-gold{font:14px/1.25 system-ui,sans-serif;color:#ecdbad;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}

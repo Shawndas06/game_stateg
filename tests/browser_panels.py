@@ -32,6 +32,7 @@ def run(bt,width,url,out):
         page.set_viewport_size({'width':w,'height':h})
         page.evaluate("document.documentElement.style.setProperty('--tg-top','25px');document.documentElement.style.setProperty('--tg-bottom','12px')")
         choose('Сёгют','sogut');geometry()
+        if w>h:page.get_by_test_id('place-sogut').click(trial=True)
         bar=page.locator('.header').bounding_box()
         if bar['height']>74:page.screenshot(path=str(out/f'{bt.name}-bar-height-failure.png'))
         assert bar['height']<=74,(w,h,bar,page.locator('.header .brand').bounding_box(),search.bounding_box())
