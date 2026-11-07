@@ -1,4 +1,4 @@
-import {project} from './atlas-geometry';
+import {project,landSampler} from './atlas-geometry';
 import type {Geography,Point,Viewport} from './atlas-geometry';
 export type Quality='low'|'medium'|'high';
 export const profiles={low:{dpr:1,tolerance:.03,decor:0},medium:{dpr:1.5,tolerance:.01,decor:1},high:{dpr:2,tolerance:0,decor:2}};
@@ -9,6 +9,24 @@ export function coastClearances(geo:Geography,points:Point[]){
  return points.map(p=>{let distance=Infinity;for(const [a,b] of edges){const dx=b[0]-a[0],dy=b[1]-a[1],length=dx*dx+dy*dy,t=length?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/length)):0;distance=Math.min(distance,Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy))}return distance});
 }
 export const groundScale=(clearance:number,unitsPerPixel:number)=>Math.min(1,clearance/(28*unitsPerPixel)*.9);
+const extent=(geo:Geography)=>geo.land.reduce((b,p)=>p[0].reduce(([w,s,e,n],[x,y])=>[Math.min(w,x),Math.min(s,y),Math.max(e,x),Math.max(n,y)],b),[Infinity,Infinity,-Infinity,-Infinity]);
+export function fitGeography(geo:Geography,w:number,h:number):Viewport{
+ const [west,south,east,north]=extent(geo),a=project(west,north),b=project(east,south),width=Math.max(b[0]-a[0],(b[1]-a[1])*w/h)*1.08,height=width*h/w;
+ return {x:(a[0]+b[0]-width)/2,y:(a[1]+b[1]-height)/2,width,height};
+}
+/** A bounded, stable lattice; only preparation samples geography, never a drag frame. */
+export function landscapeMarks(geo:Geography,mountains:Geography['land'],woods:number[][],towns:Point[]){
+ const land=landSampler(geo),mountain=landSampler({land:mountains,lakes:[]});
+ const marks:{lon:number;lat:number;kind:'mountain'|'forest'}[]=[];
+ const bounds=extent(geo);
+ for(let row=0;row<Math.ceil((bounds[3]-bounds[1])/.24);row++)for(let col=0;col<Math.ceil((bounds[2]-bounds[0])/.3);col++){
+  const lon=bounds[0]+col*.3+(row%2)*.15+Math.sin(row*17+col*13)*.03,lat=bounds[1]+row*.24;
+  if(!land(lon,lat)||towns.some(([x,y])=>Math.hypot(x-lon,y-lat)<.14))continue;
+  const wooded=woods.some(([x,y,rx,ry])=>((x-lon)/rx)**2+((y-lat)/ry)**2<1);
+  const rock=mountain(lon,lat);if(wooded||rock)marks.push({lon,lat,kind:rock&&(!wooded||(row+col)%3===0)?'mountain':'forest'});
+ }
+ return marks;
+}
 /** Bounded Douglas-Peucker simplification; rings and holes remain separate. */
 export function simplifyRing(points:Point[],tolerance:number,protectedPoints:Point[]=[],regions:number[][]=[]):Point[]{
  if(!tolerance||points.length<5)return points;
@@ -25,6 +43,8 @@ export function paths(geo:Geography,quality:Quality){return Object.fromEntries([
 export function at(point:Point,v:Viewport,w:number,h:number):Point{return [(point[0]-v.x)/v.width*w,(point[1]-v.y)/v.height*h]}
 export function zoomAt(v:Viewport,factor:number,p:Point,w:number,h:number):Viewport{const next=Math.max(.6,Math.min(7600,v.width*factor)),height=next*h/w;return {x:v.x+p[0]/w*(v.width-next),y:v.y+p[1]/h*(v.height-height),width:next,height}}
 export type Hit={id:string;kind:'place'|'army';x:number;y:number};
+export type LabelBox={x:number;y:number;width:number;height:number};
+export const labelFits=(b:LabelBox,others:LabelBox[])=>!others.some(a=>a.x<b.x+b.width+4&&a.x+a.width+4>b.x&&a.y<b.y+b.height+4&&a.y+a.height+4>b.y);
 export function hitIndex(items:Hit[]){const grid=new Map<string,Hit[]>();for(const p of items){const k=`${Math.floor(p.x/48)},${Math.floor(p.y/48)}`;grid.set(k,[...(grid.get(k)||[]),p])}return (x:number,y:number)=>{const hits:Hit[]=[];for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)hits.push(...(grid.get(`${Math.floor(x/48)+dx},${Math.floor(y/48)+dy}`)||[]));return hits.filter(p=>Math.abs(p.x-x)<=24&&Math.abs(p.y-y)<=24).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0]}}
 export type SettlementSize='small'|'medium'|'large';
 export function settlementSize(place:{kind:string;map_size?:SettlementSize},level=0):SettlementSize{return level>=3?'large':level>=2&&place.map_size!=='large'?'medium':place.map_size||(place.kind==='city'?'medium':'small')}

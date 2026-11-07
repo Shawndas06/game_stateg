@@ -95,3 +95,5 @@
 .map-symbol-key>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.map-symbol-key figure{margin:8px 0;text-align:center}.map-symbol-key canvas{width:64px;height:64px}.map-symbol-key figcaption{font-size:14px;line-height:1.4}
 
 .government-body input:not([type=checkbox]){min-height:48px}@media(max-width:1000px){.app.strategy-window[data-office-section=orders]>.content{max-height:min(62dvh,calc(100dvh - var(--campaign-bar) - var(--campaign-footer) - 16px))}}
+
+.mechanics-help details,.mechanic-tip{margin:12px 0;border:1px solid #c9bb99;border-radius:8px;background:#f4eddb;padding:0 12px}.mechanics-help summary,.mechanic-tip summary{font-size:16px;line-height:1.4;min-height:48px;display:flex;align-items:center;cursor:pointer;font-weight:600}.mechanics-help details[open],.mechanic-tip[open]{padding-bottom:12px}.mechanics-help button{margin:6px 6px 0 0}.mechanics-help p{font-size:16px;line-height:1.55}
