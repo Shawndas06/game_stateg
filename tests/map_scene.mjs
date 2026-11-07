@@ -28,3 +28,14 @@ prefs.remember('map-quality','low');assert.equal(prefs.read('map-quality'),'low'
 globalThis.localStorage={getItem(){return 'on'},setItem(){throw Error('quota')}};
 prefs.remember('voice','off');assert.equal(prefs.read('voice'),'off');
 console.log('PASS optional preferences: blocked storage and quota failures retain current-session choices');
+for(const quality of Object.keys(profiles)){
+ for(const [size,kind] of [['small','fortress'],['medium','city'],['large','city']]){
+  assert.equal(scene.settlementSize({map_size:size,kind},1),size,quality);
+  assert.equal(scene.settlementSize({map_size:size,kind},0),size);
+ }
+}
+assert.equal(scene.settlementSize({kind:'fortress'},1),'small');
+assert.equal(scene.settlementSize({kind:'city'},1),'medium');
+assert.equal(scene.settlementSize({kind:'village',map_size:'small'},2),'medium');
+assert.equal(scene.settlementSize({kind:'village',map_size:'small'},3),'large');
+console.log('PASS settlement display scale: catalogue/fallback/upgrades, no capital or garrison inputs, quality-independent');

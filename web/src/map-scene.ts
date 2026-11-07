@@ -26,11 +26,23 @@ export function at(point:Point,v:Viewport,w:number,h:number):Point{return [(poin
 export function zoomAt(v:Viewport,factor:number,p:Point,w:number,h:number):Viewport{const next=Math.max(.6,Math.min(7600,v.width*factor)),height=next*h/w;return {x:v.x+p[0]/w*(v.width-next),y:v.y+p[1]/h*(v.height-height),width:next,height}}
 export type Hit={id:string;kind:'place'|'army';x:number;y:number};
 export function hitIndex(items:Hit[]){const grid=new Map<string,Hit[]>();for(const p of items){const k=`${Math.floor(p.x/48)},${Math.floor(p.y/48)}`;grid.set(k,[...(grid.get(k)||[]),p])}return (x:number,y:number)=>{const hits:Hit[]=[];for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)hits.push(...(grid.get(`${Math.floor(x/48)+dx},${Math.floor(y/48)+dy}`)||[]));return hits.filter(p=>Math.abs(p.x-x)<=24&&Math.abs(p.y-y)<=24).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0]}}
-/** Isometric symbols are painted once into reusable transparent sprite canvases. */
-export function settlement(fort:boolean,port:boolean,quality:Quality){const canvas=document.createElement('canvas');canvas.width=128;canvas.height=128;const c=canvas.getContext('2d')!;c.scale(2,2);c.translate(32,40);c.lineJoin='round';c.lineWidth=.8;c.strokeStyle='#625139';
+export type SettlementSize='small'|'medium'|'large';
+export function settlementSize(place:{kind:string;map_size?:SettlementSize},level=0):SettlementSize{return level>=3?'large':level>=2&&place.map_size!=='large'?'medium':place.map_size||(place.kind==='city'?'medium':'small')}
+export function settlementLabel(place:{kind:string;map_size?:SettlementSize},level:number){const size=settlementSize(place,level);return level>0?({small:'Малая крепость',medium:'Укреплённый город',large:'Крупный укреплённый город'}[size]):({small:'Малое поселение',medium:'Город',large:'Крупный город'}[size])}
+/** One cached sprite per type/scale/port. Every ground footprint fits the same coastal guard. */
+export function settlement(fort:boolean,port:boolean,quality:Quality,size:SettlementSize='medium'){
+ const canvas=document.createElement('canvas');canvas.width=128;canvas.height=128;const c=canvas.getContext('2d')!;
+ c.scale(2,2);c.translate(32,40);c.lineJoin='round';c.lineWidth=.8;c.strokeStyle='#625139';
  const poly=(p:Point[],fill:string)=>{c.beginPath();p.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fillStyle=fill;c.fill();c.stroke()};
- c.fillStyle='#7d715438';c.beginPath();c.ellipse(0,11,25,6,0,0,7);c.fill();
- if(fort){poly([[-22,-4],[0,5],[23,-4],[1,-13]],'#f0dcb0');poly([[-22,-4],[0,5],[0,18],[-22,9]],'#cfb580');poly([[0,5],[23,-4],[23,9],[0,18]],'#a78858');for(const [x,y] of [[-18,-6],[15,-11],[0,-17]]){poly([[x-5,y-16],[x+3,y-12],[x+3,y+8],[x-5,y+4]],'#e0ca96');poly([[x+3,y-12],[x+9,y-16],[x+9,y+4],[x+3,y+8]],'#a68b5b');poly([[x-6,y-16],[x+1,y-25],[x+10,y-16],[x+3,y-12]],'#6f7770')}c.fillStyle='#544c37';c.fillRect(-4,6,7,10)}else{for(const [x,y] of [[-14,0],[9,-5]]){poly([[x-9,y],[x+1,y+4],[x+11,y],[x+11,y+12],[x,y+16],[x-9,y+11]],'#dfc593');poly([[x-11,y],[x-1,y-12],[x+12,y],[x+1,y+5]],'#956f50')}}
- if(quality==='high'){c.strokeStyle='#7c694743';c.lineWidth=.5;for(let y=-8;y<12;y+=4){c.beginPath();c.moveTo(-19,y);c.lineTo(-2,y+7);c.stroke()}}
- if(port){c.strokeStyle='#356b72';c.beginPath();c.moveTo(-25,-3);c.lineTo(-25,15);c.moveTo(-31,10);c.quadraticCurveTo(-25,22,-19,10);c.stroke()}return canvas;
+ const house=(x:number,y:number)=>{poly([[x-6,y],[x+1,y+3],[x+8,y],[x+8,y+8],[x,y+11],[x-6,y+7]],'#dfc593');poly([[x-8,y],[x,y-9],[x+9,y],[x+1,y+4]],'#956f50')};
+ const tower=(x:number,y:number)=>{poly([[x-4,y-13],[x+2,y-10],[x+2,y+7],[x-4,y+4]],'#e0ca96');poly([[x+2,y-10],[x+7,y-13],[x+7,y+4],[x+2,y+7]],'#a68b5b');poly([[x-5,y-13],[x,y-21],[x+8,y-13],[x+2,y-10]],'#6f7770')};
+ const r={small:14,medium:20,large:24}[size];c.fillStyle='#7d715438';c.beginPath();c.ellipse(0,11,r,5,0,0,7);c.fill();
+ if(fort){
+  poly([[-r,-3],[0,5],[r,-3],[0,-11]],'#f0dcb0');poly([[-r,-3],[0,5],[0,17],[-r,9]],'#cfb580');poly([[0,5],[r,-3],[r,9],[0,17]],'#a78858');
+  const towers:Point[]=size==='small'?[[0,-5]]:size==='medium'?[[-13,-3],[10,-7]]:[[-18,-3],[14,-7],[0,-16]];
+  for(const [x,y] of towers)tower(x,y);
+  if(size==='large'){house(-7,3);house(7,0)}c.fillStyle='#544c37';c.fillRect(-3,8,6,8);
+ }else{for(const [x,y] of (size==='small'?[[-7,0],[7,-4]]:size==='medium'?[[-12,0],[0,-9],[12,0]]:[[-16,0],[-7,-11],[7,-12],[16,-1],[0,5]]) as Point[])house(x,y)}
+ if(quality==='high'&&fort){c.strokeStyle='#7c694743';c.lineWidth=.5;for(let y=5;y<14;y+=4){c.beginPath();c.moveTo(-r+3,y);c.lineTo(-2,y+6);c.stroke()}}
+ if(port){c.strokeStyle='#356b72';c.beginPath();c.moveTo(-25,-3);c.lineTo(-25,15);c.moveTo(-29,10);c.quadraticCurveTo(-25,20,-19,10);c.stroke()}return canvas;
 }
