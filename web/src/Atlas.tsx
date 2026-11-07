@@ -5,7 +5,7 @@ export type AtlasState={calendar:{year:number};capital:string;provinces:Record<s
 import {layoutPlaces, landSampler, polygonPath, project, screenPoint} from './atlas-geometry';
 import type {Geography, Point, Viewport} from './atlas-geometry';
 import './atlas.css';
-import {coastClearances,groundScale} from './map-scene';
+import {coastClearances,groundScale,settlementSize} from './map-scene';
 
 const factionColor: Record<string, string> = {ottoman: '#335d45', byzantine: '#934b42', germiyan: '#82704b'};
 const colorFor = (fid: string) => factionColor[fid] || `hsl(${[...fid].reduce((a,c)=>a+c.charCodeAt(0)*17,0)%360} 29% 40%)`;
@@ -281,7 +281,7 @@ export default function Atlas({state, catalog, selected, select, selectArmy, sel
             <rect className="place-hit-target" x="-24" y="-24" width="48" height="48" rx="10" fill="transparent"/>
             {active && <ellipse cy="2" rx="26" ry="14" fill="#eee0a3" stroke="#aa7836" strokeWidth="1.5"/>}
             {besieged && <ellipse cy="2" rx="29" ry="17" fill="none" stroke="#9e4834" strokeWidth="1.6" strokeDasharray="4 3"/>}
-            <g pointerEvents="none" transform={`scale(${groundScale(clearance.get(p.id)||0,view.width/width)})`}>{place.fortress_level>0 ? <Fortress large={p.id === state.capital || p.kind==='city'} port={p.port}/> : <Village/>}</g><circle r="2.5" fill={colorFor(place.controller)} pointerEvents="none"/>
+            <g pointerEvents="none" transform={`scale(${groundScale(clearance.get(p.id)||0,view.width/width)*({small:.6,medium:.8,large:1}[settlementSize(p,place.fortress_level)])})`}>{place.fortress_level>0 ? <Fortress large={settlementSize(p,place.fortress_level)==='large'} port={p.port}/> : <Village/>}</g><circle r="2.5" fill={colorFor(place.controller)} pointerEvents="none"/>
             <path d="M-3-27V-45" stroke="#665437" strokeWidth="1.1" pointerEvents="none"/>
             <path d="M-3-45Q3-48 11-44L10-35Q3-39-3-36Z" fill={color} stroke="#fff0c6" strokeWidth=".7" pointerEvents="none"/>
             {place.controller === 'ottoman' && <path d="M3-43A3 3 0 1 0 6-38A2.6 2.6 0 1 1 3-43" fill="#f8edc9" pointerEvents="none"/>}

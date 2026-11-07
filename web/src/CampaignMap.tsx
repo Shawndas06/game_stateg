@@ -1,3 +1,4 @@
+import {settlementLabel} from './map-scene';
 import {useEffect,useRef,useState} from 'react';
 import GatherPanel from './GatherPanel';
 import CampaignCoach from './CampaignCoach';
@@ -86,7 +87,7 @@ export default function CampaignMap({active,campaign,onHelp,onTime,state:s,catal
     <details><summary>Снабжение армии</summary><label className="ruler-field">Склад<select aria-label="Склад на карте" value={warehouse} onChange={e=>setWarehouse(e.target.value)}>{own.map(x=><option key={x.id} value={x.id}>{place(x.id)}</option>)}</select></label><NumberField label="Пайки обоза на карте" value={grain} onChange={setGrain} min={1} max={10000}/><button disabled={blocked||food===null||s.gold<5} onClick={()=>send('provision',{army:a.id,province:warehouse,amount:food})}>Отправить снабжение · 5 монет</button><p>Пайки берутся со склада и доставляются обозом. Оформление не пополняет армию мгновенно.</p></details>
     <div className="button-grid"><button disabled={blocked} onClick={()=>send('recall',{army:a.id})}>Отозвать к столице</button><button onClick={advancedArmy}>Состав, гарнизоны и личное командование</button></div>
    </>} </>:<>
-    {section==='overview'&&<><span className="eyebrow">{p.fortress_level?'Укреплённое владение':'Поселение'}</span><p>{catalog.factions[p.controller]}{p.owner!==p.controller&&` · прежний владелец: ${catalog.factions[p.owner]}`}</p>
+    {section==='overview'&&<><span className="eyebrow">{settlementLabel(catalog.places.find(x=>x.id===selected)!,p.fortress_level)}</span><p>{catalog.factions[p.controller]}{p.owner!==p.controller&&` · прежний владелец: ${catalog.factions[p.owner]}`}</p>
     {catalog.places.find(x=>x.id===selected)?.port&&<section className="port-summary"><h3>⚓ {p.harbor?.name||"Историческая пристань"}</h3><p>{p.harbor?.access||catalog.places.find(x=>x.id===selected)?.port_access}</p><p>{p.harbor?.description||"Город связан с морской или речной пристанью; состояние причалов нужно уточнить донесением."}</p>{p.harbor&&!p.harbor.operational&&<p>Для полноценной работы нужно закрепить владение соглашением.</p>}{p.controlled&&s.statecraft&&<button onClick={()=>office("masters",undefined,selected)}>Морское дело: мастера и обучение</button>}</section>}
     <small className="map-source">{p.source}{p.known_day!==null&&` · день ${p.known_day}`}</small>
     <div className="map-facts"><span>Гарнизон <b>{p.garrison===null?'Неизвестен':size(p.garrison)}</b></span><span>Запасы <b>{p.grain??'Нет сведений'}</b></span><span>Стены <b>{p.walls??'Нет сведений'}</b></span></div>
