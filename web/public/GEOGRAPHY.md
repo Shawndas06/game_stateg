@@ -30,3 +30,12 @@ illustrations, not surveyed contours. These thematic layers do not change moveme
 The Canvas landscape is cached with the static terrain buffer at all qualities;
 land clipping and lake overpainting prevent decorations in water. Historical
 settlement coordinates and shoreline data are unchanged.
+
+After changing geography, settlements or landscape, run:
+node scripts/build_map_cache.mjs
+This writes conservative coastal clearances to map-sites.json and stable
+landscape marks to map-landscape.json. The client hashes actual geography bytes
+and uses derivatives only when that fingerprint and settlement coordinates match;
+unverified/stale resources use the original computation. CI compares every
+derivative with the cold calculation and checks slow-CPU reload without extending
+the visibility deadline. No gameplay data or saved campaign is cached here.

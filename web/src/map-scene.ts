@@ -5,10 +5,13 @@ export const profiles={low:{dpr:1,tolerance:.03,decor:0},medium:{dpr:1.5,toleran
 export const factionColor=(id:string)=>({ottoman:'#315c46',byzantine:'#914b43',germiyan:'#9b814d'}[id]||`hsl(${[...id].reduce((v,c)=>v+c.charCodeAt(0)*17,0)%360} 28% 43%)`);
 /** Ground footprints shrink near a real shore; geographic anchors never move. */
 export function coastClearances(geo:Geography,points:Point[]){
+ const cached=geo.coast_cache;
+ if(geo.geometry_fingerprint&&cached?.geometry===geo.geometry_fingerprint&&Array.isArray(cached.values)&&cached.values.length===points.length&&cached.values.every(v=>Number.isFinite(v)&&v>=0)&&geo.settlements?.length===points.length&&geo.settlements.every((p,i)=>{const xy=project(...p);return xy[0]===points[i][0]&&xy[1]===points[i][1]}))return cached.values.slice();
  const edges=Object.values({land:geo.land,lakes:geo.lakes}).flatMap(polys=>polys.flatMap(poly=>poly.flatMap(ring=>{const r=ring.map(p=>project(...p));return r.slice(1).map((b,i)=>[r[i],b] as [Point,Point])})));
  return points.map(p=>{let distance=Infinity;for(const [a,b] of edges){const dx=b[0]-a[0],dy=b[1]-a[1],length=dx*dx+dy*dy,t=length?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/length)):0;distance=Math.min(distance,Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy))}return distance});
 }
 export const groundScale=(clearance:number,unitsPerPixel:number)=>Math.min(1,clearance/(28*unitsPerPixel)*.9);
+export const reliefRegions=(mountains:Geography['land'],hills:number[][]):Geography['land']=>[...mountains,...hills.map(([lon,lat,rx,ry])=>[Array.from({length:13},(_,i)=>[lon+Math.cos(i*Math.PI/6)*rx,lat+Math.sin(i*Math.PI/6)*ry] as Point)])];
 const extent=(geo:Geography)=>geo.land.reduce((b,p)=>p[0].reduce(([w,s,e,n],[x,y])=>[Math.min(w,x),Math.min(s,y),Math.max(e,x),Math.max(n,y)],b),[Infinity,Infinity,-Infinity,-Infinity]);
 export function fitGeography(geo:Geography,w:number,h:number):Viewport{
  const [west,south,east,north]=extent(geo),a=project(west,north),b=project(east,south),width=Math.max(b[0]-a[0],(b[1]-a[1])*w/h)*1.08,height=width*h/w;
@@ -39,7 +42,9 @@ export function simplifyRing(points:Point[],tolerance:number,protectedPoints:Poi
  }
  const result=[...keep].sort((a,b)=>a-b).map(i=>points[i]);return result.length>=4?result:points;
 }
-export function paths(geo:Geography,quality:Quality){return Object.fromEntries(['land','lakes'].map(key=>[key,geo[key as 'land'|'lakes'].map(poly=>{const path=new Path2D();for(const [index,ring] of poly.entries()){const points=simplifyRing(ring.map(([lon,lat])=>project(lon,lat)),index?0:profiles[quality].tolerance,(geo.settlements||[]).map(p=>project(...p)),(geo.precision_regions||[]).map(([w,s,e,n])=>[...project(w,n),...project(e,s)]));points.forEach(([x,y],i)=>{if(i)path.lineTo(x,y);else path.moveTo(x,y)});path.closePath()}return path})])) as Record<'land'|'lakes',Path2D[]>}
+export function paths(geo:Geography,quality:Quality){
+ const protectedPoints=(geo.settlements||[]).map(p=>project(...p)),regions=(geo.precision_regions||[]).map(([w,s,e,n])=>[...project(w,n),...project(e,s)]);
+ return Object.fromEntries(['land','lakes'].map(key=>[key,geo[key as 'land'|'lakes'].map(poly=>{const path=new Path2D();for(const [index,ring] of poly.entries()){const points=simplifyRing(ring.map(([lon,lat])=>project(lon,lat)),index?0:profiles[quality].tolerance,protectedPoints,regions);points.forEach(([x,y],i)=>{if(i)path.lineTo(x,y);else path.moveTo(x,y)});path.closePath()}return path})])) as Record<'land'|'lakes',Path2D[]>}
 export function at(point:Point,v:Viewport,w:number,h:number):Point{return [(point[0]-v.x)/v.width*w,(point[1]-v.y)/v.height*h]}
 export function zoomAt(v:Viewport,factor:number,p:Point,w:number,h:number):Viewport{const next=Math.max(.6,Math.min(7600,v.width*factor)),height=next*h/w;return {x:v.x+p[0]/w*(v.width-next),y:v.y+p[1]/h*(v.height-height),width:next,height}}
 export type Hit={id:string;kind:'place'|'army';x:number;y:number};

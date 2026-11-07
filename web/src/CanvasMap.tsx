@@ -17,7 +17,13 @@ const load=(signal:AbortSignal)=>{
  if(signal.aborted)return Promise.reject(signal.reason);
  if(geography)return Promise.resolve(geography);
  const version=encodeURIComponent(document.querySelector('meta[name=build]')?.getAttribute('content')||'development');
- return Promise.all(['/mediterranean-geography.json','/map-sites.json'].map(path=>fetch(path+'?v='+version,{signal}).then(r=>{if(!r.ok)throw Error('Карта не загрузилась');return r.json()}))).then(([geo,sites])=>{geography={...geo,...sites};return geography!});
+ const get=(path:string)=>fetch(path+'?v='+version,{signal}).then(r=>{if(!r.ok)throw Error('Карта не загрузилась');return r});
+ return Promise.all([get('/mediterranean-geography.json').then(r=>r.arrayBuffer()),get('/map-sites.json').then(r=>r.json())]).then(async([raw,sites])=>{
+  if(signal.aborted)throw signal.reason;
+  let fingerprint:string|undefined;try{const hash=await crypto.subtle.digest('SHA-256',raw);fingerprint=Array.from(new Uint8Array(hash),n=>n.toString(16).padStart(2,'0')).join('')}catch{/* Unverified derivatives use the cold, safe calculation. */}
+  if(signal.aborted)throw signal.reason;
+  geography={...JSON.parse(new TextDecoder().decode(raw)),...sites,geometry_fingerprint:fingerprint};return geography!;
+ });
 };
 export default function CanvasMap(props:Props){
  const {query,setQuery,state,catalog,selected,select,selectArmy,selectedArmy,armyNames,campaign,quality,onHelp}=props;

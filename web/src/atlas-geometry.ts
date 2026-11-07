@@ -2,7 +2,7 @@ import type {Catalog} from './types';
 
 export type Point = [number, number];
 export type Polygon = Point[][];
-export type Geography = {land: Polygon[]; lakes: Polygon[]; settlements?:Point[];precision_regions?:[number,number,number,number][]};
+export type Geography = {land: Polygon[]; lakes: Polygon[]; settlements?:Point[];precision_regions?:[number,number,number,number][];geometry_fingerprint?:string;coast_cache?:{geometry:string;values:number[]}};
 export type Viewport = {x: number; y: number; width: number; height: number};
 
 export const project = (lon: number, lat: number): Point => [(lon + 10) * 20, (50 - lat) * 23];

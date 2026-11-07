@@ -45,6 +45,7 @@ jobs:
       - run: node ../tests/atlas_geometry.mjs
       - run: node ../tests/map_scene.mjs
       - run: node ../tests/historical_geography.mjs
+      - run: node ../tests/map_cache.mjs
       - run: node ../tests/build_identity.mjs
       - run: node ../tests/page_lifecycle.mjs
       - uses: actions/setup-python@v5
@@ -62,6 +63,7 @@ jobs:
           trap 'kill "$server_pid"' EXIT
           python scripts/wait_for_server.py
           python tests/browser_auth.py
+          PYTHONPATH=. python tests/browser_map_boot.py
           PYTHONPATH=. python tests/browser_strategy.py
           PYTHONPATH=. python tests/browser_panels.py
           PYTHONPATH=. python tests/browser_phone_hud.py

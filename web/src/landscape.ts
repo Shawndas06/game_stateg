@@ -1,16 +1,19 @@
-import data from './map-landscape.json';
+import source from './map-landscape.json';
 import {project} from './atlas-geometry';
 import type {Geography,Point,Viewport} from './atlas-geometry';
-import {landscapeMarks} from './map-scene';
+import {landscapeMarks,reliefRegions} from './map-scene';
 import type {Quality} from './map-scene';
+type LandscapeData={mountains:Geography['land'];rivers:Point[][];hills:number[][];woods:number[][];cache?:{geometry:string;settlements:string;marks:[number,number,'mountain'|'forest'][]}};
+const data=source as LandscapeData;
 
 export function prepareLandscape(geo:Geography,towns:Point[]){
  const mountains=new Path2D(),rivers=new Path2D(),ridges=new Path2D();
- const regions:Geography['land']=[...data.mountains as Geography['land'],...data.hills.map(([lon,lat,rx,ry])=>[Array.from({length:13},(_,i)=>[lon+Math.cos(i*Math.PI/6)*rx,lat+Math.sin(i*Math.PI/6)*ry] as Point)])];
+ const regions=reliefRegions(data.mountains,data.hills),cache=data.cache;
+ const marks=cache&&cache.geometry===geo.geometry_fingerprint&&cache.settlements===JSON.stringify(towns)?cache.marks.map(([lon,lat,kind])=>({lon,lat,kind})):landscapeMarks(geo,regions,data.woods,towns);
  for(const polygon of data.mountains)for(const ring of polygon){ring.forEach(([lon,lat],i)=>{const p=project(lon,lat);if(i)mountains.lineTo(...p);else mountains.moveTo(...p)});mountains.closePath()}
  for(const [lon,lat,rx,ry] of data.hills){const [x,y]=project(lon,lat);for(let i=0;i<7;i++){const xx=x+(i/3-1)*rx*20,yy=y+Math.sin(i*1.8)*ry*12;if(i)ridges.lineTo(xx,yy);else ridges.moveTo(xx,yy)}}
  for(const line of data.rivers)line.forEach(([lon,lat],i)=>{const p=project(lon,lat);if(i)rivers.lineTo(...p);else rivers.moveTo(...p)});
- return {mountains,rivers,ridges,marks:landscapeMarks(geo,regions,data.woods,towns).map(m=>({...m,point:project(m.lon,m.lat)}))};
+ return {mountains,rivers,ridges,marks:marks.map(m=>({...m,point:project(m.lon,m.lat)}))};
 }
 
 /** Draw only when the existing static terrain buffer is rebuilt. Caller clips to land. */
