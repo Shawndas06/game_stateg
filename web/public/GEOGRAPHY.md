@@ -13,3 +13,29 @@ The Mediterranean overview displays the original assets/map/generated_map.png
 from this project; Vite packages that original file as a hashed build asset.
 The chapter's mountains and trees are cartographic decoration, not elevation
 or vegetation survey data.
+
+Canvas campaign landscape: map-landscape.json is derived from Natural Earth
+10m geography regions (Range/mtn) and 50m rivers/lake centerlines (River only),
+filtered to the existing map extent and rounded to .001 degree. Sources:
+https://github.com/nvkelso/natural-earth-vector/blob/master/geojson/ne_10m_geography_regions_polys.geojson
+https://github.com/nvkelso/natural-earth-vector/blob/master/geojson/ne_50m_rivers_lake_centerlines.geojson
+Both are public domain under Natural Earth's terms above. Offline reproduction:
+python scripts/build_landscape.py DIRECTORY_WITH_SOURCE_JSONS
+Source SHA256: b7b26e50ea917d3696aec87f932def2bf5f890f5770e441d59c162c6f4c92a77
+and f286e0ce978fde999ca2d7a78c764be08542e19b63cded52b05c12d5173ccc51.
+Wooded belts are schematic cartographic decoration, not reconstructed 1299
+forest boundaries. Four local relief ellipses schematize Uludag, Sundiken,
+Samanli and Domanic where global range polygons omit local detail; they are
+illustrations, not surveyed contours. These thematic layers do not change movement/simulation.
+The Canvas landscape is cached with the static terrain buffer at all qualities;
+land clipping and lake overpainting prevent decorations in water. Historical
+settlement coordinates and shoreline data are unchanged.
+
+After changing geography, settlements or landscape, run:
+node scripts/build_map_cache.mjs
+This writes conservative coastal clearances to map-sites.json and stable
+landscape marks to map-landscape.json. The client hashes actual geography bytes
+and uses derivatives only when that fingerprint and settlement coordinates match;
+unverified/stale resources use the original computation. CI compares every
+derivative with the cold calculation and checks slow-CPU reload without extending
+the visibility deadline. No gameplay data or saved campaign is cached here.

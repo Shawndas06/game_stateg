@@ -27,7 +27,7 @@ export default function StatecraftPanel({initialTarget,initialProvince,state:s,c
  const targetField=<label>Государство<select aria-label="Государство для переговоров" value={target} onChange={e=>setTarget(e.target.value)}>{d.contacts.map(f=><option key={f} value={f}>{faction(f)}</option>)}</select></label>;
  const waiting=d.offers.filter(o=>o.b==='ottoman'&&o.status==='arrived'),cases=d.cases.filter(c=>c.status==='open');
  return <section className="statecraft-office" data-testid="statecraft-office">
-  <span className="eyebrow">Сведения → решение → исполнение</span><h1>Дела правления</h1>
+  <span className="eyebrow">Сведения → решение → исполнение</span>
   <p className="section-hint">Приказ ещё не результат. Здесь видны исполнители, движение дел и вопросы, которым нужен ваш ответ.</p>
   <div className="task-tabs" role="tablist" aria-label="Дела правления">{[['orders','Поручения'],['diplomacy',`Договоры${waiting.length?' · '+waiting.length:''}`],['masters','Мастера и знания'],['governance','Полномочия'],['intrigue','Дворы и связи'],...(Object.keys(s.sieges).length?[['sieges','Осады']]:[])].map(([id,title])=><button key={id} role="tab" aria-selected={section===id} onClick={()=>setSection(id)}>{title}</button>)}</div>
   {section==='orders'&&<>

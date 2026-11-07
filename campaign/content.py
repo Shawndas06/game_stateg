@@ -43,6 +43,9 @@ ROUTE_TYPES.update({tuple(sorted(edge)): "sea" for edge in chain_edges(SEA_CHAIN
 INITIAL_SEAFARERS = {p[4] for p in PLACES if p[7]} - {"ottoman"}
 ADJACENCY = {pid: sorted(b if a == pid else a for a, b in ROADS if pid in (a, b)) for pid in PLACE_INDEX}
 PLACE_KINDS = {p[0]: "village" if p[6] == 0 else "city" if p[7] or p[5] >= 55 else "fortress" for p in PLACES}
+# Cartographic scale, not population counts or the current number of soldiers.
+MAJOR_MAP_CITIES = {"constantinople", "cairo", "alexandria", "damascus", "aleppo", "venice_city", "genoa_city", "thessalonica"}
+MAP_SIZES = {p[0]: "large" if p[0] in MAJOR_MAP_CITIES else "medium" if PLACE_KINDS[p[0]] == "city" or p[6] >= 40 else "small" for p in PLACES}
 CAPITALS = {fid: next(p[0] for p in PLACES if p[4] == fid) for fid in FACTIONS}
 CAPITALS.update({"ottoman": "sogut", "byzantine": "constantinople", "germiyan": "kutahya", "genoa": "genoa_city", "venice": "venice_city", "mamluk": "cairo"})
 TROOPS = {

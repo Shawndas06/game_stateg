@@ -8,7 +8,7 @@ import random
 from typing import Any
 from functools import lru_cache
 
-from campaign.content import ADJACENCY, BUILDINGS, CAPITALS, DYNASTY, EVENTS, FACTIONS, FORTRESS_PROJECT, INITIAL_SEAFARERS, PLACES, PLACE_INDEX, PLACE_KINDS, REGIONS, REFORMS, ROADS, ROUTE_TYPES, TECHNOLOGIES, TROOPS
+from campaign.content import MAP_SIZES, ADJACENCY, BUILDINGS, CAPITALS, DYNASTY, EVENTS, FACTIONS, FORTRESS_PROJECT, INITIAL_SEAFARERS, PLACES, PLACE_INDEX, PLACE_KINDS, REGIONS, REFORMS, ROADS, ROUTE_TYPES, TECHNOLOGIES, TROOPS
 from campaign.models import Army, Faction, Province, Siege, State
 from campaign.world import PORT_ACCESS
 
@@ -704,4 +704,4 @@ def view(s: State) -> dict:
 
 
 def catalog() -> dict:
-    return {"places": [{"id": x[0], "name": x[1], "lon": x[2], "lat": x[3], "port": x[7], "port_access": PORT_ACCESS.get(x[0],"Морская пристань") if x[7] else None, "kind": PLACE_KINDS[x[0]]} for x in PLACES], "roads": ROADS, "troops": TROOPS, "buildings": BUILDINGS, "technologies": TECHNOLOGIES, "reforms": REFORMS, "factions": FACTIONS, "regions": REGIONS, "dynasty": DYNASTY, "fortress_project": FORTRESS_PROJECT, "route_details": [{"from": a, "to": b, "kind": route_kind(a, b), "cost": {"land": 0, "ferry": 10, "sea": 20}[route_kind(a,b)]} for a,b in ROADS]}
+    return {"places": [{"id": x[0], "name": x[1], "lon": x[2], "lat": x[3], "port": x[7], "port_access": PORT_ACCESS.get(x[0],"Морская пристань") if x[7] else None, "kind": PLACE_KINDS[x[0]], "map_size": MAP_SIZES[x[0]]} for x in PLACES], "roads": ROADS, "troops": TROOPS, "buildings": BUILDINGS, "technologies": TECHNOLOGIES, "reforms": REFORMS, "factions": FACTIONS, "regions": REGIONS, "dynasty": DYNASTY, "fortress_project": FORTRESS_PROJECT, "route_details": [{"from": a, "to": b, "kind": route_kind(a, b), "cost": {"land": 0, "ferry": 10, "sea": 20}[route_kind(a,b)]} for a,b in ROADS]}

@@ -5,10 +5,11 @@ import type {Catalog} from './types';
 import type {AtlasState} from './Atlas';
 import {project} from './atlas-geometry';
 import type {Geography,Point,Viewport} from './atlas-geometry';
-import {coastClearances,groundScale,at,factionColor,hitIndex,paths,profiles,settlement,zoomAt} from './map-scene';
-import type {Hit,Quality} from './map-scene';
+import {coastClearances,groundScale,fitGeography,at,factionColor,labelFits,hitIndex,paths,profiles,settlement,settlementSize,zoomAt} from './map-scene';
+import type {Hit,Quality,LabelBox} from './map-scene';
 import {metric} from './diagnostics';
 import {read,remember} from './CampaignMedia';
+import {prepareLandscape,paintLandscape} from './landscape';
 
 type Props={query:string;setQuery:(value:string)=>void;active:boolean;state:AtlasState;catalog:Catalog;selected:string;select:(id:string)=>void;selectArmy:(id:string)=>void;selectedArmy?:string;armyNames:Record<string,string>;focusToken:number;campaign:string;plannedRoute?:string[];planned?:{province:string;count:number}[];quality:Quality;onHelp:()=>void};
 let geography:Geography|undefined;
@@ -16,7 +17,13 @@ const load=(signal:AbortSignal)=>{
  if(signal.aborted)return Promise.reject(signal.reason);
  if(geography)return Promise.resolve(geography);
  const version=encodeURIComponent(document.querySelector('meta[name=build]')?.getAttribute('content')||'development');
- return Promise.all(['/mediterranean-geography.json','/map-sites.json'].map(path=>fetch(path+'?v='+version,{signal}).then(r=>{if(!r.ok)throw Error('Карта не загрузилась');return r.json()}))).then(([geo,sites])=>{geography={...geo,...sites};return geography!});
+ const get=(path:string)=>fetch(path+'?v='+version,{signal}).then(r=>{if(!r.ok)throw Error('Карта не загрузилась');return r});
+ return Promise.all([get('/mediterranean-geography.json').then(r=>r.arrayBuffer()),get('/map-sites.json').then(r=>r.json())]).then(async([raw,sites])=>{
+  if(signal.aborted)throw signal.reason;
+  let fingerprint:string|undefined;try{const hash=await crypto.subtle.digest('SHA-256',raw);fingerprint=Array.from(new Uint8Array(hash),n=>n.toString(16).padStart(2,'0')).join('')}catch{/* Unverified derivatives use the cold, safe calculation. */}
+  if(signal.aborted)throw signal.reason;
+  geography={...JSON.parse(new TextDecoder().decode(raw)),...sites,geometry_fingerprint:fingerprint};return geography!;
+ });
 };
 export default function CanvasMap(props:Props){
  const {query,setQuery,state,catalog,selected,select,selectArmy,selectedArmy,armyNames,campaign,quality,onHelp}=props;
@@ -31,7 +38,7 @@ export default function CanvasMap(props:Props){
  useEffect(()=>{
   const controller=pageController(),resume=(event:PageTransitionEvent)=>{if(event.persisted)setAttempt(x=>x+1)};window.addEventListener('pageshow',resume);
   const area=root.current!,surface=canvas.current!,ctx=surface.getContext('2d')!;let live=true,frame=0,w=1,h=1,geo:ReturnType<typeof paths>|null=null;
-  let terrain:HTMLCanvasElement|null=null,terrainView:Viewport|null=null;let clearances:number[]=[],refineFocus:string|null=null;
+  let terrain:HTMLCanvasElement|null=null,terrainView:Viewport|null=null,relief:ReturnType<typeof prepareLandscape>|null=null;let clearances:number[]=[],refineFocus:string|null=null;
   const seaEdges=new Set(catalog.route_details.filter(r=>r.kind!=='land').map(r=>[r.from,r.to].sort().join(':')));
   const symbols=new Map<string,HTMLCanvasElement>(),points=catalog.places.map((p,index)=>({...p,index,point:project(p.lon,p.lat)}));
   let lookup=hitIndex([]),active=false,dragged=false,lastFrame=0;const frames:number[]=[];const fingers=new Map<number,Point>();let last:Point=[0,0],start:Point=[0,0],distance=0;
@@ -45,24 +52,30 @@ export default function CanvasMap(props:Props){
     terrain=document.createElement('canvas');terrain.width=Math.ceil(w*dpr*1.5);terrain.height=Math.ceil(h*dpr*1.5);const t=terrain.getContext('2d')!;
     t.fillStyle='#9bb9ba';t.fillRect(0,0,terrain.width,terrain.height);t.scale(terrain.width/terrainView.width,terrain.height/terrainView.height);t.translate(-terrainView.x,-terrainView.y);
     t.fillStyle='#d8c99d';t.strokeStyle='#8a927b';t.lineWidth=v.width/w;
-    for(const path of geo.land){t.fill(path,'evenodd');t.stroke(path)}t.fillStyle='#9bb9ba';for(const path of geo.lakes)t.fill(path,'evenodd');
-    if(s.decor){t.strokeStyle='#8b845966';t.fillStyle='#b1a57955';t.lineWidth=v.width/w;for(const [lon,lat] of [[29.22,40.07],[30.1,39.4],[31.1,40.6],[32.5,37],[24.5,42.7],[35.5,38.6]]){const [x,y]=project(lon,lat);for(let n=0;n<s.decor*3;n++){const xx=x+n*.7,yy=y+(n%2)*.7;t.beginPath();t.moveTo(xx-.6,yy+.5);t.lineTo(xx,yy-.6);t.lineTo(xx+.6,yy+.5);t.closePath();t.fill();t.stroke()}}}
+    for(const path of geo.land){t.fill(path,'evenodd');t.stroke(path)}
+    t.save();t.clip(geo.land[0],'evenodd');if(relief)paintLandscape(t,relief,terrainView,v.width/w,quality);t.restore();
+    t.fillStyle='#9bb9ba';for(const path of geo.lakes)t.fill(path,'evenodd');
+
    }
    const origin=at([terrainView.x,terrainView.y],v,w,h);ctx.drawImage(terrain,...origin,terrainView.width/v.width*w,terrainView.height/v.height*h);
    const indexed=new Map(points.map(x=>[x.id,x]));ctx.lineWidth=1;ctx.strokeStyle='#9e8d65';
    for(const [a,b] of catalog.roads){const p1=indexed.get(a),p2=indexed.get(b);if(!p1||!p2)continue;const [x,y]=at(p1.point,v,w,h),[xx,yy]=at(p2.point,v,w,h);if(Math.max(x,xx)<0||Math.min(x,xx)>w||Math.max(y,yy)<0||Math.min(y,yy)>h)continue;const water=seaEdges.has([a,b].sort().join(':'));ctx.strokeStyle=water?'#527e8c':'#9e8d65';ctx.setLineDash(water?[5,5]:[]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(xx,yy);ctx.stroke()}ctx.setLineDash([]);
-   const visible:Hit[]=[],occupied=new Set<string>();const ordered=[...points].sort((a,b)=>Number(a.id===p.selected)-Number(b.id===p.selected));
+   const captions:{x:number;y:number;text:string;chosen:boolean;large:boolean}[]=[],labelBoxes:LabelBox[]=[];const visible:Hit[]=[],occupied=new Set<string>();const ordered=[...points].sort((a,b)=>Number(a.id===p.selected)-Number(b.id===p.selected));
    for(const place of ordered){const [x,y]=at(place.point,v,w,h);if(x<-40||x>w+40||y<-40||y>h+40)continue;const province=p.state.provinces[place.id];if(!province)continue;
-    const chosen=place.id===p.selected;const cell=`${Math.floor(x/56)},${Math.floor(y/48)}`;const detailed=v.width<260;const label=chosen||detailed&&!occupied.has(cell);occupied.add(cell);
+    const chosen=place.id===p.selected,size=settlementSize(place,province.fortress_level);const cell=`${Math.floor(x/56)},${Math.floor(y/48)}`;const detailed=v.width<260;const label=chosen||size==='large'&&v.width<2400||detailed&&!occupied.has(cell);occupied.add(cell);
     if(political){ctx.globalAlpha=.2;ctx.fillStyle=factionColor(province.controller);ctx.beginPath();ctx.arc(x,y,34,0,7);ctx.fill();ctx.globalAlpha=1}
     if(chosen){ctx.strokeStyle='#bc8739';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(x,y+6,25,12,0,0,7);ctx.stroke()}
-    if(detailed||chosen){const key=`${province.fortress_level>0}:${place.port}`;if(!symbols.has(key))symbols.set(key,settlement(province.fortress_level>0,place.port,quality));const scale=groundScale(clearances[place.index]??0,v.width/w);if(scale>=.12)ctx.drawImage(symbols.get(key)!,x-32*scale,y-49*scale,64*scale,64*scale)}else{ctx.fillStyle=factionColor(province.controller);ctx.fillRect(x-3,y-3,6,6)}
-    ctx.fillStyle=factionColor(province.controller);ctx.fillRect(x+14,y-39,11,7);ctx.strokeStyle='#655a40';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+14,y-39);ctx.lineTo(x+14,y-22);ctx.stroke();
+    if(detailed||chosen){const key=`${province.fortress_level>0}:${place.port}:${size}`;if(!symbols.has(key))symbols.set(key,settlement(province.fortress_level>0,place.port,quality,size));const scale=groundScale(clearances[place.index]??0,v.width/w);if(scale>=.12)ctx.drawImage(symbols.get(key)!,x-32*scale,y-49*scale,64*scale,64*scale)}else{ctx.fillStyle=factionColor(province.controller);const r={small:2,medium:3,large:4}[settlementSize(place,province.fortress_level)];ctx.fillRect(x-r,y-r,r*2,r*2)}
+    if(detailed||chosen){ctx.fillStyle=factionColor(province.controller);ctx.fillRect(x+14,y-39,11,7);ctx.strokeStyle='#655a40';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+14,y-39);ctx.lineTo(x+14,y-22);ctx.stroke();}
     if(p.state.sieges[place.id]){ctx.strokeStyle='#a14535';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,28,0,7);ctx.stroke()}
     ctx.fillStyle=factionColor(province.controller);ctx.beginPath();ctx.arc(x,y,2.5,0,7);ctx.fill();
-    if(place.port&&!label){ctx.font='13px sans-serif';ctx.fillStyle='#245c70';ctx.textAlign='center';ctx.fillText('⚓',x,y-7)}
-    if(label){const text=(place.id===p.state.capital?'★ ':'')+place.name+(place.port?' ⚓':'');ctx.font='14px Georgia';const width=ctx.measureText(text).width+10;ctx.fillStyle=chosen?'#234936':'#f3e6c8';ctx.fillRect(x-width/2,y+19,width,22);ctx.fillStyle=chosen?'#fff9e9':'#413f2c';ctx.textAlign='center';ctx.fillText(text,x,y+35)}
+    if(place.port&&!label&&detailed){ctx.font='13px sans-serif';ctx.fillStyle='#245c70';ctx.textAlign='center';ctx.fillText('⚓',x,y-7)}
+    if(label)captions.push({x,y,text:(place.id===p.state.capital?'★ ':'')+place.name+(place.port?' ⚓':''),chosen,large:size==='large'});
     visible.push({id:place.id,kind:'place',x,y});
+   }
+   for(const label of captions.sort((a,b)=>Number(b.chosen)-Number(a.chosen)||Number(b.large)-Number(a.large))){
+    const {x,y,text,chosen,large}=label;ctx.font=large?'bold 16px Georgia':'14px Georgia';const width=ctx.measureText(text).width+10,box={x:x-width/2,y:y+19,width,height:22};
+    if(!chosen&&!labelFits(box,labelBoxes))continue;labelBoxes.push(box);ctx.fillStyle=chosen?'#234936':'#f3e6c8';ctx.fillRect(box.x,box.y,width,22);ctx.fillStyle=chosen?'#fff9e9':'#413f2c';ctx.textAlign='center';ctx.fillText(text,x,y+35);
    }
    for(const army of Object.values(p.state.armies)){if(army.faction!=='ottoman')continue;const place=indexed.get(army.location);if(!place)continue;const [x,y0]=at(place.point,v,w,h),y=y0-45;if(x<-24||x>w+24||y<-24||y>h+24)continue;const n=Object.values(army.troops).reduce((a,b)=>a+b,0);if(!n)continue;ctx.fillStyle=army.id===p.selectedArmy?'#a87532':'#244d39';ctx.fillRect(x-23,y-18,46,28);ctx.fillStyle='#fff9e8';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(String(n),x,y+1);visible.push({id:army.id,kind:'army',x,y});
     if(army.order){const target=indexed.get(army.order.target);if(target){const end=at(target.point,v,w,h);ctx.strokeStyle='#315b42';ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(...end);ctx.stroke();ctx.setLineDash([])}}
@@ -76,7 +89,7 @@ export default function CanvasMap(props:Props){
   function resize(){const box=area.getBoundingClientRect();w=Math.max(1,box.width);h=Math.max(1,box.height);camera.current.height=camera.current.width*h/w;queue()}
   const observer=new ResizeObserver(resize);observer.observe(area);resize();
   try{const saved=JSON.parse(read('camera:'+campaign)||'null');if(saved&&['x','y','width','height'].every(k=>Number.isFinite(saved[k]))&&saved.width>=.6&&saved.width<=7600)camera.current={...saved,height:saved.width*h/w};else center(state.capital)}catch{center(state.capital)}
-  load(controller.signal).then(data=>{if(live){clearances=coastClearances(data,points.map(p=>p.point));geo=paths(data,quality);for(const key of ['land','lakes'] as const){const combined=new Path2D();for(const path of geo[key])combined.addPath(path);geo[key]=[combined]}if(refineFocus){const id=refineFocus;refineFocus=null;center(id)}setFailure('');queue()}}).catch(()=>{if(live&&!controller.signal.aborted)setFailure('Карта не загрузилась. Проверьте соединение и повторите.')});
+  load(controller.signal).then(data=>{if(live){clearances=coastClearances(data,points.map(p=>p.point));geo=paths(data,quality);relief=prepareLandscape(data,catalog.places.map(p=>[p.lon,p.lat]));for(const key of ['land','lakes'] as const){const combined=new Path2D();for(const path of geo[key])combined.addPath(path);geo[key]=[combined]}if(refineFocus){const id=refineFocus;refineFocus=null;center(id)}setFailure('');queue()}}).catch(()=>{if(live&&!controller.signal.aborted)setFailure('Карта не загрузилась. Проверьте соединение и повторите.')});
   const position=(e:PointerEvent):Point=>{const b=area.getBoundingClientRect();return [e.clientX-b.x,e.clientY-b.y]};
   const down=(e:PointerEvent)=>{if((e.target as HTMLElement).closest('.map-hud'))return;if(!fingers.size){moved.current=false;dragged=false;lastFrame=0;frames.length=0;start=position(e)}fingers.set(e.pointerId,position(e));active=true;area.setPointerCapture(e.pointerId);const a=[...fingers.values()];last=a.length>1?[(a[0][0]+a[1][0])/2,(a[0][1]+a[1][1])/2]:a[0];distance=a.length>1?Math.hypot(a[1][0]-a[0][0],a[1][1]-a[0][1]):0;};
   const move=(e:PointerEvent)=>{if(!fingers.has(e.pointerId))return;fingers.set(e.pointerId,position(e));const a=[...fingers.values()],mid:Point=a.length>1?[(a[0][0]+a[1][0])/2,(a[0][1]+a[1][1])/2]:a[0];if(a.length>1){const d=Math.hypot(a[1][0]-a[0][0],a[1][1]-a[0][1]);if(distance>0)camera.current=zoomAt(camera.current,distance/Math.max(1,d),mid,w,h);distance=d;moved.current=true}else if(Math.hypot(mid[0]-start[0],mid[1]-start[1])>6)moved.current=true;if(moved.current){camera.current.x-=(mid[0]-last[0])*camera.current.width/w;camera.current.y-=(mid[1]-last[1])*camera.current.height/h;dragged=true;queue()}last=mid};
@@ -90,8 +103,8 @@ export default function CanvasMap(props:Props){
  const choose=(id:string)=>{focus.current(id);select(id);setQuery('')};
  return <div className="canvas-world" ref={root} data-quality={quality}>
   <canvas ref={canvas} aria-label="Карта державы"/>
-  <div className="map-hit-layer">{hits.map(hit=><button key={hit.kind+hit.id} data-testid={hit.kind==='place'?'place-'+hit.id:undefined} data-map-army={hit.kind==='army'?hit.id:undefined} aria-label={hit.kind==='army'?`Армия: ${armyNames[hit.id]}`:catalog.places.find(p=>p.id===hit.id)?.name} aria-pressed={hit.kind==='army'?hit.id===selectedArmy:hit.id===selected} style={{left:hit.x-24,top:hit.y-24,zIndex:hit.id===selected||hit.id===selectedArmy?3:1}} onClick={e=>{if(e.detail&&suppress.current)return;hit.kind==='army'?selectArmy(hit.id):select(hit.id)}}/>)}</div>
-  <div className="map-hud map-tools"><button onClick={()=>choose(state.capital)}>Столица</button><button onClick={()=>{const el=root.current!;camera.current={x:-3400,y:1150-3600*el.clientHeight/el.clientWidth,width:7200,height:7200*el.clientHeight/el.clientWidth};remember('camera:'+campaign,JSON.stringify(camera.current));draw.current()}}>Весь мир</button><button aria-pressed={political} onClick={()=>setPolitical(x=>!x)}>Границы</button><button onClick={onHelp}>Советник</button></div>
+  <div className="map-hit-layer">{hits.map(hit=><button key={hit.kind+hit.id} data-testid={hit.kind==='place'?'place-'+hit.id:undefined} data-map-army={hit.kind==='army'?hit.id:undefined} aria-label={hit.kind==='army'?`Армия: ${armyNames[hit.id]}`:catalog.places.find(p=>p.id===hit.id)?.name} data-site-size={hit.kind==='place'?settlementSize(catalog.places.find(p=>p.id===hit.id)!,state.provinces[hit.id]?.fortress_level):undefined} aria-pressed={hit.kind==='army'?hit.id===selectedArmy:hit.id===selected} style={{left:hit.x-24,top:hit.y-24,zIndex:hit.id===selected||hit.id===selectedArmy?3:1}} onClick={e=>{if(e.detail&&suppress.current)return;hit.kind==='army'?selectArmy(hit.id):select(hit.id)}}/>)}</div>
+  <div className="map-hud map-tools"><button onClick={()=>choose(state.capital)}>Столица</button><button onClick={()=>{if(!geography)return;const el=root.current!;camera.current=fitGeography(geography,el.clientWidth,el.clientHeight);remember('camera:'+campaign,JSON.stringify(camera.current));draw.current()}}>Весь мир</button><button aria-pressed={political} onClick={()=>setPolitical(x=>!x)}>Границы</button><button onClick={onHelp}>Советник</button></div>
   {searchHost&&props.active&&createPortal(<div className="map-search"><input type="search" aria-label="Поиск поселения" placeholder="Найти город…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<div className="map-search-results">{catalog.places.filter(p=>p.name.toLocaleLowerCase('ru').includes(query.trim().toLocaleLowerCase('ru'))).slice(0,12).map(p=><button key={p.id} data-search-place={p.id} onClick={()=>choose(p.id)}>{p.name}</button>)}</div>}</div>,searchHost)}
   {failure&&<div className="map-hud map-failure" role="alert">{failure}<button onClick={()=>setAttempt(x=>x+1)}>Повторить загрузку карты</button></div>}
  </div>;

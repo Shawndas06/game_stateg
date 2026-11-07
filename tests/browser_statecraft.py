@@ -24,7 +24,7 @@ def run(browser_type,width,url,out):
     before=state();n=action('Включить живое государство');assert n['gold']==before['gold'] and n['day']==before['day']
     click('Атлас')
     page.get_by_role('button',name='Поручения и донесения',exact=False).click()
-    expect(page.get_by_role('heading',name='Дела правления',exact=True)).to_be_visible()
+    expect(page.get_by_role('heading',name='Поручения и донесения',exact=True)).to_be_visible()
     section('Договоры');page.get_by_label('Государство для переговоров').select_option('germiyan')
     page.get_by_label('Платёж при согласии').fill('')
     expect(page.get_by_role('button',name='Отправить условия',exact=True)).to_be_disabled()
